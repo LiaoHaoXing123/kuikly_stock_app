@@ -49,6 +49,9 @@ class StockDetailPage : Pager() {
     // 状态：是否正在加载 AI 分析
     internal var isAnalyzing by observable(false)
 
+    // 状态：加载失败的错误信息
+    internal var loadErrorMessage by observable("")
+
     override fun didInit() {
         super.didInit()
         // 从路由参数中获取股票代码
@@ -158,7 +161,9 @@ class StockDetailPage : Pager() {
                 )
             } catch (e: Throwable) {
                 stockDetail = null
-                BridgeModule().toast("加载失败：${e.message}")
+                loadErrorMessage = e.message ?: "未知错误"
+                acquireModule<BridgeModule>(BridgeModule.MODULE_NAME)
+                    .toast("加载失败：${loadErrorMessage}")
             } finally {
                 isLoading = false
             }
@@ -186,7 +191,8 @@ class StockDetailPage : Pager() {
                 )
             } catch (e: Throwable) {
                 aiAnalysis = null
-                BridgeModule().toast("AI 分析失败：${e.message}")
+                acquireModule<BridgeModule>(BridgeModule.MODULE_NAME)
+                    .toast("AI 分析失败：${e.message}")
             } finally {
                 isAnalyzing = false
             }
@@ -225,6 +231,7 @@ internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
             alignItems(FlexAlign.CENTER)
             height(48f)
             backgroundColor(0xFF1976D2)
+            paddingTop(ctx.pagerData.statusBarHeight)
         }
 
         // 返回按钮
@@ -239,7 +246,7 @@ internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
             }
             Text {
                 attr {
-                    text("‹ 返回\nBack")
+                    text("返回\nBack")
                     fontSize(16f)
                     color(0xFFFFFFFF)
                 }
@@ -271,7 +278,7 @@ internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
             }
             Text {
                 attr {
-                    text("🤖\nAI分析")
+                    text("AI\n分析")
                     fontSize(12f)
                     color(0xFFFFFFFF)
                 }
@@ -298,7 +305,7 @@ internal fun ViewContainer<*, *>.infoCard(ctx: StockDetailPage) {
         // 标题
         Text {
             attr {
-                text("📋 基础信息\nBasic Info")
+                text("基础信息\nBasic Info")
                 fontSize(15f)
                 fontWeightBold()
                 color(0xFF333333)
@@ -366,7 +373,7 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
         // 标题
         Text {
             attr {
-                text("💹 实时行情\nReal-time Quote")
+                text("实时行情\nReal-time Quote")
                 fontSize(15f)
                 fontWeightBold()
                 color(0xFF333333)
@@ -492,7 +499,7 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
         // 标题
         Text {
             attr {
-                text("📊 K线走势（近30日）\nK-Line Chart")
+                text("K线走势（近30日）\nK-Line Chart")
                 fontSize(15f)
                 fontWeightBold()
                 color(0xFF333333)
@@ -541,7 +548,7 @@ internal fun ViewContainer<*, *>.chartPlaceholder(klineData: List<KLineDataItem>
 
         Text {
             attr {
-                text("📈 [K线图表区域]\n\n实际项目中应集成 MPAndroidChart 或其他图表库\n展示 ${klineData.size} 条K线数据")
+                text("[K线图表区域]\n\n实际项目中应集成 MPAndroidChart 或其他图表库\n展示 ${klineData.size} 条K线数据")
                 fontSize(12f)
                 color(0xFF999999)
                 textAlignCenter()
@@ -629,7 +636,7 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
 
             Text {
                 attr {
-                    text("🤖 AI 智能解读\nAI Analysis")
+                    text("AI 智能解读\nAI Analysis")
                     fontSize(15f)
                     fontWeightBold()
                     color(0xFF333333)
@@ -651,7 +658,7 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
                     }
                     Text {
                         attr {
-                            text("🔄 刷新分析\nRefresh")
+                            text("刷新分析\nRefresh")
                             fontSize(11f)
                             color(0xFF666666)
                         }
@@ -697,12 +704,12 @@ internal fun ViewContainer<*, *>.renderAICard(card: Map<String, Any?>) {
 
         // 卡片标题和图标
         val icon = when (type) {
-            "trend_card" -> "📈"
-            "signal_card" -> "📡"
-            "risk_card" -> "⚠️"
-            "suggestion_card" -> "💡"
-            "summary_card" -> "📋"
-            else -> "📌"
+            "trend_card" -> "[趋势]"
+            "signal_card" -> "[信号]"
+            "risk_card" -> "[风险]"
+            "suggestion_card" -> "[建议]"
+            "summary_card" -> "[总结]"
+            else -> "[卡片]"
         }
 
         Text {
@@ -771,7 +778,7 @@ internal fun ViewContainer<*, *>.analyzingView() {
 
         Text {
             attr {
-                text("⏳ AI 正在分析中...\nAnalyzing...")
+                text("AI 正在分析中...\nAnalyzing...")
                 fontSize(14f)
                 color(0xFF666666)
             }
@@ -803,7 +810,7 @@ internal fun ViewContainer<*, *>.notAnalyzedView(ctx: StockDetailPage) {
 
         Text {
             attr {
-                text("🤔 尚未进行 AI 分析\nNot analyzed yet")
+                text("尚未进行 AI 分析\nNot analyzed yet")
                 fontSize(14f)
                 color(0xFF666666)
             }
@@ -857,7 +864,7 @@ internal fun ViewContainer<*, *>.stockDetailLoadingView() {
 
         Text {
             attr {
-                text("⏳ 加载中...\nLoading...")
+                text("加载中...\nLoading...")
                 fontSize(16f)
                 color(0xFF666666)
             }
@@ -879,7 +886,7 @@ internal fun ViewContainer<*, *>.errorView(ctx: StockDetailPage) {
 
         Text {
             attr {
-                text("❌ 加载失败\nLoad failed")
+                text("加载失败\nLoad failed")
                 fontSize(16f)
                 color(0xFFE53935)
             }
@@ -887,10 +894,11 @@ internal fun ViewContainer<*, *>.errorView(ctx: StockDetailPage) {
 
         Text {
             attr {
-                text("未找到股票 ${ctx.stockCode} 的数据\nNo data found for stock ${ctx.stockCode}")
+                text("${ctx.loadErrorMessage}\n\n未找到股票 ${ctx.stockCode} 的数据\nNo data found for stock ${ctx.stockCode}")
                 fontSize(13f)
                 color(0xFF999999)
                 marginTop(8f)
+                textAlignCenter()
             }
         }
 

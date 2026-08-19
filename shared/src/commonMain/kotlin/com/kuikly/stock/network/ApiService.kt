@@ -35,6 +35,7 @@ object ApiService {
     /**
      * 获取股票列表
      * GET /api/v1/stocks?page=&size=&keyword=&sort=&order=
+     * 后端 data 为分页对象 { total, page, page_size, items }，需取 items
      */
     suspend fun getStockList(
         page: Int = 1,
@@ -49,10 +50,10 @@ object ApiService {
             if (!sort.isNullOrBlank()) append("&sort=$sort")
             if (!order.isNullOrBlank()) append("&order=$order")
         }
-        val data = unwrap<List<StockInfo>> {
-            ApiClient.client.get(url).body<ApiResponse<List<StockInfo>>>()
+        val paginated = unwrap<PaginatedResponse<StockInfo>> {
+            ApiClient.client.get(url).body<ApiResponse<PaginatedResponse<StockInfo>>>()
         }
-        return data.map { it.toStockListItem() }
+        return paginated.items.map { it.toStockListItem() }
     }
 
     /**

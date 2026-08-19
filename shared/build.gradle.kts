@@ -76,8 +76,8 @@ kotlin {
         val androidMain by getting {
             dependencies {
                 api("com.tencent.kuikly-open:core-render-android:${Version.getKuiklyVersion()}")
-                // Android/JVM 引擎
-                implementation("io.ktor:ktor-client-cio:2.3.0")
+                // Android 上使用 OkHttp 引擎，比 CIO 在真机网络环境下更稳定
+                implementation("io.ktor:ktor-client-okhttp:2.3.0")
             }
         }
 

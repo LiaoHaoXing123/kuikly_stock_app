@@ -95,7 +95,7 @@ class ChatMainPage : Pager() {
                 messages.add(
                     ChatMessageItem(
                         role = "assistant",
-                        content = "⚠️ 调用 AI 失败：${e.message}\n\n请确认后端服务已启动，且手机与电脑在同一 WiFi。",
+                        content = "调用 AI 失败：${e.message}\n\n请确认后端服务已启动，且手机与电脑在同一 WiFi。",
                         isUser = false
                     )
                 )
@@ -130,7 +130,7 @@ internal fun ViewContainer<*, *>.topBar(ctx: ChatMainPage) {
             }
             Text {
                 attr {
-                    text("📊 大盘行情")
+                    text("大盘行情")
                     fontSize(14f)
                     color(0xFF1976D2)
                     fontWeightBold()
@@ -155,8 +155,8 @@ internal fun ViewContainer<*, *>.topBar(ctx: ChatMainPage) {
             attr { padding(left = 16f, top = 12f, right = 16f, bottom = 12f) }
             Text {
                 attr {
-                    text("📝")
-                    fontSize(16f)
+                    text("历史")
+                    fontSize(14f)
                     color(0xFF666666)
                 }
             }
@@ -235,11 +235,11 @@ internal fun ViewContainer<*, *>.renderCard(
     when (type) {
         "stock_card" -> stockCard(ctx, card)
         "chart_card" -> chartCard(card)
-        "trend_card" -> aiCard(card, "📈 趋势判断")
-        "signal_card" -> aiCard(card, "📡 技术信号")
-        "risk_card" -> aiCard(card, "⚠️ 风险评估")
-        "suggestion_card" -> aiCard(card, "💡 操作建议")
-        "summary_card" -> aiCard(card, "📋 AI 总结")
+        "trend_card" -> aiCard(card, "趋势判断")
+        "signal_card" -> aiCard(card, "技术信号")
+        "risk_card" -> aiCard(card, "风险评估")
+        "suggestion_card" -> aiCard(card, "操作建议")
+        "summary_card" -> aiCard(card, "AI 总结")
         else -> unknownCard(card)
     }
 }
@@ -369,7 +369,7 @@ internal fun ViewContainer<*, *>.chartCard(card: Map<String, Any?>) {
 
         Text {
             attr {
-                text("📊 $title ($chartType)")
+                text("$title ($chartType)")
                 fontSize(13f)
                 fontWeightBold()
                 color(0xFF2E7D32)
@@ -414,7 +414,7 @@ internal fun ViewContainer<*, *>.suggestionChip(
         }
         Text {
             attr {
-                text("💬 $suggestion")
+                text(suggestion)
                 fontSize(12f)
                 color(0xFF1976D2)
             }
@@ -454,7 +454,7 @@ internal fun ViewContainer<*, *>.welcomeHint() {
 
         Text {
             attr {
-                text("🤖 AI 智能助手")
+                text("AI 智能助手")
                 fontSize(18f)
                 fontWeightBold()
                 color(0xFF333333)
@@ -470,10 +470,10 @@ internal fun ViewContainer<*, *>.welcomeHint() {
             }
         }
 
-        welcomeFeature("• 📈 查询股票行情和分析")
-        welcomeFeature("• 💡 解读市场动态")
-        welcomeFeature("• 🔍 对比个股表现")
-        welcomeFeature("• ⚠️ 风险评估和建议")
+        welcomeFeature("• 查询股票行情和分析")
+        welcomeFeature("• 解读市场动态")
+        welcomeFeature("• 对比个股表现")
+        welcomeFeature("• 风险评估和建议")
 
         Text {
             attr {

@@ -47,6 +47,9 @@ class StockListPage : Pager() {
     // 状态：是否加载失败
     internal var loadError by observable(false)
 
+    // 状态：加载失败的具体原因（用于界面展示，方便定位网络/序列化问题）
+    internal var loadErrorMessage by observable("")
+
     // 存储当前关键词，供加载更多复用
     internal var currentKeyword by observable("")
 
@@ -69,17 +72,12 @@ class StockListPage : Pager() {
                 // 排序标签栏
                 sortBar(ctx)
 
-                // 股票列表
+                // 股票列表（内部已包含 loading / error / empty / list 的响应式切换）
                 stockListView(ctx)
 
-                // 加载更多按钮
-                if (!ctx.isLoading && !ctx.loadError && ctx.stockList.isNotEmpty()) {
+                // 加载更多按钮（非加载中、非失败、列表有数据时显示）
+                vif({ !ctx.isLoading && !ctx.loadError && ctx.stockList.isNotEmpty() }) {
                     loadMoreButton(ctx)
-                }
-
-                // 加载失败重试
-                vif({ ctx.loadError }) {
-                    loadErrorView(ctx)
                 }
             }
         }
@@ -141,7 +139,9 @@ class StockListPage : Pager() {
                 stockList.addAll(list)
             } catch (e: Throwable) {
                 loadError = true
-                BridgeModule().toast("加载失败：${e.message}")
+                loadErrorMessage = e.message ?: "未知错误"
+                acquireModule<BridgeModule>(BridgeModule.MODULE_NAME)
+                    .toast("加载失败：${loadErrorMessage}")
             } finally {
                 isLoading = false
             }
@@ -161,6 +161,7 @@ internal fun ViewContainer<*, *>.navigationBar(ctx: StockListPage) {
             alignItems(FlexAlign.CENTER)
             height(48f)
             backgroundColor(0xFF1976D2)
+            paddingTop(ctx.pagerData.statusBarHeight)
         }
 
         // 返回按钮
@@ -173,7 +174,7 @@ internal fun ViewContainer<*, *>.navigationBar(ctx: StockListPage) {
             }
             Text {
                 attr {
-                    text("‹ 返回")
+                    text("返回")
                     fontSize(16f)
                     color(0xFFFFFFFF)
                 }
@@ -183,7 +184,7 @@ internal fun ViewContainer<*, *>.navigationBar(ctx: StockListPage) {
         // 标题
         Text {
             attr {
-                text("📈 股票行情\n共 ${ctx.stockList.size} 只")
+                text("股票行情\n共 ${ctx.stockList.size} 只")
                 fontSize(16f)
                 fontWeightBold()
                 color(0xFFFFFFFF)
@@ -201,7 +202,7 @@ internal fun ViewContainer<*, *>.navigationBar(ctx: StockListPage) {
             }
             Text {
                 attr {
-                    text("🔄\n刷新")
+                    text("刷新")
                     fontSize(12f)
                     color(0xFFFFFFFF)
                 }
@@ -236,7 +237,7 @@ internal fun ViewContainer<*, *>.searchBar(ctx: StockListPage) {
 
             Text {
                 attr {
-                    text("🔍 ${ctx.searchKeyword.ifEmpty { "搜索股票代码或名称..." }}")
+                    text(ctx.searchKeyword.ifEmpty { "搜索股票代码或名称..." })
                     fontSize(14f)
                     color(if (ctx.searchKeyword.isEmpty()) 0xFF999999 else 0xFF333333)
                 }
@@ -396,11 +397,11 @@ internal fun ViewContainer<*, *>.stockListItem(
             }
         }
 
-        // 右侧：箭头
+        // 右侧：进入指示
         Text {
             attr {
-                text("›\n ")
-                fontSize(20f)
+                text("进入")
+                fontSize(12f)
                 color(0xFFCCCCCC)
                 marginLeft(8f)
             }
@@ -421,7 +422,7 @@ internal fun ViewContainer<*, *>.stockListLoadingView() {
         }
         Text {
             attr {
-                text("⏳ 加载中...")
+                text("加载中...")
                 fontSize(14f)
                 color(0xFF666666)
             }
@@ -442,7 +443,7 @@ internal fun ViewContainer<*, *>.emptyView() {
         }
         Text {
             attr {
-                text("📭 暂无数据\n\n请尝试其他搜索条件或刷新重试")
+                text("暂无数据\n\n请尝试其他搜索条件或刷新重试")
                 fontSize(14f)
                 color(0xFF999999)
                 textAlignCenter()
@@ -464,7 +465,7 @@ internal fun ViewContainer<*, *>.loadErrorView(ctx: StockListPage) {
         }
         Text {
             attr {
-                text("⚠️ 加载失败\n\n请确认后端服务已启动，且手机与电脑在同一 WiFi")
+                text("加载失败\n\n${ctx.loadErrorMessage}\n\n请确认后端服务已启动，且手机与电脑在同一 WiFi")
                 fontSize(14f)
                 color(0xFFE53935)
                 textAlignCenter()
@@ -485,7 +486,7 @@ internal fun ViewContainer<*, *>.loadErrorView(ctx: StockListPage) {
             }
             Text {
                 attr {
-                    text("重试\nRetry")
+                    text("重试")
                     fontSize(14f)
                     fontWeightBold()
                     color(0xFFFFFFFF)
@@ -508,7 +509,7 @@ internal fun ViewContainer<*, *>.loadingMoreView() {
         }
         Text {
             attr {
-                text("⏳ 加载更多...")
+                text("加载更多...")
                 fontSize(13f)
                 color(0xFF999999)
             }
@@ -533,7 +534,7 @@ internal fun ViewContainer<*, *>.loadMoreButton(ctx: StockListPage) {
         }
         Text {
             attr {
-                text("📄 加载更多\nLoad More")
+                text("加载更多")
                 fontSize(13f)
                 color(0xFF1976D2)
             }
