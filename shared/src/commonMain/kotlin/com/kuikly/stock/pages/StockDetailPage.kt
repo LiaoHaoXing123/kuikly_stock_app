@@ -15,7 +15,6 @@ import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.observable
 import com.tencent.kuikly.core.views.*
 import com.kuikly.stock.network.ApiService
-import com.kuikly.stock.base.BridgeModule
 import com.tencent.kuikly.core.coroutines.launch
 
 /**
@@ -162,8 +161,6 @@ class StockDetailPage : Pager() {
             } catch (e: Throwable) {
                 stockDetail = null
                 loadErrorMessage = e.message ?: "未知错误"
-                acquireModule<BridgeModule>(BridgeModule.MODULE_NAME)
-                    .toast("加载失败：${loadErrorMessage}")
             } finally {
                 isLoading = false
             }
@@ -191,8 +188,6 @@ class StockDetailPage : Pager() {
                 )
             } catch (e: Throwable) {
                 aiAnalysis = null
-                acquireModule<BridgeModule>(BridgeModule.MODULE_NAME)
-                    .toast("AI 分析失败：${e.message}")
             } finally {
                 isAnalyzing = false
             }
@@ -229,16 +224,14 @@ internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
         attr {
             flexDirectionRow()
             alignItems(FlexAlign.CENTER)
-            height(48f)
             backgroundColor(0xFF1976D2)
             paddingTop(ctx.pagerData.statusBarHeight)
+            height(48f + ctx.pagerData.statusBarHeight)
         }
 
         // 返回按钮
         View {
-            attr {
-                padding(top = 12f, left = 16f, bottom = 12f, right = 16f)
-            }
+            attr { padding(12f, 16f, 12f, 16f) }
             event {
                 click {
                     ctx.acquireModule<RouterModule>(RouterModule.MODULE_NAME).closePage()
@@ -246,7 +239,7 @@ internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
             }
             Text {
                 attr {
-                    text("返回\nBack")
+                    text("< 返回")
                     fontSize(16f)
                     color(0xFFFFFFFF)
                 }
@@ -256,7 +249,7 @@ internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
         // 股票名称和代码
         Text {
             attr {
-                text("$name ($code)\nStock Detail")
+                text(name)
                 fontSize(16f)
                 fontWeightBold()
                 color(0xFFFFFFFF)
@@ -264,22 +257,25 @@ internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
             }
         }
 
+        Text {
+            attr {
+                text("($code)")
+                fontSize(12f)
+                color(0xFFB3D9FF)
+                marginLeft(4f)
+            }
+        }
+
         View { attr { flex(1f) } }
 
         // AI 分析按钮
         View {
-            attr {
-                padding(top = 8f, left = 12f, bottom = 8f, right = 12f)
-            }
-            event {
-                click {
-                    ctx.triggerAIAnalysis()
-                }
-            }
+            attr { padding(10f, 12f, 10f, 12f) }
+            event { click { ctx.triggerAIAnalysis() } }
             Text {
                 attr {
-                    text("AI\n分析")
-                    fontSize(12f)
+                    text("AI分析")
+                    fontSize(13f)
                     color(0xFFFFFFFF)
                 }
             }
@@ -305,7 +301,7 @@ internal fun ViewContainer<*, *>.infoCard(ctx: StockDetailPage) {
         // 标题
         Text {
             attr {
-                text("基础信息\nBasic Info")
+                text("基础信息")
                 fontSize(15f)
                 fontWeightBold()
                 color(0xFF333333)
@@ -334,7 +330,7 @@ internal fun ViewContainer<*, *>.infoItem(label: String, value: String) {
 
         Text {
             attr {
-                text("$label\nLabel")
+                text(label)
                 fontSize(13f)
                 color(0xFF666666)
                 width(80f)
@@ -343,7 +339,7 @@ internal fun ViewContainer<*, *>.infoItem(label: String, value: String) {
 
         Text {
             attr {
-                text("$value\nValue")
+                text(value)
                 fontSize(13f)
                 fontWeightBold()
                 color(0xFF333333)
@@ -373,7 +369,7 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
         // 标题
         Text {
             attr {
-                text("实时行情\nReal-time Quote")
+                text("实时行情")
                 fontSize(15f)
                 fontWeightBold()
                 color(0xFF333333)
@@ -391,7 +387,7 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
 
             Text {
                 attr {
-                    text("${realtime.price ?: "-"}\nPrice")
+                    text(realtime.price?.let { String.format("%.2f", it) } ?: "-")
                     fontSize(28f)
                     fontWeightBold()
                     color(priceColor)
@@ -400,7 +396,7 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
 
             Text {
                 attr {
-                    text("${realtime.changePercent?.let { String.format("%.2f%%", it) } ?: "-"}\nChange%")
+                    text(realtime.changePercent?.let { String.format("%.2f%%", it) } ?: "-")
                     fontSize(16f)
                     fontWeightBold()
                     color(priceColor)
@@ -410,7 +406,7 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
 
             Text {
                 attr {
-                    text("${realtime.change?.let { String.format("%.2f", it) } ?: "-"}\nChange")
+                    text(realtime.change?.let { String.format("%.2f", it) } ?: "-")
                     fontSize(14f)
                     color(priceColor)
                     marginLeft(4f)
@@ -464,7 +460,7 @@ internal fun ViewContainer<*, *>.quoteItem(
 
         Text {
             attr {
-                text("$label\nLabel")
+                text(label)
                 fontSize(11f)
                 color(0xFF999999)
             }
@@ -472,7 +468,7 @@ internal fun ViewContainer<*, *>.quoteItem(
 
         Text {
             attr {
-                text("${value?.let { String.format("%.2f", it) } ?: "-"}$suffix\nValue")
+                text(value?.let { String.format("%.2f", it) } ?: "-$suffix")
                 fontSize(13f)
                 fontWeightBold()
                 color(0xFF333333)
@@ -499,7 +495,7 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
         // 标题
         Text {
             attr {
-                text("K线走势（近30日）\nK-Line Chart")
+                text("K线走势（近30日）")
                 fontSize(15f)
                 fontWeightBold()
                 color(0xFF333333)
@@ -522,7 +518,7 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                 }
                 Text {
                     attr {
-                        text("暂无K线数据\nNo K-Line data available")
+                        text("暂无K线数据")
                         fontSize(13f)
                         color(0xFF999999)
                         textAlignCenter()
@@ -548,7 +544,7 @@ internal fun ViewContainer<*, *>.chartPlaceholder(klineData: List<KLineDataItem>
 
         Text {
             attr {
-                text("[K线图表区域]\n\n实际项目中应集成 MPAndroidChart 或其他图表库\n展示 ${klineData.size} 条K线数据")
+                text("[K线图表区域] 展示 ${klineData.size} 条K线数据")
                 fontSize(12f)
                 color(0xFF999999)
                 textAlignCenter()
@@ -586,7 +582,7 @@ internal fun ViewContainer<*, *>.klineSummary(klineData: List<KLineDataItem>) {
 
             Text {
                 attr {
-                    text("最新: ${latest.tradeDate}\nLatest Date")
+                    text("最新: ${latest.tradeDate}")
                     fontSize(12f)
                     color(0xFF666666)
                 }
@@ -594,7 +590,7 @@ internal fun ViewContainer<*, *>.klineSummary(klineData: List<KLineDataItem>) {
 
             Text {
                 attr {
-                    text("收: ${latest.close}\nClose")
+                    text("收盘: ${latest.close}")
                     fontSize(12f)
                     fontWeightBold()
                     color(0xFF333333)
@@ -604,7 +600,7 @@ internal fun ViewContainer<*, *>.klineSummary(klineData: List<KLineDataItem>) {
 
             Text {
                 attr {
-                    text("量: ${latest.volume.toInt()} 手\nVolume")
+                    text("成交量: ${latest.volume.toInt()} 手")
                     fontSize(12f)
                     color(0xFF666666)
                     marginLeft(12f)
@@ -636,7 +632,7 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
 
             Text {
                 attr {
-                    text("AI 智能解读\nAI Analysis")
+                    text("AI 智能解读")
                     fontSize(15f)
                     fontWeightBold()
                     color(0xFF333333)
@@ -658,7 +654,7 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
                     }
                     Text {
                         attr {
-                            text("刷新分析\nRefresh")
+                            text("刷新分析")
                             fontSize(11f)
                             color(0xFF666666)
                         }
@@ -778,7 +774,7 @@ internal fun ViewContainer<*, *>.analyzingView() {
 
         Text {
             attr {
-                text("AI 正在分析中...\nAnalyzing...")
+                text("AI 正在分析中...")
                 fontSize(14f)
                 color(0xFF666666)
             }
@@ -786,7 +782,7 @@ internal fun ViewContainer<*, *>.analyzingView() {
 
         Text {
             attr {
-                text("请稍候，DeepSeek 正在为您生成专业分析报告\nPlease wait while DeepSeek generates analysis")
+                text("请稍候，DeepSeek 正在为您生成专业分析报告")
                 fontSize(12f)
                 color(0xFF999999)
                 marginTop(8f)
@@ -810,7 +806,7 @@ internal fun ViewContainer<*, *>.notAnalyzedView(ctx: StockDetailPage) {
 
         Text {
             attr {
-                text("尚未进行 AI 分析\nNot analyzed yet")
+                text("尚未进行 AI 分析")
                 fontSize(14f)
                 color(0xFF666666)
             }
@@ -831,7 +827,7 @@ internal fun ViewContainer<*, *>.notAnalyzedView(ctx: StockDetailPage) {
             }
             Text {
                 attr {
-                    text("开始 AI 分析\nStart AI Analysis")
+                    text("开始 AI 分析")
                     fontSize(14f)
                     fontWeightBold()
                     color(0xFFFFFFFF)
@@ -841,7 +837,7 @@ internal fun ViewContainer<*, *>.notAnalyzedView(ctx: StockDetailPage) {
 
         Text {
             attr {
-                text("AI 将为您分析趋势、信号、风险并给出操作建议\nAI will analyze trends, signals, risks and suggestions")
+                text("AI 将为您分析趋势、信号、风险并给出操作建议")
                 fontSize(11f)
                 color(0xFF999999)
                 marginTop(8f)
@@ -864,7 +860,7 @@ internal fun ViewContainer<*, *>.stockDetailLoadingView() {
 
         Text {
             attr {
-                text("加载中...\nLoading...")
+                text("加载中...")
                 fontSize(16f)
                 color(0xFF666666)
             }
@@ -886,7 +882,7 @@ internal fun ViewContainer<*, *>.errorView(ctx: StockDetailPage) {
 
         Text {
             attr {
-                text("加载失败\nLoad failed")
+                text("加载失败")
                 fontSize(16f)
                 color(0xFFE53935)
             }
@@ -894,7 +890,7 @@ internal fun ViewContainer<*, *>.errorView(ctx: StockDetailPage) {
 
         Text {
             attr {
-                text("${ctx.loadErrorMessage}\n\n未找到股票 ${ctx.stockCode} 的数据\nNo data found for stock ${ctx.stockCode}")
+                text("${ctx.loadErrorMessage}\n未找到股票 ${ctx.stockCode} 的数据")
                 fontSize(13f)
                 color(0xFF999999)
                 marginTop(8f)
@@ -917,7 +913,7 @@ internal fun ViewContainer<*, *>.errorView(ctx: StockDetailPage) {
             }
             Text {
                 attr {
-                    text("重试\nRetry")
+                    text("重试")
                     fontSize(14f)
                     fontWeightBold()
                     color(0xFFFFFFFF)

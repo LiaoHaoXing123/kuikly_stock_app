@@ -16,7 +16,6 @@ import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.observable
 import com.tencent.kuikly.core.reactive.handler.observableList
 import com.kuikly.stock.network.ApiService
-import com.kuikly.stock.base.BridgeModule
 import com.tencent.kuikly.core.coroutines.launch
 
 /**
@@ -140,8 +139,6 @@ class StockListPage : Pager() {
             } catch (e: Throwable) {
                 loadError = true
                 loadErrorMessage = e.message ?: "未知错误"
-                acquireModule<BridgeModule>(BridgeModule.MODULE_NAME)
-                    .toast("加载失败：${loadErrorMessage}")
             } finally {
                 isLoading = false
             }
@@ -159,14 +156,14 @@ internal fun ViewContainer<*, *>.navigationBar(ctx: StockListPage) {
         attr {
             flexDirectionRow()
             alignItems(FlexAlign.CENTER)
-            height(48f)
             backgroundColor(0xFF1976D2)
             paddingTop(ctx.pagerData.statusBarHeight)
+            height(48f + ctx.pagerData.statusBarHeight)
         }
 
         // 返回按钮
         View {
-            attr { padding(left = 16f, top = 12f, right = 16f, bottom = 12f) }
+            attr { padding(12f, 16f, 12f, 16f) }
             event {
                 click {
                     ctx.acquireModule<RouterModule>(RouterModule.MODULE_NAME).closePage()
@@ -174,7 +171,7 @@ internal fun ViewContainer<*, *>.navigationBar(ctx: StockListPage) {
             }
             Text {
                 attr {
-                    text("返回")
+                    text("< 返回")
                     fontSize(16f)
                     color(0xFFFFFFFF)
                 }
@@ -184,11 +181,20 @@ internal fun ViewContainer<*, *>.navigationBar(ctx: StockListPage) {
         // 标题
         Text {
             attr {
-                text("股票行情\n共 ${ctx.stockList.size} 只")
-                fontSize(16f)
+                text("股票行情")
+                fontSize(17f)
                 fontWeightBold()
                 color(0xFFFFFFFF)
                 marginLeft(8f)
+            }
+        }
+
+        Text {
+            attr {
+                text("共 ${ctx.stockList.size} 只")
+                fontSize(12f)
+                color(0xFFB3D9FF)
+                marginLeft(6f)
             }
         }
 
@@ -196,14 +202,12 @@ internal fun ViewContainer<*, *>.navigationBar(ctx: StockListPage) {
 
         // 刷新按钮
         View {
-            attr { padding(left = 12f, top = 12f, right = 12f, bottom = 12f) }
-            event {
-                click { ctx.refreshData() }
-            }
+            attr { padding(10f, 12f, 10f, 12f) }
+            event { click { ctx.refreshData() } }
             Text {
                 attr {
                     text("刷新")
-                    fontSize(12f)
+                    fontSize(13f)
                     color(0xFFFFFFFF)
                 }
             }
@@ -260,8 +264,8 @@ internal fun ViewContainer<*, *>.searchBar(ctx: StockListPage) {
             }
             Text {
                 attr {
-                    text("搜索\nSearch")
-                    fontSize(12f)
+                    text("搜索")
+                    fontSize(14f)
                     color(0xFFFFFFFF)
                     fontWeightBold()
                 }
@@ -377,10 +381,18 @@ internal fun ViewContainer<*, *>.stockListItem(
             attr { flex(1f) }
             Text {
                 attr {
-                    text("${stock.name ?: "未知"}\n${stock.code}")
+                    text(stock.name ?: "未知")
                     fontSize(15f)
                     fontWeightBold()
                     color(0xFF333333)
+                }
+            }
+            Text {
+                attr {
+                    text(stock.code)
+                    fontSize(12f)
+                    color(0xFF888888)
+                    marginTop(2f)
                 }
             }
         }
@@ -388,8 +400,8 @@ internal fun ViewContainer<*, *>.stockListItem(
         // 中间：最新价
         Text {
             attr {
-                text("${stock.price ?: "-"}\n${stock.changePercent?.let { String.format("%.2f%%", it) } ?: "-"}")
-                fontSize(15f)
+                text("${stock.price ?: "-"}")
+                fontSize(16f)
                 fontWeightBold()
                 color(changeColor)
                 textAlignRight()
@@ -397,12 +409,11 @@ internal fun ViewContainer<*, *>.stockListItem(
             }
         }
 
-        // 右侧：进入指示
         Text {
             attr {
-                text("进入")
+                text(stock.changePercent?.let { String.format("%.2f%%", it) } ?: "-")
                 fontSize(12f)
-                color(0xFFCCCCCC)
+                color(changeColor)
                 marginLeft(8f)
             }
         }

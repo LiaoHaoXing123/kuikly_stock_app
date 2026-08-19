@@ -15,7 +15,6 @@ import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.observable
 import com.tencent.kuikly.core.reactive.handler.observableList
 import com.kuikly.stock.network.ApiService
-import com.kuikly.stock.base.BridgeModule
 import com.tencent.kuikly.core.coroutines.launch
 
 /**
