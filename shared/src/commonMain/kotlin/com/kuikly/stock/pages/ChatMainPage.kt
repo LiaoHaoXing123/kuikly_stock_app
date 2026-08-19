@@ -450,6 +450,9 @@ internal fun ViewContainer<*, *>.unknownCard(card: Map<String, Any?>) {
 
 /**
  * 欢迎提示（无消息时显示）
+ *
+ * 注意：Android 模拟器上单个 Text 带 \n 与 lineHeight 容易出现文字重叠，
+ * 因此拆成多个独立 Text，用 margin 控制间距。
  */
 internal fun ViewContainer<*, *>.welcomeHint() {
     View {
@@ -463,22 +466,52 @@ internal fun ViewContainer<*, *>.welcomeHint() {
 
         Text {
             attr {
-                text(
-                    "🤖 AI 智能助手\n\n我可以帮你：" +
-                        "\n• 📈 查询股票行情和分析" +
-                        "\n• 💡 解读市场动态" +
-                        "\n• 🔍 对比个股表现" +
-                        "\n• ⚠️ 风险评估和建议" +
-                        "\n\n请在下方输入你的问题..."
-                )
+                text("🤖 AI 智能助手")
+                fontSize(18f)
+                fontWeightBold()
+                color(0xFF333333)
+            }
+        }
+
+        Text {
+            attr {
+                text("我可以帮你：")
                 fontSize(14f)
                 color(0xFF666666)
-                textAlignCenter()
-                lineHeight(1.8f)
+                marginTop(16f)
+            }
+        }
+
+        welcomeFeature("• 📈 查询股票行情和分析")
+        welcomeFeature("• 💡 解读市场动态")
+        welcomeFeature("• 🔍 对比个股表现")
+        welcomeFeature("• ⚠️ 风险评估和建议")
+
+        Text {
+            attr {
+                text("请在下方输入你的问题...")
+                fontSize(14f)
+                color(0xFF999999)
+                marginTop(24f)
             }
         }
     }
 }
+
+/**
+ * 欢迎页功能条目
+ */
+internal fun ViewContainer<*, *>.welcomeFeature(text: String) {
+    Text {
+        attr {
+            text(text)
+            fontSize(14f)
+            color(0xFF666666)
+            marginTop(6f)
+        }
+    }
+}
+
 
 /**
  * 底部输入区域
@@ -516,10 +549,19 @@ internal fun ViewContainer<*, *>.inputArea(ctx: ChatMainPage) {
                     placeholderColor(Color(0xFF999999))
                     marginLeft(16f)
                     marginRight(16f)
+                    // 明确可编辑，避免某些 Android 渲染层把输入框设成只读
+                    editable(true)
+                    // 取消横屏全屏输入，提升模拟器/小屏体验
+                    imeNoFullscreen(true)
+                    // 键盘右下角显示「发送」
+                    returnKeyTypeSend()
                 }
                 event {
                     textDidChange {
                         ctx.inputText = it.text
+                    }
+                    inputReturn {
+                        ctx.sendMessage()
                     }
                 }
             }
