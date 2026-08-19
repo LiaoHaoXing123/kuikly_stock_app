@@ -24,7 +24,7 @@ import com.tencent.kuikly.core.reactive.handler.observable
 class StockListPage : Pager() {
 
     // 状态：股票列表数据
-    internal val stockList = mutableListOf<StockListItem>()
+    internal var stockList by observable(mutableListOf<StockListItem>())
 
     // 状态：搜索关键词
     internal var searchKeyword by observable("")
@@ -65,34 +65,27 @@ class StockListPage : Pager() {
         }
     }
 
+    override fun didInit() {
+        super.didInit()
+        // 首屏加载股票列表数据
+        refreshData()
+    }
+
     // ==================== 数据操作方法 ====================
 
     /**
-     * 刷新数据
+     * 刷新数据（首屏由 didInit 触发，也可点刷新按钮触发）
      */
     internal fun refreshData() {
         currentPage = 1
-        stockList.clear()
-        isLoading = true
-
-        // TODO: 调用 API 获取第一页数据
-        // GET /api/v1/stocks?page=1&size=20
-
-        // 模拟数据（开发测试用）
-        loadMockData()
+        stockList = loadMockData()
     }
 
     /**
      * 搜索股票
      */
     internal fun searchStocks() {
-        isLoading = true
-        stockList.clear()
-
-        // TODO: 调用 API 搜索
-        // GET /api/v1/stocks?keyword={keyword}
-
-        loadMockData()
+        stockList = loadMockData()
     }
 
     /**
@@ -100,15 +93,9 @@ class StockListPage : Pager() {
      */
     internal fun loadMore() {
         if (isLoading) return
-
         isLoading = true
         currentPage++
-
-        // TODO: 调用 API 获取下一页
-        // GET /api/v1/stocks?page={page}&size=20
-
-        // 模拟延迟后添加数据
-        loadMockData()
+        stockList = (stockList + loadMockData()).toMutableList()
         isLoading = false
     }
 
@@ -116,8 +103,8 @@ class StockListPage : Pager() {
      * 加载模拟数据（开发测试用）
      * 实际项目中应替换为真实 API 调用
      */
-    internal fun loadMockData() {
-        val mockData = listOf(
+    internal fun loadMockData(): MutableList<StockListItem> {
+        return mutableListOf(
             StockListItem(code = "000001", name = "平安银行", price = 11.05, changePercent = 1.20),
             StockListItem(code = "600519", name = "贵州茅台", price = 1685.00, changePercent = -0.50),
             StockListItem(code = "000002", name = "万科A", price = 8.92, changePercent = 2.30),
@@ -129,11 +116,6 @@ class StockListPage : Pager() {
             StockListItem(code = "600900", name = "长江电力", price = 28.45, changePercent = 0.15),
             StockListItem(code = "300001", name = "特锐德", price = 22.18, changePercent = -2.10)
         )
-
-        stockList.addAll(mockData)
-        isLoading = false
-
-        // TODO: 通知 UI 刷新
     }
 }
 

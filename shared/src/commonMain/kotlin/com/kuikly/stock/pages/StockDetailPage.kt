@@ -30,10 +30,10 @@ class StockDetailPage : Pager() {
     internal var stockCode by observable("")
 
     // 状态：股票详情数据
-    internal var stockDetail: StockDetailData? = null
+    internal var stockDetail by observable<StockDetailData?>(null)
 
     // 状态：AI 分析结果
-    internal var aiAnalysis: AIAnalysisData? = null
+    internal var aiAnalysis by observable<AIAnalysisData?>(null)
 
     // 状态：是否正在加载
     internal var isLoading by observable(true)

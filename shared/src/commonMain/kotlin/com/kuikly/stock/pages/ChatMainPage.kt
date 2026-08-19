@@ -61,18 +61,12 @@ class ChatMainPage : Pager() {
         val text = inputText.trim()
         if (text.isEmpty()) return
 
-        // 添加用户消息到列表
-        messages.add(ChatMessageItem(role = "user", content = text, isUser = true))
+        // 添加用户消息到列表（整体替换触发 observable 刷新，Kuikly 的 observable 不拦截 list.add）
+        messages = (messages + ChatMessageItem(role = "user", content = text, isUser = true)).toMutableList()
 
         // 清空输入框（状态 + 原生控件）
         inputText = ""
         inputRef.view?.setText("")
-
-        // TODO: 调用后端 API 发送消息
-        // 1. POST /api/v1/ai/chat
-        // 2. 解析返回的 reply.text 和 reply.cards
-        // 3. 添加 AI 回复到 messages 列表
-        // 4. 刷新 UI
 
         // 模拟 AI 回复（开发阶段）
         simulateAIResponse(text)
@@ -110,7 +104,8 @@ class ChatMainPage : Pager() {
             )
         )
 
-        messages.add(mockReply)
+        // 整体替换触发 observable 刷新
+        messages = (messages + mockReply).toMutableList()
     }
 }
 
