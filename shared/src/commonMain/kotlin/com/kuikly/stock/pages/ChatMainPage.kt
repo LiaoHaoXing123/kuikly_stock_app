@@ -6,6 +6,7 @@ import com.tencent.kuikly.core.directives.vfor
 import com.tencent.kuikly.core.directives.vif
 import com.tencent.kuikly.core.directives.velse
 import com.tencent.kuikly.core.module.RouterModule
+import com.tencent.kuikly.core.module.SharedPreferencesModule
 import com.tencent.kuikly.core.pager.Pager
 import com.tencent.kuikly.core.views.*
 import com.tencent.kuikly.core.layout.FlexAlign
@@ -14,7 +15,9 @@ import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
 import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.observable
 import com.tencent.kuikly.core.reactive.handler.observableList
-import com.kuikly.stock.network.ApiService
+import com.kuikly.stock.data.DataSourceManager
+import com.kuikly.stock.data.StockRepository
+import com.kuikly.stock.network.ApiEndpoints
 import com.tencent.kuikly.core.coroutines.launch
 
 /**
@@ -34,6 +37,12 @@ class ChatMainPage : Pager() {
 
     // 状态：输入框文本
     internal var inputText by observable("")
+
+    // 状态：开发者面板显隐
+    internal var showDevPanel by observable(false)
+
+    // 状态：当前数据源模式（供顶栏徽标与面板单选使用）
+    internal var devModeOnline by observable(DataSourceManager.isOnline)
 
     // 输入框引用，用于主动清空/聚焦
     lateinit var inputRef: ViewRef<InputView>
@@ -58,13 +67,42 @@ class ChatMainPage : Pager() {
                 }
                 // 底部输入区域
                 inputArea(ctx)
+
+                // 开发者选项面板（覆盖层，最后渲染在最上层）
+                vif({ ctx.showDevPanel }) {
+                    devPanel(ctx)
+                }
             }
         }
     }
 
+    override fun viewDidLoad() {
+        super.viewDidLoad()
+        // 读取持久化的数据源模式（默认离线）
+        val saved = acquireModule<SharedPreferencesModule>(SharedPreferencesModule.MODULE_NAME)
+            .getItem(DataSourceManager.PREFS_KEY)
+        if (saved == "ONLINE") {
+            DataSourceManager.setMode(DataSourceManager.Mode.ONLINE)
+        }
+        devModeOnline = DataSourceManager.isOnline
+    }
+
+    /**
+     * 切换数据源模式（开发者选项）
+     */
+    internal fun selectMode(online: Boolean) {
+        DataSourceManager.setMode(
+            if (online) DataSourceManager.Mode.ONLINE else DataSourceManager.Mode.OFFLINE
+        )
+        devModeOnline = online
+        // 持久化，下次启动保持
+        acquireModule<SharedPreferencesModule>(SharedPreferencesModule.MODULE_NAME)
+            .setItem(DataSourceManager.PREFS_KEY, if (online) "ONLINE" else "OFFLINE")
+    }
+
     /**
      * 发送消息
-     * 调用后端 POST /api/v1/ai/chat
+     * 按数据源模式走 StockRepository（离线 Mock 或在线后端）
      */
     internal fun sendMessage() {
         val text = inputText.trim()
@@ -77,16 +115,16 @@ class ChatMainPage : Pager() {
         inputText = ""
         inputRef.view?.setText("")
 
-        // 调用真实后端 AI 问答
+        // 调用 AI 问答（离线 Mock / 在线后端统一由 StockRepository 路由）
         lifecycleScope.launch {
             try {
-                val reply = ApiService.chat(text)
+                val reply = StockRepository.chat(text)
                 messages.add(
                     ChatMessageItem(
                         role = "assistant",
                         content = reply.text,
                         isUser = false,
-                        cards = reply.cards?.map { it as Map<String, Any?> },
+                        cards = reply.cards,
                         suggestions = reply.suggestions
                     )
                 )
@@ -94,7 +132,7 @@ class ChatMainPage : Pager() {
                 messages.add(
                     ChatMessageItem(
                         role = "assistant",
-                        content = "调用 AI 失败：${e.message}\n\n请确认后端服务已启动，且手机与电脑在同一 WiFi。",
+                        content = "AI 助手暂时无法回答：${e.message}",
                         isUser = false
                     )
                 )
@@ -149,12 +187,27 @@ internal fun ViewContainer<*, *>.topBar(ctx: ChatMainPage) {
         }
         View { attr { flex(1f) } }
 
-        // 右侧：（可选）历史记录按钮
+        // 右侧：当前模式徽标 + 开发者选项入口
         View {
-            attr { padding(left = 16f, top = 12f, right = 16f, bottom = 12f) }
+            attr {
+                padding(left = 6f, top = 2f, right = 6f, bottom = 2f)
+                backgroundColor(if (ctx.devModeOnline) 0xFFE8F5E9 else 0xFFEEEEEE)
+                borderRadius(8f)
+            }
             Text {
                 attr {
-                    text("历史")
+                    text(if (ctx.devModeOnline) "在线" else "离线")
+                    fontSize(11f)
+                    color(if (ctx.devModeOnline) 0xFF43A047 else 0xFF999999)
+                }
+            }
+        }
+        View {
+            attr { padding(left = 12f, top = 12f, right = 16f, bottom = 12f) }
+            event { click { ctx.showDevPanel = true } }
+            Text {
+                attr {
+                    text("开发者")
                     fontSize(14f)
                     color(0xFF666666)
                 }
@@ -575,6 +628,140 @@ internal fun ViewContainer<*, *>.inputArea(ctx: ChatMainPage) {
                     color(0xFFFFFFFF)
                     fontWeightBold()
                 }
+            }
+        }
+    }
+}
+
+/**
+ * 开发者选项面板（覆盖层）
+ */
+internal fun ViewContainer<*, *>.devPanel(ctx: ChatMainPage) {
+    View {
+        attr {
+            absolutePositionAllZero()
+            backgroundColor(0x99000000)
+            alignItems(FlexAlign.CENTER)
+            justifyContent(FlexJustifyContent.CENTER)
+        }
+        event { click { ctx.showDevPanel = false } }
+
+        // 面板卡片
+        View {
+            attr {
+                width(ctx.pagerData.pageViewWidth - 64f)
+                flexDirectionColumn()
+                backgroundColor(0xFFFFFFFF)
+                borderRadius(12f)
+                padding(left = 20f, top = 20f, right = 20f, bottom = 20f)
+            }
+
+            Text {
+                attr {
+                    text("开发者选项")
+                    fontSize(17f)
+                    fontWeightBold()
+                    color(0xFF333333)
+                }
+            }
+
+            Text {
+                attr {
+                    text("选择数据来源（默认离线，免去同网依赖）")
+                    fontSize(12f)
+                    color(0xFF999999)
+                    marginTop(4f)
+                }
+            }
+
+            devModeOption(ctx, "离线模式", "读取内置数据，无需后端/同一 WiFi", online = false)
+            devModeOption(ctx, "在线模式", "局域网后端，需手机与电脑同一网络", online = true)
+
+            vif({ ctx.devModeOnline }) {
+                Text {
+                    attr {
+                        text("后端地址：${ApiEndpoints.BASE_URL}")
+                        fontSize(12f)
+                        color(0xFF999999)
+                        marginTop(8f)
+                    }
+                }
+            }
+
+            // 完成按钮
+            View {
+                attr {
+                    marginTop(16f)
+                    height(40f)
+                    backgroundColor(0xFF1976D2)
+                    borderRadius(20f)
+                    alignItems(FlexAlign.CENTER)
+                    justifyContent(FlexJustifyContent.CENTER)
+                }
+                event { click { ctx.showDevPanel = false } }
+                Text {
+                    attr {
+                        text("完成")
+                        fontSize(14f)
+                        color(0xFFFFFFFF)
+                        fontWeightBold()
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 开发者面板中的单选行
+ */
+internal fun ViewContainer<*, *>.devModeOption(
+    ctx: ChatMainPage,
+    label: String,
+    desc: String,
+    online: Boolean
+) {
+    val selected = ctx.devModeOnline == online
+    View {
+        attr {
+            flexDirectionRow()
+            alignItems(FlexAlign.CENTER)
+            marginTop(12f)
+            padding(left = 12f, top = 10f, right = 12f, bottom = 10f)
+            backgroundColor(if (selected) 0xFFE3F2FD else 0xFFF5F5F5)
+            borderRadius(8f)
+        }
+        event { click { ctx.selectMode(online) } }
+
+        View {
+            attr {
+                flex(1f)
+                flexDirectionColumn()
+            }
+            Text {
+                attr {
+                    text(label)
+                    fontSize(14f)
+                    fontWeightBold()
+                    color(0xFF333333)
+                }
+            }
+            Text {
+                attr {
+                    text(desc)
+                    fontSize(11f)
+                    color(0xFF999999)
+                    marginTop(2f)
+                }
+            }
+        }
+
+        Text {
+            attr {
+                text(if (selected) "已选" else "")
+                fontSize(12f)
+                color(0xFF1976D2)
+                marginLeft(8f)
             }
         }
     }

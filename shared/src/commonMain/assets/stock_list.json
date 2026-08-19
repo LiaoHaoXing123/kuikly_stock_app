@@ -1,0 +1,3882 @@
+[
+  {
+    "code": "000001",
+    "name": "平安银行",
+    "industry": "银行",
+    "plate": "深主板",
+    "list_date": "2011-05-24",
+    "_mock_price": 310.08,
+    "_mock_change": 24.56,
+    "_mock_change_percent": 8.6
+  },
+  {
+    "code": "000002",
+    "name": "万科A",
+    "industry": "房地产",
+    "plate": "深主板",
+    "list_date": "2017-08-11",
+    "_mock_price": 304.89,
+    "_mock_change": 13.23,
+    "_mock_change_percent": 4.54
+  },
+  {
+    "code": "000063",
+    "name": "中兴通讯",
+    "industry": "通信设备",
+    "plate": "深主板",
+    "list_date": "2010-12-16",
+    "_mock_price": 8.29,
+    "_mock_change": -0.42,
+    "_mock_change_percent": -4.84
+  },
+  {
+    "code": "000065",
+    "name": "北方国际",
+    "industry": "建筑装饰",
+    "plate": "深主板",
+    "list_date": "2010-04-22",
+    "_mock_price": 172.48,
+    "_mock_change": -14.54,
+    "_mock_change_percent": -7.78
+  },
+  {
+    "code": "000066",
+    "name": "中国长城",
+    "industry": "计算机设备",
+    "plate": "深主板",
+    "list_date": "2015-04-01",
+    "_mock_price": 15.76,
+    "_mock_change": 0.76,
+    "_mock_change_percent": 5.02
+  },
+  {
+    "code": "000069",
+    "name": "华侨城A",
+    "industry": "房地产开发",
+    "plate": "深主板",
+    "list_date": "2017-11-04",
+    "_mock_price": 53.78,
+    "_mock_change": 2.31,
+    "_mock_change_percent": 4.48
+  },
+  {
+    "code": "000100",
+    "name": "TCL科技",
+    "industry": "面板",
+    "plate": "深主板",
+    "list_date": "2015-09-13",
+    "_mock_price": 221.36,
+    "_mock_change": 3.02,
+    "_mock_change_percent": 1.39
+  },
+  {
+    "code": "000157",
+    "name": "中联重科",
+    "industry": "工程机械",
+    "plate": "深主板",
+    "list_date": "2015-04-05",
+    "_mock_price": 179.37,
+    "_mock_change": -11.22,
+    "_mock_change_percent": -5.89
+  },
+  {
+    "code": "000333",
+    "name": "美的集团",
+    "industry": "白色家电",
+    "plate": "深主板",
+    "list_date": "2014-02-27",
+    "_mock_price": 266.22,
+    "_mock_change": -14.88,
+    "_mock_change_percent": -5.29
+  },
+  {
+    "code": "000338",
+    "name": "潍柴动力",
+    "industry": "商用车",
+    "plate": "深主板",
+    "list_date": "2019-10-13",
+    "_mock_price": 80.96,
+    "_mock_change": 4.93,
+    "_mock_change_percent": 6.48
+  },
+  {
+    "code": "000425",
+    "name": "徐工机械",
+    "industry": "工程机械",
+    "plate": "深主板",
+    "list_date": "2017-02-05",
+    "_mock_price": 288.6,
+    "_mock_change": -6.05,
+    "_mock_change_percent": -2.05
+  },
+  {
+    "code": "000538",
+    "name": "云南白药",
+    "industry": "中药II",
+    "plate": "深主板",
+    "list_date": "2014-06-25",
+    "_mock_price": 65.52,
+    "_mock_change": -1.51,
+    "_mock_change_percent": -2.25
+  },
+  {
+    "code": "000568",
+    "name": "泸州老窖",
+    "industry": "白酒II",
+    "plate": "深主板",
+    "list_date": "2010-04-05",
+    "_mock_price": 303.76,
+    "_mock_change": 20.1,
+    "_mock_change_percent": 7.09
+  },
+  {
+    "code": "000596",
+    "name": "古井贡酒",
+    "industry": "白酒II",
+    "plate": "深主板",
+    "list_date": "2013-11-25",
+    "_mock_price": 195.67,
+    "_mock_change": 9.5,
+    "_mock_change_percent": 5.1
+  },
+  {
+    "code": "000625",
+    "name": "长安汽车",
+    "industry": "乘用车",
+    "plate": "深主板",
+    "list_date": "2015-04-09",
+    "_mock_price": 184.09,
+    "_mock_change": 14.61,
+    "_mock_change_percent": 8.62
+  },
+  {
+    "code": "000651",
+    "name": "格力电器",
+    "industry": "白色家电",
+    "plate": "深主板",
+    "list_date": "2017-09-23",
+    "_mock_price": 250.51,
+    "_mock_change": -7.75,
+    "_mock_change_percent": -3.0
+  },
+  {
+    "code": "000708",
+    "name": "中信特钢",
+    "industry": "特钢II",
+    "plate": "深主板",
+    "list_date": "2016-06-22",
+    "_mock_price": 179.8,
+    "_mock_change": -18.0,
+    "_mock_change_percent": -9.1
+  },
+  {
+    "code": "000725",
+    "name": "京东方A",
+    "industry": "面板",
+    "plate": "深主板",
+    "list_date": "2019-10-08",
+    "_mock_price": 20.85,
+    "_mock_change": 1.44,
+    "_mock_change_percent": 7.43
+  },
+  {
+    "code": "000768",
+    "name": "中航西飞",
+    "industry": "航空装备III",
+    "plate": "深主板",
+    "list_date": "2018-04-19",
+    "_mock_price": 279.17,
+    "_mock_change": -19.52,
+    "_mock_change_percent": -6.54
+  },
+  {
+    "code": "000776",
+    "name": "广发证券",
+    "industry": "证券III",
+    "plate": "深主板",
+    "list_date": "2014-02-22",
+    "_mock_price": 95.08,
+    "_mock_change": 0.86,
+    "_mock_change_percent": 0.91
+  },
+  {
+    "code": "000783",
+    "name": "长江证券",
+    "industry": "证券III",
+    "plate": "深主板",
+    "list_date": "2013-04-08",
+    "_mock_price": 40.69,
+    "_mock_change": -2.28,
+    "_mock_change_percent": -5.31
+  },
+  {
+    "code": "000800",
+    "name": "一汽解放",
+    "industry": "商用车",
+    "plate": "深主板",
+    "list_date": "2011-01-09",
+    "_mock_price": 273.65,
+    "_mock_change": 7.0,
+    "_mock_change_percent": 2.62
+  },
+  {
+    "code": "000858",
+    "name": "五粮液",
+    "industry": "白酒II",
+    "plate": "深主板",
+    "list_date": "2019-01-14",
+    "_mock_price": 251.64,
+    "_mock_change": 3.93,
+    "_mock_change_percent": 1.59
+  },
+  {
+    "code": "000895",
+    "name": "双汇发展",
+    "industry": "食品加工",
+    "plate": "深主板",
+    "list_date": "2015-08-22",
+    "_mock_price": 297.12,
+    "_mock_change": 13.03,
+    "_mock_change_percent": 4.59
+  },
+  {
+    "code": "000938",
+    "name": "紫光股份",
+    "industry": "IT服务III",
+    "plate": "深主板",
+    "list_date": "2012-10-20",
+    "_mock_price": 199.23,
+    "_mock_change": 5.52,
+    "_mock_change_percent": 2.85
+  },
+  {
+    "code": "000977",
+    "name": "浪潮信息",
+    "industry": "计算机设备",
+    "plate": "深主板",
+    "list_date": "2016-10-27",
+    "_mock_price": 99.5,
+    "_mock_change": -5.63,
+    "_mock_change_percent": -5.36
+  },
+  {
+    "code": "001289",
+    "name": "龙源电力",
+    "industry": "电力",
+    "plate": "深主板",
+    "list_date": "2015-10-06",
+    "_mock_price": 32.46,
+    "_mock_change": 0.9,
+    "_mock_change_percent": 2.86
+  },
+  {
+    "code": "002001",
+    "name": "新和成",
+    "industry": "化学制药",
+    "plate": "中小板",
+    "list_date": "2010-06-24",
+    "_mock_price": 96.02,
+    "_mock_change": 6.65,
+    "_mock_change_percent": 7.44
+  },
+  {
+    "code": "002008",
+    "name": "大族激光",
+    "industry": "激光设备",
+    "plate": "中小板",
+    "list_date": "2015-11-28",
+    "_mock_price": 185.2,
+    "_mock_change": 16.01,
+    "_mock_change_percent": 9.46
+  },
+  {
+    "code": "002027",
+    "name": "分众传媒",
+    "industry": "广告营销",
+    "plate": "中小板",
+    "list_date": "2011-10-13",
+    "_mock_price": 276.01,
+    "_mock_change": 6.86,
+    "_mock_change_percent": 2.55
+  },
+  {
+    "code": "002049",
+    "name": "紫光国微",
+    "industry": "数字芯片设计",
+    "plate": "中小板",
+    "list_date": "2013-03-04",
+    "_mock_price": 98.65,
+    "_mock_change": -10.32,
+    "_mock_change_percent": -9.47
+  },
+  {
+    "code": "002120",
+    "name": "韵达股份",
+    "industry": "物流",
+    "plate": "中小板",
+    "list_date": "2019-12-21",
+    "_mock_price": 190.26,
+    "_mock_change": -3.93,
+    "_mock_change_percent": -2.02
+  },
+  {
+    "code": "002142",
+    "name": "宁波银行",
+    "industry": "银行",
+    "plate": "中小板",
+    "list_date": "2018-08-24",
+    "_mock_price": 206.41,
+    "_mock_change": 1.15,
+    "_mock_change_percent": 0.56
+  },
+  {
+    "code": "002230",
+    "name": "科大讯飞",
+    "industry": "IT服务III",
+    "plate": "中小板",
+    "list_date": "2013-08-18",
+    "_mock_price": 151.51,
+    "_mock_change": 9.69,
+    "_mock_change_percent": 6.83
+  },
+  {
+    "code": "002371",
+    "name": "立讯精密",
+    "industry": "消费电子零部件",
+    "plate": "中小板",
+    "list_date": "2010-07-06",
+    "_mock_price": 174.48,
+    "_mock_change": 0.7,
+    "_mock_change_percent": 0.41
+  },
+  {
+    "code": "002415",
+    "name": "海康威视",
+    "industry": "安防设备",
+    "plate": "中小板",
+    "list_date": "2018-01-19",
+    "_mock_price": 177.99,
+    "_mock_change": 9.4,
+    "_mock_change_percent": 5.58
+  },
+  {
+    "code": "002460",
+    "name": "赣锋锂业",
+    "industry": "能源金属",
+    "plate": "中小板",
+    "list_date": "2013-04-25",
+    "_mock_price": 208.27,
+    "_mock_change": -5.94,
+    "_mock_change_percent": -2.77
+  },
+  {
+    "code": "002475",
+    "name": "立讯精密",
+    "industry": "消费电子",
+    "plate": "中小板",
+    "list_date": "2019-11-07",
+    "_mock_price": 287.26,
+    "_mock_change": 4.86,
+    "_mock_change_percent": 1.72
+  },
+  {
+    "code": "002493",
+    "name": "荣盛石化",
+    "industry": "炼化及贸易",
+    "plate": "中小板",
+    "list_date": "2019-03-01",
+    "_mock_price": 227.89,
+    "_mock_change": 14.23,
+    "_mock_change_percent": 6.66
+  },
+  {
+    "code": "002555",
+    "name": "三七互娱",
+    "industry": "游戏II",
+    "plate": "中小板",
+    "list_date": "2014-06-12",
+    "_mock_price": 128.11,
+    "_mock_change": -9.2,
+    "_mock_change_percent": -6.7
+  },
+  {
+    "code": "002594",
+    "name": "比亚迪",
+    "industry": "乘用车",
+    "plate": "中小板",
+    "list_date": "2015-10-09",
+    "_mock_price": 22.57,
+    "_mock_change": -0.57,
+    "_mock_change_percent": -2.47
+  },
+  {
+    "code": "002714",
+    "name": "牧原股份",
+    "industry": "生猪养殖",
+    "plate": "中小板",
+    "list_date": "2014-10-10",
+    "_mock_price": 78.21,
+    "_mock_change": -6.68,
+    "_mock_change_percent": -7.87
+  },
+  {
+    "code": "002812",
+    "name": "恩捷股份",
+    "industry": "电池化学品",
+    "plate": "中小板",
+    "list_date": "2012-04-23",
+    "_mock_price": 43.53,
+    "_mock_change": -4.05,
+    "_mock_change_percent": -8.53
+  },
+  {
+    "code": "002916",
+    "name": "深南电路",
+    "industry": "印制电路板",
+    "plate": "中小板",
+    "list_date": "2014-06-24",
+    "_mock_price": 270.42,
+    "_mock_change": -13.9,
+    "_mock_change_percent": -4.89
+  },
+  {
+    "code": "002938",
+    "name": "安井食品",
+    "industry": "食品加工",
+    "plate": "中小板",
+    "list_date": "2015-05-18",
+    "_mock_price": 175.89,
+    "_mock_change": 13.3,
+    "_mock_change_percent": 8.18
+  },
+  {
+    "code": "002945",
+    "name": "华林证券",
+    "industry": "证券III",
+    "plate": "中小板",
+    "list_date": "2019-12-04",
+    "_mock_price": 57.91,
+    "_mock_change": -0.15,
+    "_mock_change_percent": -0.26
+  },
+  {
+    "code": "300003",
+    "name": "乐普医疗",
+    "industry": "医疗耗材",
+    "plate": "创业板",
+    "list_date": "2014-02-27",
+    "_mock_price": 184.13,
+    "_mock_change": 4.54,
+    "_mock_change_percent": 2.53
+  },
+  {
+    "code": "300014",
+    "name": "亿纬锂能",
+    "industry": "电池",
+    "plate": "创业板",
+    "list_date": "2012-08-02",
+    "_mock_price": 208.05,
+    "_mock_change": -19.87,
+    "_mock_change_percent": -8.72
+  },
+  {
+    "code": "300033",
+    "name": "同花顺",
+    "industry": "金融信息服务",
+    "plate": "创业板",
+    "list_date": "2016-10-14",
+    "_mock_price": 25.71,
+    "_mock_change": 1.65,
+    "_mock_change_percent": 6.88
+  },
+  {
+    "code": "300059",
+    "name": "东方财富",
+    "industry": "互联网券商",
+    "plate": "创业板",
+    "list_date": "2014-01-02",
+    "_mock_price": 244.34,
+    "_mock_change": 11.1,
+    "_mock_change_percent": 4.76
+  },
+  {
+    "code": "300124",
+    "name": "汇川技术",
+    "industry": "工控设备",
+    "plate": "创业板",
+    "list_date": "2011-08-10",
+    "_mock_price": 234.84,
+    "_mock_change": 9.03,
+    "_mock_change_percent": 4.0
+  },
+  {
+    "code": "300142",
+    "name": "沃森生物",
+    "industry": "疫苗",
+    "plate": "创业板",
+    "list_date": "2010-11-23",
+    "_mock_price": 96.63,
+    "_mock_change": 6.74,
+    "_mock_change_percent": 7.5
+  },
+  {
+    "code": "300308",
+    "name": "中际旭创",
+    "industry": "光模块",
+    "plate": "创业板",
+    "list_date": "2013-05-28",
+    "_mock_price": 187.53,
+    "_mock_change": -7.3,
+    "_mock_change_percent": -3.75
+  },
+  {
+    "code": "300347",
+    "name": "泰格医药",
+    "industry": "医疗服务III",
+    "plate": "创业板",
+    "list_date": "2013-01-22",
+    "_mock_price": 123.78,
+    "_mock_change": 0.47,
+    "_mock_change_percent": 0.37
+  },
+  {
+    "code": "300394",
+    "name": "天孚通信",
+    "industry": "光模块",
+    "plate": "创业板",
+    "list_date": "2015-04-13",
+    "_mock_price": 119.17,
+    "_mock_change": -1.52,
+    "_mock_change_percent": -1.26
+  },
+  {
+    "code": "300408",
+    "name": "三环集团",
+    "industry": "电子元件III",
+    "plate": "创业板",
+    "list_date": "2017-06-09",
+    "_mock_price": 163.91,
+    "_mock_change": 3.79,
+    "_mock_change_percent": 2.37
+  },
+  {
+    "code": "300413",
+    "name": "芒果超媒",
+    "industry": "影视",
+    "plate": "创业板",
+    "list_date": "2019-06-25",
+    "_mock_price": 49.12,
+    "_mock_change": -0.45,
+    "_mock_change_percent": -0.91
+  },
+  {
+    "code": "300418",
+    "name": "昆仑万维",
+    "industry": "游戏II",
+    "plate": "创业板",
+    "list_date": "2019-04-17",
+    "_mock_price": 95.45,
+    "_mock_change": 2.29,
+    "_mock_change_percent": 2.45
+  },
+  {
+    "code": "300433",
+    "name": "蓝思科技",
+    "industry": "消费电子零部件",
+    "plate": "创业板",
+    "list_date": "2014-07-03",
+    "_mock_price": 54.23,
+    "_mock_change": -5.14,
+    "_mock_change_percent": -8.66
+  },
+  {
+    "code": "300450",
+    "name": "先导智能",
+    "industry": "锂电设备",
+    "plate": "创业板",
+    "list_date": "2011-03-26",
+    "_mock_price": 36.5,
+    "_mock_change": -3.06,
+    "_mock_change_percent": -7.75
+  },
+  {
+    "code": "300474",
+    "name": "景嘉微",
+    "industry": "图形显示芯片",
+    "plate": "创业板",
+    "list_date": "2019-05-08",
+    "_mock_price": 129.97,
+    "_mock_change": -7.15,
+    "_mock_change_percent": -5.21
+  },
+  {
+    "code": "300496",
+    "name": "中科创达",
+    "industry": "IT服务III",
+    "plate": "创业板",
+    "list_date": "2011-12-08",
+    "_mock_price": 135.72,
+    "_mock_change": 3.55,
+    "_mock_change_percent": 2.68
+  },
+  {
+    "code": "300502",
+    "name": "新易盛",
+    "industry": "光模块",
+    "plate": "创业板",
+    "list_date": "2018-11-10",
+    "_mock_price": 78.23,
+    "_mock_change": -7.97,
+    "_mock_change_percent": -9.24
+  },
+  {
+    "code": "300661",
+    "name": "圣邦股份",
+    "industry": "模拟芯片设计",
+    "plate": "创业板",
+    "list_date": "2016-09-12",
+    "_mock_price": 275.05,
+    "_mock_change": 1.97,
+    "_mock_change_percent": 0.72
+  },
+  {
+    "code": "300750",
+    "name": "宁德时代",
+    "industry": "电池",
+    "plate": "创业板",
+    "list_date": "2010-09-16",
+    "_mock_price": 88.57,
+    "_mock_change": -1.19,
+    "_mock_change_percent": -1.33
+  },
+  {
+    "code": "300760",
+    "name": "迈瑞医疗",
+    "industry": "医疗设备",
+    "plate": "创业板",
+    "list_date": "2013-09-25",
+    "_mock_price": 284.08,
+    "_mock_change": 22.77,
+    "_mock_change_percent": 8.71
+  },
+  {
+    "code": "300782",
+    "name": "卓胜信息",
+    "industry": "数字芯片设计",
+    "plate": "创业板",
+    "list_date": "2016-12-05",
+    "_mock_price": 280.81,
+    "_mock_change": -4.26,
+    "_mock_change_percent": -1.49
+  },
+  {
+    "code": "300832",
+    "name": "新产业",
+    "industry": "医疗器械",
+    "plate": "创业板",
+    "list_date": "2018-10-11",
+    "_mock_price": 300.05,
+    "_mock_change": 5.51,
+    "_mock_change_percent": 1.87
+  },
+  {
+    "code": "300896",
+    "name": "爱美客",
+    "industry": "医美耗材",
+    "plate": "创业板",
+    "list_date": "2012-12-09",
+    "_mock_price": 262.66,
+    "_mock_change": -21.01,
+    "_mock_change_percent": -7.41
+  },
+  {
+    "code": "300900",
+    "name": "同花顺",
+    "industry": "金融信息服务",
+    "plate": "创业板",
+    "list_date": "2015-02-18",
+    "_mock_price": 72.08,
+    "_mock_change": 0.64,
+    "_mock_change_percent": 0.89
+  },
+  {
+    "code": "300999",
+    "name": "金龙鱼",
+    "industry": "食品加工",
+    "plate": "创业板",
+    "list_date": "2011-03-23",
+    "_mock_price": 12.7,
+    "_mock_change": 0.27,
+    "_mock_change_percent": 2.11
+  },
+  {
+    "code": "301269",
+    "name": "华大九洲",
+    "industry": "军工电子III",
+    "plate": "其他",
+    "list_date": "2016-06-20",
+    "_mock_price": 144.91,
+    "_mock_change": -0.88,
+    "_mock_change_percent": -0.6
+  },
+  {
+    "code": "600000",
+    "name": "浦发银行",
+    "industry": "银行",
+    "plate": "沪主板",
+    "list_date": "2011-09-12",
+    "_mock_price": 226.87,
+    "_mock_change": 12.64,
+    "_mock_change_percent": 5.9
+  },
+  {
+    "code": "600009",
+    "name": "上海机场",
+    "industry": "机场III",
+    "plate": "沪主板",
+    "list_date": "2011-12-16",
+    "_mock_price": 107.62,
+    "_mock_change": -3.22,
+    "_mock_change_percent": -2.9
+  },
+  {
+    "code": "600010",
+    "name": "包钢股份",
+    "industry": "普钢",
+    "plate": "沪主板",
+    "list_date": "2018-12-16",
+    "_mock_price": 24.59,
+    "_mock_change": -0.83,
+    "_mock_change_percent": -3.27
+  },
+  {
+    "code": "600011",
+    "name": "华能国际",
+    "industry": "火电",
+    "plate": "沪主板",
+    "list_date": "2015-07-02",
+    "_mock_price": 144.82,
+    "_mock_change": -6.72,
+    "_mock_change_percent": -4.44
+  },
+  {
+    "code": "600015",
+    "name": "华夏银行",
+    "industry": "银行",
+    "plate": "沪主板",
+    "list_date": "2016-06-03",
+    "_mock_price": 82.85,
+    "_mock_change": -7.33,
+    "_mock_change_percent": -8.13
+  },
+  {
+    "code": "600016",
+    "name": "民生银行",
+    "industry": "银行",
+    "plate": "沪主板",
+    "list_date": "2010-10-26",
+    "_mock_price": 35.01,
+    "_mock_change": -0.2,
+    "_mock_change_percent": -0.57
+  },
+  {
+    "code": "600018",
+    "name": "上港集团",
+    "industry": "港口III",
+    "plate": "沪主板",
+    "list_date": "2012-07-26",
+    "_mock_price": 118.95,
+    "_mock_change": -10.6,
+    "_mock_change_percent": -8.18
+  },
+  {
+    "code": "600019",
+    "name": "宝钢股份",
+    "industry": "普钢",
+    "plate": "沪主板",
+    "list_date": "2015-06-23",
+    "_mock_price": 56.21,
+    "_mock_change": 2.23,
+    "_mock_change_percent": 4.13
+  },
+  {
+    "code": "600023",
+    "name": "浙能电力",
+    "industry": "火电",
+    "plate": "沪主板",
+    "list_date": "2018-03-15",
+    "_mock_price": 44.87,
+    "_mock_change": 0.04,
+    "_mock_change_percent": 0.08
+  },
+  {
+    "code": "600025",
+    "name": "华能水电",
+    "industry": "水电",
+    "plate": "沪主板",
+    "list_date": "2016-08-22",
+    "_mock_price": 219.54,
+    "_mock_change": -8.71,
+    "_mock_change_percent": -3.82
+  },
+  {
+    "code": "600026",
+    "name": "中远海能",
+    "industry": "油运",
+    "plate": "沪主板",
+    "list_date": "2016-06-12",
+    "_mock_price": 86.51,
+    "_mock_change": 0.05,
+    "_mock_change_percent": 0.05
+  },
+  {
+    "code": "600028",
+    "name": "中国石化",
+    "industry": "炼化化工",
+    "plate": "沪主板",
+    "list_date": "2019-04-19",
+    "_mock_price": 270.05,
+    "_mock_change": 6.63,
+    "_mock_change_percent": 2.52
+  },
+  {
+    "code": "600029",
+    "name": "南方航空",
+    "industry": "航空III",
+    "plate": "沪主板",
+    "list_date": "2014-12-27",
+    "_mock_price": 86.04,
+    "_mock_change": -4.0,
+    "_mock_change_percent": -4.44
+  },
+  {
+    "code": "600030",
+    "name": "中信证券",
+    "industry": "证券III",
+    "plate": "沪主板",
+    "list_date": "2017-12-15",
+    "_mock_price": 252.36,
+    "_mock_change": -23.46,
+    "_mock_change_percent": -8.51
+  },
+  {
+    "code": "600031",
+    "name": "三一重工",
+    "industry": "工程机械",
+    "plate": "沪主板",
+    "list_date": "2018-01-19",
+    "_mock_price": 171.83,
+    "_mock_change": 13.22,
+    "_mock_change_percent": 8.34
+  },
+  {
+    "code": "600036",
+    "name": "招商银行",
+    "industry": "银行",
+    "plate": "沪主板",
+    "list_date": "2011-12-26",
+    "_mock_price": 162.65,
+    "_mock_change": 7.14,
+    "_mock_change_percent": 4.59
+  },
+  {
+    "code": "600048",
+    "name": "保利发展",
+    "industry": "住宅开发",
+    "plate": "沪主板",
+    "list_date": "2015-03-28",
+    "_mock_price": 221.95,
+    "_mock_change": -5.3,
+    "_mock_change_percent": -2.33
+  },
+  {
+    "code": "600050",
+    "name": "中国联通",
+    "industry": "通信运营III",
+    "plate": "沪主板",
+    "list_date": "2016-07-26",
+    "_mock_price": 206.38,
+    "_mock_change": 10.66,
+    "_mock_change_percent": 5.44
+  },
+  {
+    "code": "600061",
+    "name": "国投资本",
+    "industry": "证券III",
+    "plate": "沪主板",
+    "list_date": "2016-12-11",
+    "_mock_price": 253.81,
+    "_mock_change": 2.04,
+    "_mock_change_percent": 0.81
+  },
+  {
+    "code": "600068",
+    "name": "葛洲坝",
+    "industry": "基建市政工程",
+    "plate": "沪主板",
+    "list_date": "2011-09-04",
+    "_mock_price": 55.34,
+    "_mock_change": -4.58,
+    "_mock_change_percent": -7.66
+  },
+  {
+    "code": "600085",
+    "name": "同仁堂",
+    "industry": "中药II",
+    "plate": "沪主板",
+    "list_date": "2016-07-13",
+    "_mock_price": 259.58,
+    "_mock_change": -13.65,
+    "_mock_change_percent": -4.99
+  },
+  {
+    "code": "600089",
+    "name": "特变电工",
+    "industry": "输变电设备",
+    "plate": "沪主板",
+    "list_date": "2013-02-26",
+    "_mock_price": 226.81,
+    "_mock_change": 15.67,
+    "_mock_change_percent": 7.42
+  },
+  {
+    "code": "600104",
+    "name": "上汽集团",
+    "industry": "乘用车",
+    "plate": "沪主板",
+    "list_date": "2011-09-15",
+    "_mock_price": 305.22,
+    "_mock_change": 12.26,
+    "_mock_change_percent": 4.18
+  },
+  {
+    "code": "600107",
+    "name": "重庆水务",
+    "industry": "水务及水治理",
+    "plate": "沪主板",
+    "list_date": "2019-12-16",
+    "_mock_price": 134.57,
+    "_mock_change": -5.26,
+    "_mock_change_percent": -3.76
+  },
+  {
+    "code": "600111",
+    "name": "北方稀土",
+    "industry": "稀土",
+    "plate": "沪主板",
+    "list_date": "2017-12-12",
+    "_mock_price": 109.69,
+    "_mock_change": 5.72,
+    "_mock_change_percent": 5.5
+  },
+  {
+    "code": "600115",
+    "name": "中国东航",
+    "industry": "航空III",
+    "plate": "沪主板",
+    "list_date": "2018-01-19",
+    "_mock_price": 131.78,
+    "_mock_change": 3.03,
+    "_mock_change_percent": 2.36
+  },
+  {
+    "code": "600118",
+    "name": "中国卫星",
+    "industry": "航天装备III",
+    "plate": "沪主板",
+    "list_date": "2013-10-24",
+    "_mock_price": 23.79,
+    "_mock_change": 1.87,
+    "_mock_change_percent": 8.54
+  },
+  {
+    "code": "600150",
+    "name": "中国船舶",
+    "industry": "船舶制造",
+    "plate": "沪主板",
+    "list_date": "2014-06-27",
+    "_mock_price": 286.43,
+    "_mock_change": 22.71,
+    "_mock_change_percent": 8.61
+  },
+  {
+    "code": "600160",
+    "name": "巨化股份",
+    "industry": "氟化工",
+    "plate": "沪主板",
+    "list_date": "2010-02-06",
+    "_mock_price": 212.31,
+    "_mock_change": 13.23,
+    "_mock_change_percent": 6.65
+  },
+  {
+    "code": "600167",
+    "name": "联美控股",
+    "industry": "热力及电碳III",
+    "plate": "沪主板",
+    "list_date": "2014-10-18",
+    "_mock_price": 127.77,
+    "_mock_change": -4.22,
+    "_mock_change_percent": -3.19
+  },
+  {
+    "code": "600176",
+    "name": "中国通号",
+    "industry": "轨道交通设备III",
+    "plate": "沪主板",
+    "list_date": "2015-08-01",
+    "_mock_price": 232.86,
+    "_mock_change": 6.24,
+    "_mock_change_percent": 2.75
+  },
+  {
+    "code": "600183",
+    "name": "生益科技",
+    "industry": "覆铜板",
+    "plate": "沪主板",
+    "list_date": "2012-08-14",
+    "_mock_price": 274.85,
+    "_mock_change": 22.11,
+    "_mock_change_percent": 8.75
+  },
+  {
+    "code": "600196",
+    "name": "复星医药",
+    "industry": "化学制药",
+    "plate": "沪主板",
+    "list_date": "2010-06-19",
+    "_mock_price": 7.9,
+    "_mock_change": 0.4,
+    "_mock_change_percent": 5.34
+  },
+  {
+    "code": "600199",
+    "name": "金种子酒",
+    "industry": "白酒II",
+    "plate": "沪主板",
+    "list_date": "2010-09-25",
+    "_mock_price": 74.63,
+    "_mock_change": -4.11,
+    "_mock_change_percent": -5.22
+  },
+  {
+    "code": "600208",
+    "name": "重庆啤酒",
+    "industry": "啤酒",
+    "plate": "沪主板",
+    "list_date": "2015-07-28",
+    "_mock_price": 259.24,
+    "_mock_change": 17.35,
+    "_mock_change_percent": 7.17
+  },
+  {
+    "code": "600219",
+    "name": "南山铝业",
+    "industry": "铝",
+    "plate": "沪主板",
+    "list_date": "2013-02-21",
+    "_mock_price": 6.82,
+    "_mock_change": -0.16,
+    "_mock_change_percent": -2.28
+  },
+  {
+    "code": "600233",
+    "name": "圆通速递",
+    "industry": "快递",
+    "plate": "沪主板",
+    "list_date": "2016-02-10",
+    "_mock_price": 283.66,
+    "_mock_change": 17.15,
+    "_mock_change_percent": 6.43
+  },
+  {
+    "code": "600256",
+    "name": "广汇能源",
+    "industry": "煤炭III",
+    "plate": "沪主板",
+    "list_date": "2016-11-12",
+    "_mock_price": 133.42,
+    "_mock_change": -13.63,
+    "_mock_change_percent": -9.27
+  },
+  {
+    "code": "600271",
+    "name": "航天信息",
+    "industry": "IT服务III",
+    "plate": "沪主板",
+    "list_date": "2012-11-11",
+    "_mock_price": 67.23,
+    "_mock_change": 1.28,
+    "_mock_change_percent": 1.93
+  },
+  {
+    "code": "600276",
+    "name": "恒瑞医药",
+    "industry": "化学制药",
+    "plate": "沪主板",
+    "list_date": "2019-10-18",
+    "_mock_price": 242.1,
+    "_mock_change": -13.87,
+    "_mock_change_percent": -5.42
+  },
+  {
+    "code": "600282",
+    "name": "南钢股份",
+    "industry": "普钢",
+    "plate": "沪主板",
+    "list_date": "2016-06-20",
+    "_mock_price": 167.09,
+    "_mock_change": 13.29,
+    "_mock_change_percent": 8.64
+  },
+  {
+    "code": "600299",
+    "name": "安迪苏",
+    "industry": "化学原料",
+    "plate": "沪主板",
+    "list_date": "2019-12-05",
+    "_mock_price": 235.85,
+    "_mock_change": -14.6,
+    "_mock_change_percent": -5.83
+  },
+  {
+    "code": "600309",
+    "name": "万华化学",
+    "industry": "聚氨酯",
+    "plate": "沪主板",
+    "list_date": "2018-03-24",
+    "_mock_price": 199.22,
+    "_mock_change": -19.97,
+    "_mock_change_percent": -9.11
+  },
+  {
+    "code": "600315",
+    "name": "上海家化",
+    "industry": "品牌化妆品",
+    "plate": "沪主板",
+    "list_date": "2013-05-16",
+    "_mock_price": 132.99,
+    "_mock_change": -8.19,
+    "_mock_change_percent": -5.8
+  },
+  {
+    "code": "600316",
+    "name": "洪都航空",
+    "industry": "航空装备III",
+    "plate": "沪主板",
+    "list_date": "2014-11-07",
+    "_mock_price": 154.48,
+    "_mock_change": 8.2,
+    "_mock_change_percent": 5.61
+  },
+  {
+    "code": "600320",
+    "name": "振华重工",
+    "industry": "港航设备III",
+    "plate": "沪主板",
+    "list_date": "2010-01-25",
+    "_mock_price": 3.45,
+    "_mock_change": -0.16,
+    "_mock_change_percent": -4.65
+  },
+  {
+    "code": "600325",
+    "name": "华发股份",
+    "industry": "住宅开发",
+    "plate": "沪主板",
+    "list_date": "2017-09-22",
+    "_mock_price": 185.43,
+    "_mock_change": -1.85,
+    "_mock_change_percent": -0.99
+  },
+  {
+    "code": "600329",
+    "name": "达芙妮",
+    "industry": "服装",
+    "plate": "沪主板",
+    "list_date": "2012-10-23",
+    "_mock_price": 253.68,
+    "_mock_change": 12.78,
+    "_mock_change_percent": 5.31
+  },
+  {
+    "code": "600330",
+    "name": "天通股份",
+    "industry": "软磁材料",
+    "plate": "沪主板",
+    "list_date": "2011-03-13",
+    "_mock_price": 30.89,
+    "_mock_change": 0.6,
+    "_mock_change_percent": 1.98
+  },
+  {
+    "code": "600332",
+    "name": "白云山",
+    "industry": "中药II",
+    "plate": "沪主板",
+    "list_date": "2018-05-12",
+    "_mock_price": 225.3,
+    "_mock_change": -16.95,
+    "_mock_change_percent": -7.0
+  },
+  {
+    "code": "600346",
+    "name": "恒力石化",
+    "industry": "炼化及贸易",
+    "plate": "沪主板",
+    "list_date": "2015-07-03",
+    "_mock_price": 79.78,
+    "_mock_change": 3.39,
+    "_mock_change_percent": 4.44
+  },
+  {
+    "code": "600352",
+    "name": "浙江龙盛",
+    "industry": "染料",
+    "plate": "沪主板",
+    "list_date": "2010-05-24",
+    "_mock_price": 247.53,
+    "_mock_change": -9.73,
+    "_mock_change_percent": -3.78
+  },
+  {
+    "code": "600362",
+    "name": "江西铜业",
+    "industry": "铜",
+    "plate": "沪主板",
+    "list_date": "2019-03-12",
+    "_mock_price": 147.04,
+    "_mock_change": -7.27,
+    "_mock_change_percent": -4.71
+  },
+  {
+    "code": "600369",
+    "name": "西南证券",
+    "industry": "证券III",
+    "plate": "沪主板",
+    "list_date": "2015-03-02",
+    "_mock_price": 43.36,
+    "_mock_change": -0.98,
+    "_mock_change_percent": -2.22
+  },
+  {
+    "code": "600372",
+    "name": "中航电子",
+    "industry": "航空装备III",
+    "plate": "沪主板",
+    "list_date": "2011-01-02",
+    "_mock_price": 34.79,
+    "_mock_change": 0.47,
+    "_mock_change_percent": 1.36
+  },
+  {
+    "code": "600383",
+    "name": "华润地产",
+    "industry": "住宅开发",
+    "plate": "沪主板",
+    "list_date": "2015-12-04",
+    "_mock_price": 75.19,
+    "_mock_change": 6.37,
+    "_mock_change_percent": 9.27
+  },
+  {
+    "code": "600387",
+    "name": "海越能源",
+    "industry": "炼化化工",
+    "plate": "沪主板",
+    "list_date": "2017-04-11",
+    "_mock_price": 79.69,
+    "_mock_change": 5.75,
+    "_mock_change_percent": 7.78
+  },
+  {
+    "code": "600390",
+    "name": "五矿资本",
+    "industry": "证券III",
+    "plate": "沪主板",
+    "list_date": "2010-09-27",
+    "_mock_price": 68.42,
+    "_mock_change": 0.65,
+    "_mock_change_percent": 0.97
+  },
+  {
+    "code": "600406",
+    "name": "国电南瑞",
+    "industry": "电网自动化设备",
+    "plate": "沪主板",
+    "list_date": "2018-01-02",
+    "_mock_price": 288.28,
+    "_mock_change": 17.96,
+    "_mock_change_percent": 6.64
+  },
+  {
+    "code": "600410",
+    "name": "华胜天成",
+    "industry": "IT服务III",
+    "plate": "沪主板",
+    "list_date": "2011-04-17",
+    "_mock_price": 66.46,
+    "_mock_change": 2.38,
+    "_mock_change_percent": 3.72
+  },
+  {
+    "code": "600418",
+    "name": "江淮汽车",
+    "industry": "乘用车",
+    "plate": "沪主板",
+    "list_date": "2017-10-17",
+    "_mock_price": 197.62,
+    "_mock_change": 1.5,
+    "_mock_change_percent": 0.76
+  },
+  {
+    "code": "600426",
+    "name": "华鲁恒升",
+    "industry": "煤化工",
+    "plate": "沪主板",
+    "list_date": "2013-06-27",
+    "_mock_price": 271.96,
+    "_mock_change": -11.52,
+    "_mock_change_percent": -4.06
+  },
+  {
+    "code": "600436",
+    "name": "片仔癀",
+    "industry": "中药II",
+    "plate": "沪主板",
+    "list_date": "2019-12-28",
+    "_mock_price": 163.86,
+    "_mock_change": -14.36,
+    "_mock_change_percent": -8.06
+  },
+  {
+    "code": "600438",
+    "name": "通威股份",
+    "industry": "光伏电池组件",
+    "plate": "沪主板",
+    "list_date": "2014-12-04",
+    "_mock_price": 83.66,
+    "_mock_change": 0.33,
+    "_mock_change_percent": 0.39
+  },
+  {
+    "code": "600458",
+    "name": "时代新材",
+    "industry": "高分子材料",
+    "plate": "沪主板",
+    "list_date": "2013-04-19",
+    "_mock_price": 92.19,
+    "_mock_change": 1.93,
+    "_mock_change_percent": 2.14
+  },
+  {
+    "code": "600460",
+    "name": "士兰微",
+    "industry": "模拟芯片设计",
+    "plate": "沪主板",
+    "list_date": "2010-03-28",
+    "_mock_price": 178.21,
+    "_mock_change": 12.22,
+    "_mock_change_percent": 7.36
+  },
+  {
+    "code": "600467",
+    "name": "好当家",
+    "industry": "水产养殖",
+    "plate": "沪主板",
+    "list_date": "2011-03-10",
+    "_mock_price": 177.79,
+    "_mock_change": -13.06,
+    "_mock_change_percent": -6.84
+  },
+  {
+    "code": "600482",
+    "name": "中国动力",
+    "industry": "舰船发动机",
+    "plate": "沪主板",
+    "list_date": "2011-02-28",
+    "_mock_price": 141.46,
+    "_mock_change": -5.62,
+    "_mock_change_percent": -3.82
+  },
+  {
+    "code": "600487",
+    "name": "亨通光电",
+    "industry": "光缆光缆",
+    "plate": "沪主板",
+    "list_date": "2018-04-12",
+    "_mock_price": 159.16,
+    "_mock_change": 7.72,
+    "_mock_change_percent": 5.1
+  },
+  {
+    "code": "600489",
+    "name": "中金黄金",
+    "industry": "黄金III",
+    "plate": "沪主板",
+    "list_date": "2012-09-02",
+    "_mock_price": 223.88,
+    "_mock_change": -20.78,
+    "_mock_change_percent": -8.49
+  },
+  {
+    "code": "600498",
+    "name": "烽火通信",
+    "industry": "通信系统设备",
+    "plate": "沪主板",
+    "list_date": "2010-01-08",
+    "_mock_price": 42.94,
+    "_mock_change": 0.72,
+    "_mock_change_percent": 1.7
+  },
+  {
+    "code": "600499",
+    "name": "科达利",
+    "industry": "锂电设备",
+    "plate": "沪主板",
+    "list_date": "2012-06-06",
+    "_mock_price": 195.26,
+    "_mock_change": 8.67,
+    "_mock_change_percent": 4.64
+  },
+  {
+    "code": "600507",
+    "name": "方大特钢",
+    "industry": "特钢II",
+    "plate": "沪主板",
+    "list_date": "2012-02-11",
+    "_mock_price": 89.89,
+    "_mock_change": 1.31,
+    "_mock_change_percent": 1.48
+  },
+  {
+    "code": "600511",
+    "name": "国药股份",
+    "industry": "医药流通III",
+    "plate": "沪主板",
+    "list_date": "2015-04-04",
+    "_mock_price": 260.13,
+    "_mock_change": -19.48,
+    "_mock_change_percent": -6.97
+  },
+  {
+    "code": "600516",
+    "name": "方大炭素",
+    "industry": "碳纤维",
+    "plate": "沪主板",
+    "list_date": "2013-07-17",
+    "_mock_price": 120.35,
+    "_mock_change": -9.0,
+    "_mock_change_percent": -6.95
+  },
+  {
+    "code": "600517",
+    "name": "置信电气",
+    "industry": "电网自动化设备",
+    "plate": "沪主板",
+    "list_date": "2019-08-26",
+    "_mock_price": 111.33,
+    "_mock_change": 5.73,
+    "_mock_change_percent": 5.43
+  },
+  {
+    "code": "600519",
+    "name": "贵州茅台",
+    "industry": "白酒II",
+    "plate": "沪主板",
+    "list_date": "2018-05-03",
+    "_mock_price": 258.63,
+    "_mock_change": 18.39,
+    "_mock_change_percent": 7.66
+  },
+  {
+    "code": "600522",
+    "name": "中天科技",
+    "industry": "光纤光缆",
+    "plate": "沪主板",
+    "list_date": "2019-08-16",
+    "_mock_price": 222.82,
+    "_mock_change": -19.24,
+    "_mock_change_percent": -7.95
+  },
+  {
+    "code": "600528",
+    "name": "中铁二局",
+    "industry": "基建市政工程",
+    "plate": "沪主板",
+    "list_date": "2013-02-22",
+    "_mock_price": 136.18,
+    "_mock_change": 3.46,
+    "_mock_change_percent": 2.61
+  },
+  {
+    "code": "600535",
+    "name": "天士力",
+    "industry": "中药II",
+    "plate": "沪主板",
+    "list_date": "2016-08-09",
+    "_mock_price": 117.02,
+    "_mock_change": -5.12,
+    "_mock_change_percent": -4.19
+  },
+  {
+    "code": "600536",
+    "name": "中国软件",
+    "industry": "IT服务III",
+    "plate": "沪主板",
+    "list_date": "2012-10-17",
+    "_mock_price": 192.47,
+    "_mock_change": 15.37,
+    "_mock_change_percent": 8.68
+  },
+  {
+    "code": "600546",
+    "name": "山煤国际",
+    "industry": "煤炭III",
+    "plate": "沪主板",
+    "list_date": "2019-04-12",
+    "_mock_price": 235.51,
+    "_mock_change": -2.85,
+    "_mock_change_percent": -1.2
+  },
+  {
+    "code": "600547",
+    "name": "山东黄金",
+    "industry": "黄金III",
+    "plate": "沪主板",
+    "list_date": "2015-09-06",
+    "_mock_price": 89.57,
+    "_mock_change": -5.63,
+    "_mock_change_percent": -5.91
+  },
+  {
+    "code": "600548",
+    "name": "深高速",
+    "industry": "高速公路III",
+    "plate": "沪主板",
+    "list_date": "2018-03-27",
+    "_mock_price": 46.68,
+    "_mock_change": 3.9,
+    "_mock_change_percent": 9.11
+  },
+  {
+    "code": "600549",
+    "name": "厦门钨业",
+    "industry": "钨",
+    "plate": "沪主板",
+    "list_date": "2019-12-05",
+    "_mock_price": 237.95,
+    "_mock_change": 5.65,
+    "_mock_change_percent": 2.43
+  },
+  {
+    "code": "600557",
+    "name": "康缘药业",
+    "industry": "中药II",
+    "plate": "沪主板",
+    "list_date": "2017-04-21",
+    "_mock_price": 216.27,
+    "_mock_change": 7.65,
+    "_mock_change_percent": 3.67
+  },
+  {
+    "code": "600563",
+    "name": "法拉电子",
+    "industry": "被动元件",
+    "plate": "沪主板",
+    "list_date": "2010-09-10",
+    "_mock_price": 7.63,
+    "_mock_change": 0.66,
+    "_mock_change_percent": 9.47
+  },
+  {
+    "code": "600566",
+    "name": "济川药业",
+    "industry": "化学制药",
+    "plate": "沪主板",
+    "list_date": "2014-07-14",
+    "_mock_price": 181.61,
+    "_mock_change": -0.06,
+    "_mock_change_percent": -0.03
+  },
+  {
+    "code": "600572",
+    "name": "康恩贝",
+    "industry": "中药II",
+    "plate": "沪主板",
+    "list_date": "2010-12-09",
+    "_mock_price": 238.83,
+    "_mock_change": 12.74,
+    "_mock_change_percent": 5.64
+  },
+  {
+    "code": "600582",
+    "name": "天地科技",
+    "industry": "煤炭开采洗选",
+    "plate": "沪主板",
+    "list_date": "2019-09-18",
+    "_mock_price": 142.72,
+    "_mock_change": -7.36,
+    "_mock_change_percent": -4.9
+  },
+  {
+    "code": "600584",
+    "name": "长电科技",
+    "industry": "封测",
+    "plate": "沪主板",
+    "list_date": "2017-06-19",
+    "_mock_price": 83.78,
+    "_mock_change": -0.19,
+    "_mock_change_percent": -0.23
+  },
+  {
+    "code": "600585",
+    "name": "海螺水泥",
+    "industry": "水泥",
+    "plate": "沪主板",
+    "list_date": "2010-03-20",
+    "_mock_price": 58.73,
+    "_mock_change": 1.39,
+    "_mock_change_percent": 2.42
+  },
+  {
+    "code": "600588",
+    "name": "用友网络",
+    "industry": "ERP软件",
+    "plate": "沪主板",
+    "list_date": "2010-07-19",
+    "_mock_price": 93.96,
+    "_mock_change": 3.0,
+    "_mock_change_percent": 3.3
+  },
+  {
+    "code": "600598",
+    "name": "北大荒",
+    "industry": "种植业",
+    "plate": "沪主板",
+    "list_date": "2013-12-18",
+    "_mock_price": 186.56,
+    "_mock_change": -18.05,
+    "_mock_change_percent": -8.82
+  },
+  {
+    "code": "600600",
+    "name": "青岛啤酒",
+    "industry": "啤酒",
+    "plate": "沪主板",
+    "list_date": "2019-07-10",
+    "_mock_price": 191.95,
+    "_mock_change": 12.27,
+    "_mock_change_percent": 6.83
+  },
+  {
+    "code": "600606",
+    "name": "绿地控股",
+    "industry": "住宅开发",
+    "plate": "沪主板",
+    "list_date": "2016-08-01",
+    "_mock_price": 172.64,
+    "_mock_change": -14.78,
+    "_mock_change_percent": -7.89
+  },
+  {
+    "code": "600610",
+    "name": "中毅达",
+    "industry": "综合",
+    "plate": "沪主板",
+    "list_date": "2016-05-23",
+    "_mock_price": 149.55,
+    "_mock_change": -2.9,
+    "_mock_change_percent": -1.9
+  },
+  {
+    "code": "600611",
+    "name": "大众交通",
+    "industry": "出租车",
+    "plate": "沪主板",
+    "list_date": "2011-02-28",
+    "_mock_price": 194.91,
+    "_mock_change": 7.84,
+    "_mock_change_percent": 4.19
+  },
+  {
+    "code": "600612",
+    "name": "老凤祥",
+    "industry": "珠宝首饰",
+    "plate": "沪主板",
+    "list_date": "2015-08-06",
+    "_mock_price": 220.17,
+    "_mock_change": 5.9,
+    "_mock_change_percent": 2.75
+  },
+  {
+    "code": "600620",
+    "name": "天宸股份",
+    "industry": "房地产",
+    "plate": "沪主板",
+    "list_date": "2013-10-14",
+    "_mock_price": 286.06,
+    "_mock_change": -8.73,
+    "_mock_change_percent": -2.96
+  },
+  {
+    "code": "600629",
+    "name": "华建集团",
+    "industry": "建筑设计",
+    "plate": "沪主板",
+    "list_date": "2012-11-13",
+    "_mock_price": 67.79,
+    "_mock_change": -0.13,
+    "_mock_change_percent": -0.19
+  },
+  {
+    "code": "600637",
+    "name": "百视传媒",
+    "industry": "广电",
+    "plate": "沪主板",
+    "list_date": "2018-06-28",
+    "_mock_price": 159.81,
+    "_mock_change": -12.33,
+    "_mock_change_percent": -7.17
+  },
+  {
+    "code": "600642",
+    "name": "申能股份",
+    "industry": "火电",
+    "plate": "沪主板",
+    "list_date": "2012-08-09",
+    "_mock_price": 152.33,
+    "_mock_change": -3.39,
+    "_mock_change_percent": -2.18
+  },
+  {
+    "code": "600644",
+    "name": "乐山电力",
+    "industry": "水电",
+    "plate": "沪主板",
+    "list_date": "2013-06-07",
+    "_mock_price": 95.18,
+    "_mock_change": 2.61,
+    "_mock_change_percent": 2.82
+  },
+  {
+    "code": "600660",
+    "name": "福耀玻璃",
+    "industry": "汽车玻璃",
+    "plate": "沪主板",
+    "list_date": "2016-08-26",
+    "_mock_price": 41.68,
+    "_mock_change": -2.31,
+    "_mock_change_percent": -5.25
+  },
+  {
+    "code": "600674",
+    "name": "川投能源",
+    "industry": "水电",
+    "plate": "沪主板",
+    "list_date": "2018-05-03",
+    "_mock_price": 169.97,
+    "_mock_change": 12.15,
+    "_mock_change_percent": 7.7
+  },
+  {
+    "code": "600685",
+    "name": "中船防务",
+    "industry": "船舶制造",
+    "plate": "沪主板",
+    "list_date": "2013-02-12",
+    "_mock_price": 25.79,
+    "_mock_change": 1.27,
+    "_mock_change_percent": 5.16
+  },
+  {
+    "code": "600690",
+    "name": "海尔智家",
+    "industry": "白色家电",
+    "plate": "沪主板",
+    "list_date": "2017-09-16",
+    "_mock_price": 286.15,
+    "_mock_change": -8.25,
+    "_mock_change_percent": -2.8
+  },
+  {
+    "code": "600694",
+    "name": "大商股份",
+    "industry": "百货",
+    "plate": "沪主板",
+    "list_date": "2016-12-04",
+    "_mock_price": 246.64,
+    "_mock_change": 9.24,
+    "_mock_change_percent": 3.89
+  },
+  {
+    "code": "600703",
+    "name": "三安光电",
+    "industry": "LED",
+    "plate": "沪主板",
+    "list_date": "2014-05-20",
+    "_mock_price": 187.62,
+    "_mock_change": -14.06,
+    "_mock_change_percent": -6.97
+  },
+  {
+    "code": "600705",
+    "name": "中航资本",
+    "industry": "证券III",
+    "plate": "沪主板",
+    "list_date": "2012-05-18",
+    "_mock_price": 123.89,
+    "_mock_change": 0.87,
+    "_mock_change_percent": 0.71
+  },
+  {
+    "code": "600717",
+    "name": "天津港",
+    "industry": "港口III",
+    "plate": "沪主板",
+    "list_date": "2018-10-20",
+    "_mock_price": 8.33,
+    "_mock_change": -0.52,
+    "_mock_change_percent": -5.89
+  },
+  {
+    "code": "600728",
+    "name": "佳都科技",
+    "industry": "IT服务III",
+    "plate": "沪主板",
+    "list_date": "2017-08-03",
+    "_mock_price": 3.99,
+    "_mock_change": 0.2,
+    "_mock_change_percent": 5.3
+  },
+  {
+    "code": "600729",
+    "name": "重庆百货",
+    "industry": "百货",
+    "plate": "沪主板",
+    "list_date": "2012-12-17",
+    "_mock_price": 160.43,
+    "_mock_change": -10.7,
+    "_mock_change_percent": -6.25
+  },
+  {
+    "code": "600736",
+    "name": "苏州高新",
+    "industry": "园区开发",
+    "plate": "沪主板",
+    "list_date": "2011-04-24",
+    "_mock_price": 42.08,
+    "_mock_change": -0.2,
+    "_mock_change_percent": -0.46
+  },
+  {
+    "code": "600739",
+    "name": "辽宁成大",
+    "industry": "综合",
+    "plate": "沪主板",
+    "list_date": "2012-12-27",
+    "_mock_price": 191.17,
+    "_mock_change": 16.07,
+    "_mock_change_percent": 9.17
+  },
+  {
+    "code": "600741",
+    "name": "华域汽车",
+    "industry": "汽车零部件III",
+    "plate": "沪主板",
+    "list_date": "2014-11-28",
+    "_mock_price": 196.9,
+    "_mock_change": -17.48,
+    "_mock_change_percent": -8.15
+  },
+  {
+    "code": "600745",
+    "name": "闻泰科技",
+    "industry": "消费电子",
+    "plate": "沪主板",
+    "list_date": "2017-04-20",
+    "_mock_price": 38.86,
+    "_mock_change": 0.75,
+    "_mock_change_percent": 1.96
+  },
+  {
+    "code": "600754",
+    "name": "锦江酒店",
+    "industry": "酒店III",
+    "plate": "沪主板",
+    "list_date": "2010-05-21",
+    "_mock_price": 278.83,
+    "_mock_change": -6.05,
+    "_mock_change_percent": -2.13
+  },
+  {
+    "code": "600760",
+    "name": "上海机电",
+    "industry": "楼宇设备",
+    "plate": "沪主板",
+    "list_date": "2017-07-10",
+    "_mock_price": 197.11,
+    "_mock_change": -11.88,
+    "_mock_change_percent": -5.68
+  },
+  {
+    "code": "600761",
+    "name": "安徽合力",
+    "industry": "工程机械",
+    "plate": "沪主板",
+    "list_date": "2010-07-27",
+    "_mock_price": 260.67,
+    "_mock_change": -5.86,
+    "_mock_change_percent": -2.2
+  },
+  {
+    "code": "600776",
+    "name": "东方通信",
+    "industry": "通信终端设备",
+    "plate": "沪主板",
+    "list_date": "2012-05-26",
+    "_mock_price": 64.87,
+    "_mock_change": -4.01,
+    "_mock_change_percent": -5.83
+  },
+  {
+    "code": "600779",
+    "name": "水井坊",
+    "industry": "白酒II",
+    "plate": "沪主板",
+    "list_date": "2015-07-27",
+    "_mock_price": 266.19,
+    "_mock_change": -10.05,
+    "_mock_change_percent": -3.64
+  },
+  {
+    "code": "600782",
+    "name": "新钢股份",
+    "industry": "普钢",
+    "plate": "沪主板",
+    "list_date": "2019-12-20",
+    "_mock_price": 73.58,
+    "_mock_change": -4.7,
+    "_mock_change_percent": -6.01
+  },
+  {
+    "code": "600783",
+    "name": "凯莱英",
+    "industry": "CDMO",
+    "plate": "沪主板",
+    "list_date": "2018-07-11",
+    "_mock_price": 283.66,
+    "_mock_change": -5.55,
+    "_mock_change_percent": -1.92
+  },
+  {
+    "code": "600787",
+    "name": "中储股份",
+    "industry": "物流",
+    "plate": "沪主板",
+    "list_date": "2013-05-14",
+    "_mock_price": 28.26,
+    "_mock_change": -1.18,
+    "_mock_change_percent": -3.98
+  },
+  {
+    "code": "600789",
+    "name": "山东黄金",
+    "industry": "黄金III",
+    "plate": "沪主板",
+    "list_date": "2016-10-24",
+    "_mock_price": 167.94,
+    "_mock_change": 14.45,
+    "_mock_change_percent": 9.42
+  },
+  {
+    "code": "600794",
+    "name": "保税科技",
+    "industry": "物流",
+    "plate": "沪主板",
+    "list_date": "2011-10-24",
+    "_mock_price": 203.14,
+    "_mock_change": 15.95,
+    "_mock_change_percent": 8.52
+  },
+  {
+    "code": "600797",
+    "name": "浙大网新",
+    "industry": "IT服务III",
+    "plate": "沪主板",
+    "list_date": "2013-05-21",
+    "_mock_price": 259.87,
+    "_mock_change": -12.98,
+    "_mock_change_percent": -4.76
+  },
+  {
+    "code": "600804",
+    "name": "鹏博士",
+    "industry": "增值电信服务",
+    "plate": "沪主板",
+    "list_date": "2015-07-16",
+    "_mock_price": 285.76,
+    "_mock_change": -3.19,
+    "_mock_change_percent": -1.1
+  },
+  {
+    "code": "600808",
+    "name": "马钢股份",
+    "industry": "普钢",
+    "plate": "沪主板",
+    "list_date": "2010-08-13",
+    "_mock_price": 164.67,
+    "_mock_change": -4.7,
+    "_mock_change_percent": -2.77
+  },
+  {
+    "code": "600809",
+    "name": "山西汾酒",
+    "industry": "白酒II",
+    "plate": "沪主板",
+    "list_date": "2013-11-26",
+    "_mock_price": 185.39,
+    "_mock_change": -18.0,
+    "_mock_change_percent": -8.85
+  },
+  {
+    "code": "600820",
+    "name": "隧道股份",
+    "industry": "基建市政工程",
+    "plate": "沪主板",
+    "list_date": "2017-02-14",
+    "_mock_price": 218.52,
+    "_mock_change": -22.6,
+    "_mock_change_percent": -9.37
+  },
+  {
+    "code": "600827",
+    "name": "百联股份",
+    "industry": "百货",
+    "plate": "沪主板",
+    "list_date": "2011-12-19",
+    "_mock_price": 77.21,
+    "_mock_change": 0.15,
+    "_mock_change_percent": 0.19
+  },
+  {
+    "code": "600835",
+    "name": "上海机电",
+    "industry": "楼宇设备",
+    "plate": "沪主板",
+    "list_date": "2012-12-17",
+    "_mock_price": 167.84,
+    "_mock_change": 6.09,
+    "_mock_change_percent": 3.77
+  },
+  {
+    "code": "600837",
+    "name": "海通证券",
+    "industry": "证券III",
+    "plate": "沪主板",
+    "list_date": "2013-07-11",
+    "_mock_price": 282.73,
+    "_mock_change": 17.13,
+    "_mock_change_percent": 6.45
+  },
+  {
+    "code": "600838",
+    "name": "上海九百",
+    "industry": "百货",
+    "plate": "沪主板",
+    "list_date": "2010-03-18",
+    "_mock_price": 108.34,
+    "_mock_change": 6.75,
+    "_mock_change_percent": 6.64
+  },
+  {
+    "code": "600845",
+    "name": "宝信软件",
+    "industry": "工业软件",
+    "plate": "沪主板",
+    "list_date": "2018-08-04",
+    "_mock_price": 35.93,
+    "_mock_change": 0.62,
+    "_mock_change_percent": 1.75
+  },
+  {
+    "code": "600850",
+    "name": "华东电脑",
+    "industry": "IT服务III",
+    "plate": "沪主板",
+    "list_date": "2012-10-19",
+    "_mock_price": 87.45,
+    "_mock_change": 1.42,
+    "_mock_change_percent": 1.65
+  },
+  {
+    "code": "600859",
+    "name": "王府井",
+    "industry": "百货",
+    "plate": "沪主板",
+    "list_date": "2016-03-17",
+    "_mock_price": 120.82,
+    "_mock_change": -10.53,
+    "_mock_change_percent": -8.02
+  },
+  {
+    "code": "600863",
+    "name": "内蒙华电",
+    "industry": "火电",
+    "plate": "沪主板",
+    "list_date": "2017-04-26",
+    "_mock_price": 131.5,
+    "_mock_change": 5.38,
+    "_mock_change_percent": 4.26
+  },
+  {
+    "code": "600867",
+    "name": "通化东宝",
+    "industry": "生物制品III",
+    "plate": "沪主板",
+    "list_date": "2012-01-28",
+    "_mock_price": 184.41,
+    "_mock_change": 13.96,
+    "_mock_change_percent": 8.19
+  },
+  {
+    "code": "600872",
+    "name": "中炬高新",
+    "industry": "调味发酵品II",
+    "plate": "沪主板",
+    "list_date": "2014-06-18",
+    "_mock_price": 84.41,
+    "_mock_change": 4.96,
+    "_mock_change_percent": 6.25
+  },
+  {
+    "code": "600874",
+    "name": "创业环保",
+    "industry": "水务及水治理",
+    "plate": "沪主板",
+    "list_date": "2017-09-15",
+    "_mock_price": 50.74,
+    "_mock_change": -1.68,
+    "_mock_change_percent": -3.19
+  },
+  {
+    "code": "600875",
+    "name": "东方电气",
+    "industry": "电站设备III",
+    "plate": "沪主板",
+    "list_date": "2018-11-09",
+    "_mock_price": 141.09,
+    "_mock_change": -1.17,
+    "_mock_change_percent": -0.82
+  },
+  {
+    "code": "600880",
+    "name": "柳州钢铁",
+    "industry": "普钢",
+    "plate": "沪主板",
+    "list_date": "2017-09-22",
+    "_mock_price": 184.38,
+    "_mock_change": 7.76,
+    "_mock_change_percent": 4.39
+  },
+  {
+    "code": "600881",
+    "name": "亚泰集团",
+    "industry": "综合",
+    "plate": "沪主板",
+    "list_date": "2016-12-17",
+    "_mock_price": 26.12,
+    "_mock_change": -2.74,
+    "_mock_change_percent": -9.5
+  },
+  {
+    "code": "600884",
+    "name": "杉杉股份",
+    "industry": "锂电池材料",
+    "plate": "沪主板",
+    "list_date": "2015-09-20",
+    "_mock_price": 175.11,
+    "_mock_change": 11.66,
+    "_mock_change_percent": 7.13
+  },
+  {
+    "code": "600886",
+    "name": "国投电力",
+    "industry": "火电",
+    "plate": "沪主板",
+    "list_date": "2012-03-26",
+    "_mock_price": 48.06,
+    "_mock_change": -3.56,
+    "_mock_change_percent": -6.88
+  },
+  {
+    "code": "600887",
+    "name": "伊利股份",
+    "industry": "乳品",
+    "plate": "沪主板",
+    "list_date": "2018-10-21",
+    "_mock_price": 84.35,
+    "_mock_change": 5.95,
+    "_mock_change_percent": 7.6
+  },
+  {
+    "code": "600888",
+    "name": "新疆众和",
+    "industry": "铝",
+    "plate": "沪主板",
+    "list_date": "2015-01-16",
+    "_mock_price": 235.71,
+    "_mock_change": -6.05,
+    "_mock_change_percent": -2.5
+  },
+  {
+    "code": "600893",
+    "name": "航发动力",
+    "industry": "航空发动机III",
+    "plate": "沪主板",
+    "list_date": "2015-04-26",
+    "_mock_price": 66.25,
+    "_mock_change": 3.42,
+    "_mock_change_percent": 5.44
+  },
+  {
+    "code": "600895",
+    "name": "张江高科",
+    "industry": "园区开发",
+    "plate": "沪主板",
+    "list_date": "2011-02-10",
+    "_mock_price": 129.87,
+    "_mock_change": -13.09,
+    "_mock_change_percent": -9.15
+  },
+  {
+    "code": "600897",
+    "name": "厦门空港",
+    "industry": "机场III",
+    "plate": "沪主板",
+    "list_date": "2017-04-18",
+    "_mock_price": 219.88,
+    "_mock_change": -19.57,
+    "_mock_change_percent": -8.17
+  },
+  {
+    "code": "600900",
+    "name": "长江电力",
+    "industry": "水电",
+    "plate": "沪主板",
+    "list_date": "2015-01-26",
+    "_mock_price": 210.51,
+    "_mock_change": -17.02,
+    "_mock_change_percent": -7.48
+  },
+  {
+    "code": "600903",
+    "name": "贵州燃气",
+    "industry": "燃气III",
+    "plate": "沪主板",
+    "list_date": "2012-02-27",
+    "_mock_price": 82.27,
+    "_mock_change": -6.37,
+    "_mock_change_percent": -7.18
+  },
+  {
+    "code": "600916",
+    "name": "中国黄金",
+    "industry": "黄金III",
+    "plate": "沪主板",
+    "list_date": "2011-09-05",
+    "_mock_price": 277.11,
+    "_mock_change": 18.38,
+    "_mock_change_percent": 7.1
+  },
+  {
+    "code": "600917",
+    "name": "重庆燃气",
+    "industry": "燃气III",
+    "plate": "沪主板",
+    "list_date": "2019-05-06",
+    "_mock_price": 190.66,
+    "_mock_change": -17.82,
+    "_mock_change_percent": -8.55
+  },
+  {
+    "code": "600919",
+    "name": "江苏银行",
+    "industry": "银行",
+    "plate": "沪主板",
+    "list_date": "2010-04-26",
+    "_mock_price": 183.03,
+    "_mock_change": -16.43,
+    "_mock_change_percent": -8.24
+  },
+  {
+    "code": "600926",
+    "name": "杭州银行",
+    "industry": "银行",
+    "plate": "沪主板",
+    "list_date": "2015-11-13",
+    "_mock_price": 217.22,
+    "_mock_change": -8.11,
+    "_mock_change_percent": -3.6
+  },
+  {
+    "code": "600928",
+    "name": "西安银行",
+    "industry": "银行",
+    "plate": "沪主板",
+    "list_date": "2018-08-03",
+    "_mock_price": 123.74,
+    "_mock_change": -1.55,
+    "_mock_change_percent": -1.24
+  },
+  {
+    "code": "600938",
+    "name": "中国黄金",
+    "industry": "黄金III",
+    "plate": "沪主板",
+    "list_date": "2010-12-20",
+    "_mock_price": 215.41,
+    "_mock_change": -7.64,
+    "_mock_change_percent": -3.42
+  },
+  {
+    "code": "600941",
+    "name": "中国移动",
+    "industry": "通信运营III",
+    "plate": "沪主板",
+    "list_date": "2017-08-05",
+    "_mock_price": 39.94,
+    "_mock_change": -1.36,
+    "_mock_change_percent": -3.28
+  },
+  {
+    "code": "600956",
+    "name": "新天绿能",
+    "industry": "风电",
+    "plate": "沪主板",
+    "list_date": "2019-05-01",
+    "_mock_price": 228.82,
+    "_mock_change": 8.55,
+    "_mock_change_percent": 3.88
+  },
+  {
+    "code": "600958",
+    "name": "东方证券",
+    "industry": "证券III",
+    "plate": "沪主板",
+    "list_date": "2012-01-28",
+    "_mock_price": 173.17,
+    "_mock_change": 11.0,
+    "_mock_change_percent": 6.78
+  },
+  {
+    "code": "600998",
+    "name": "宇通客车",
+    "industry": "客车",
+    "plate": "沪主板",
+    "list_date": "2017-12-18",
+    "_mock_price": 100.46,
+    "_mock_change": 2.97,
+    "_mock_change_percent": 3.04
+  },
+  {
+    "code": "601000",
+    "name": "外高桥",
+    "industry": "园区开发",
+    "plate": "沪主板",
+    "list_date": "2015-10-08",
+    "_mock_price": 71.3,
+    "_mock_change": -1.68,
+    "_mock_change_percent": -2.31
+  },
+  {
+    "code": "601001",
+    "name": "晋控煤业",
+    "industry": "煤炭III",
+    "plate": "沪主板",
+    "list_date": "2018-03-18",
+    "_mock_price": 12.05,
+    "_mock_change": -0.22,
+    "_mock_change_percent": -1.75
+  },
+  {
+    "code": "601003",
+    "name": "柳钢股份",
+    "industry": "普钢",
+    "plate": "沪主板",
+    "list_date": "2010-09-26",
+    "_mock_price": 295.97,
+    "_mock_change": -4.02,
+    "_mock_change_percent": -1.34
+  },
+  {
+    "code": "601005",
+    "name": "重庆钢铁",
+    "industry": "普钢",
+    "plate": "沪主板",
+    "list_date": "2015-04-05",
+    "_mock_price": 313.45,
+    "_mock_change": 25.98,
+    "_mock_change_percent": 9.04
+  },
+  {
+    "code": "601006",
+    "name": "大秦铁路",
+    "industry": "铁路III",
+    "plate": "沪主板",
+    "list_date": "2012-06-28",
+    "_mock_price": 160.39,
+    "_mock_change": -16.5,
+    "_mock_change_percent": -9.33
+  },
+  {
+    "code": "601007",
+    "name": "金陵饭店",
+    "industry": "酒店III",
+    "plate": "沪主板",
+    "list_date": "2018-08-21",
+    "_mock_price": 3.97,
+    "_mock_change": -0.4,
+    "_mock_change_percent": -9.25
+  },
+  {
+    "code": "601008",
+    "name": "连云港",
+    "industry": "港口III",
+    "plate": "沪主板",
+    "list_date": "2018-05-26",
+    "_mock_price": 33.26,
+    "_mock_change": -2.35,
+    "_mock_change_percent": -6.59
+  },
+  {
+    "code": "601009",
+    "name": "南京银行",
+    "industry": "银行",
+    "plate": "沪主板",
+    "list_date": "2016-03-04",
+    "_mock_price": 267.77,
+    "_mock_change": -8.63,
+    "_mock_change_percent": -3.12
+  },
+  {
+    "code": "601010",
+    "name": "文峰股份",
+    "industry": "百货",
+    "plate": "沪主板",
+    "list_date": "2010-06-06",
+    "_mock_price": 110.42,
+    "_mock_change": -4.86,
+    "_mock_change_percent": -4.21
+  },
+  {
+    "code": "601011",
+    "name": "光大银行",
+    "industry": "银行",
+    "plate": "沪主板",
+    "list_date": "2016-08-11",
+    "_mock_price": 10.31,
+    "_mock_change": -0.94,
+    "_mock_change_percent": -8.31
+  },
+  {
+    "code": "601012",
+    "name": "陕国投A",
+    "industry": "证券III",
+    "plate": "沪主板",
+    "list_date": "2013-12-14",
+    "_mock_price": 76.51,
+    "_mock_change": 5.4,
+    "_mock_change_percent": 7.59
+  },
+  {
+    "code": "601015",
+    "name": "陕西黑猫",
+    "industry": "焦炭III",
+    "plate": "沪主板",
+    "list_date": "2010-02-19",
+    "_mock_price": 36.88,
+    "_mock_change": -3.59,
+    "_mock_change_percent": -8.86
+  },
+  {
+    "code": "601016",
+    "name": "陕西煤业",
+    "industry": "煤炭III",
+    "plate": "沪主板",
+    "list_date": "2010-10-06",
+    "_mock_price": 31.83,
+    "_mock_change": -0.44,
+    "_mock_change_percent": -1.37
+  },
+  {
+    "code": "601018",
+    "name": "中色股份",
+    "industry": "铜",
+    "plate": "沪主板",
+    "list_date": "2015-07-16",
+    "_mock_price": 191.4,
+    "_mock_change": 11.98,
+    "_mock_change_percent": 6.67
+  },
+  {
+    "code": "601021",
+    "name": "春秋航空",
+    "industry": "航空III",
+    "plate": "沪主板",
+    "list_date": "2019-09-10",
+    "_mock_price": 216.13,
+    "_mock_change": -9.22,
+    "_mock_change_percent": -4.09
+  },
+  {
+    "code": "601028",
+    "name": "玉龙股份",
+    "industry": "特钢II",
+    "plate": "沪主板",
+    "list_date": "2018-08-02",
+    "_mock_price": 119.11,
+    "_mock_change": -4.62,
+    "_mock_change_percent": -3.74
+  },
+  {
+    "code": "601038",
+    "name": "一拖股份",
+    "industry": "农用机械",
+    "plate": "沪主板",
+    "list_date": "2019-12-25",
+    "_mock_price": 296.76,
+    "_mock_change": 24.81,
+    "_mock_change_percent": 9.12
+  },
+  {
+    "code": "601058",
+    "name": "赛轮轮胎",
+    "industry": "轮胎",
+    "plate": "沪主板",
+    "list_date": "2010-11-19",
+    "_mock_price": 196.67,
+    "_mock_change": -10.64,
+    "_mock_change_percent": -5.13
+  },
+  {
+    "code": "601066",
+    "name": "中信建投",
+    "industry": "证券III",
+    "plate": "沪主板",
+    "list_date": "2018-11-14",
+    "_mock_price": 277.48,
+    "_mock_change": -7.64,
+    "_mock_change_percent": -2.68
+  },
+  {
+    "code": "601069",
+    "name": "西部黄金",
+    "industry": "黄金III",
+    "plate": "沪主板",
+    "list_date": "2015-06-21",
+    "_mock_price": 162.69,
+    "_mock_change": 7.86,
+    "_mock_change_percent": 5.08
+  },
+  {
+    "code": "601077",
+    "name": "渝农商行",
+    "industry": "银行",
+    "plate": "沪主板",
+    "list_date": "2012-06-07",
+    "_mock_price": 81.12,
+    "_mock_change": -2.14,
+    "_mock_change_percent": -2.56
+  },
+  {
+    "code": "601086",
+    "name": "国芳集团",
+    "industry": "百货",
+    "plate": "沪主板",
+    "list_date": "2011-08-11",
+    "_mock_price": 88.53,
+    "_mock_change": 3.9,
+    "_mock_change_percent": 4.61
+  },
+  {
+    "code": "601088",
+    "name": "中国神华",
+    "industry": "煤炭III",
+    "plate": "沪主板",
+    "list_date": "2015-11-13",
+    "_mock_price": 237.15,
+    "_mock_change": -7.79,
+    "_mock_change_percent": -3.18
+  },
+  {
+    "code": "601098",
+    "name": "中南传媒",
+    "industry": "出版",
+    "plate": "沪主板",
+    "list_date": "2011-08-09",
+    "_mock_price": 98.89,
+    "_mock_change": -0.96,
+    "_mock_change_percent": -0.96
+  },
+  {
+    "code": "601100",
+    "name": "恒立液压",
+    "industry": "工程机械",
+    "plate": "沪主板",
+    "list_date": "2011-05-22",
+    "_mock_price": 165.68,
+    "_mock_change": 12.3,
+    "_mock_change_percent": 8.02
+  },
+  {
+    "code": "601101",
+    "name": "昊华能源",
+    "industry": "煤炭III",
+    "plate": "沪主板",
+    "list_date": "2014-07-18",
+    "_mock_price": 51.94,
+    "_mock_change": 2.53,
+    "_mock_change_percent": 5.13
+  },
+  {
+    "code": "601108",
+    "name": "财通证券",
+    "industry": "证券III",
+    "plate": "沪主板",
+    "list_date": "2014-08-01",
+    "_mock_price": 212.21,
+    "_mock_change": -14.25,
+    "_mock_change_percent": -6.29
+  },
+  {
+    "code": "601111",
+    "name": "中国国航",
+    "industry": "航空III",
+    "plate": "沪主板",
+    "list_date": "2012-02-15",
+    "_mock_price": 70.91,
+    "_mock_change": -3.11,
+    "_mock_change_percent": -4.2
+  },
+  {
+    "code": "601113",
+    "name": "北汽蓝谷",
+    "industry": "乘用车",
+    "plate": "沪主板",
+    "list_date": "2013-06-13",
+    "_mock_price": 182.88,
+    "_mock_change": 0.18,
+    "_mock_change_percent": 0.1
+  },
+  {
+    "code": "601117",
+    "name": "中国化学",
+    "industry": "化学工程",
+    "plate": "沪主板",
+    "list_date": "2010-09-11",
+    "_mock_price": 298.66,
+    "_mock_change": 5.69,
+    "_mock_change_percent": 1.94
+  },
+  {
+    "code": "601118",
+    "name": "海南橡胶",
+    "industry": "橡胶III",
+    "plate": "沪主板",
+    "list_date": "2011-10-25",
+    "_mock_price": 105.68,
+    "_mock_change": -0.21,
+    "_mock_change_percent": -0.2
+  },
+  {
+    "code": "601127",
+    "name": "赛力斯",
+    "industry": "乘用车",
+    "plate": "沪主板",
+    "list_date": "2011-03-16",
+    "_mock_price": 74.44,
+    "_mock_change": 3.52,
+    "_mock_change_percent": 4.97
+  },
+  {
+    "code": "601128",
+    "name": "常熟银行",
+    "industry": "银行",
+    "plate": "沪主板",
+    "list_date": "2011-12-25",
+    "_mock_price": 261.51,
+    "_mock_change": 0.2,
+    "_mock_change_percent": 0.08
+  },
+  {
+    "code": "601138",
+    "name": "工业富联",
+    "industry": "消费电子",
+    "plate": "沪主板",
+    "list_date": "2017-03-23",
+    "_mock_price": 221.9,
+    "_mock_change": -14.38,
+    "_mock_change_percent": -6.09
+  },
+  {
+    "code": "601139",
+    "name": "深圳燃气",
+    "industry": "燃气III",
+    "plate": "沪主板",
+    "list_date": "2018-08-26",
+    "_mock_price": 239.27,
+    "_mock_change": 3.51,
+    "_mock_change_percent": 1.49
+  },
+  {
+    "code": "601155",
+    "name": "新城控股",
+    "industry": "住宅开发",
+    "plate": "沪主板",
+    "list_date": "2011-06-05",
+    "_mock_price": 178.98,
+    "_mock_change": 7.04,
+    "_mock_change_percent": 4.1
+  },
+  {
+    "code": "601158",
+    "name": "重庆港",
+    "industry": "港口III",
+    "plate": "沪主板",
+    "list_date": "2010-01-21",
+    "_mock_price": 249.5,
+    "_mock_change": 15.03,
+    "_mock_change_percent": 6.41
+  },
+  {
+    "code": "601166",
+    "name": "兴业银行",
+    "industry": "银行",
+    "plate": "沪主板",
+    "list_date": "2010-07-02",
+    "_mock_price": 202.63,
+    "_mock_change": -1.85,
+    "_mock_change_percent": -0.91
+  },
+  {
+    "code": "601168",
+    "name": "西部矿业",
+    "industry": "铜",
+    "plate": "沪主板",
+    "list_date": "2017-01-16",
+    "_mock_price": 235.06,
+    "_mock_change": 17.68,
+    "_mock_change_percent": 8.13
+  },
+  {
+    "code": "601169",
+    "name": "北京银行",
+    "industry": "银行",
+    "plate": "沪主板",
+    "list_date": "2012-09-14",
+    "_mock_price": 151.65,
+    "_mock_change": 9.91,
+    "_mock_change_percent": 6.99
+  },
+  {
+    "code": "601177",
+    "name": "杭齿前进",
+    "industry": "舰船发动机",
+    "plate": "沪主板",
+    "list_date": "2019-04-25",
+    "_mock_price": 178.63,
+    "_mock_change": -12.98,
+    "_mock_change_percent": -6.77
+  },
+  {
+    "code": "601178",
+    "name": "比亚迪",
+    "industry": "乘用车",
+    "plate": "沪主板",
+    "list_date": "2017-05-11",
+    "_mock_price": 198.16,
+    "_mock_change": -18.29,
+    "_mock_change_percent": -8.45
+  },
+  {
+    "code": "601179",
+    "name": "中国西电",
+    "industry": "输变电设备",
+    "plate": "沪主板",
+    "list_date": "2015-02-14",
+    "_mock_price": 172.92,
+    "_mock_change": -16.49,
+    "_mock_change_percent": -8.7
+  },
+  {
+    "code": "601186",
+    "name": "中国铁建",
+    "industry": "基建市政工程",
+    "plate": "沪主板",
+    "list_date": "2011-03-03",
+    "_mock_price": 84.53,
+    "_mock_change": 4.74,
+    "_mock_change_percent": 5.94
+  },
+  {
+    "code": "601187",
+    "name": "证券时报",
+    "industry": "出版",
+    "plate": "沪主板",
+    "list_date": "2013-12-28",
+    "_mock_price": 222.05,
+    "_mock_change": -7.01,
+    "_mock_change_percent": -3.06
+  },
+  {
+    "code": "601188",
+    "name": "金龙鱼",
+    "industry": "食品加工",
+    "plate": "沪主板",
+    "list_date": "2017-11-03",
+    "_mock_price": 113.75,
+    "_mock_change": -5.49,
+    "_mock_change_percent": -4.6
+  },
+  {
+    "code": "601198",
+    "name": "东兴证券",
+    "industry": "证券III",
+    "plate": "沪主板",
+    "list_date": "2019-02-28",
+    "_mock_price": 112.21,
+    "_mock_change": 3.24,
+    "_mock_change_percent": 2.97
+  },
+  {
+    "code": "601199",
+    "name": "江南水务",
+    "industry": "水务及水治理",
+    "plate": "沪主板",
+    "list_date": "2017-09-16",
+    "_mock_price": 171.16,
+    "_mock_change": 9.32,
+    "_mock_change_percent": 5.76
+  },
+  {
+    "code": "601200",
+    "name": "上海环境",
+    "industry": "环境治理",
+    "plate": "沪主板",
+    "list_date": "2019-05-05",
+    "_mock_price": 278.4,
+    "_mock_change": -13.4,
+    "_mock_change_percent": -4.59
+  },
+  {
+    "code": "601211",
+    "name": "国泰集团",
+    "industry": "民爆用品",
+    "plate": "沪主板",
+    "list_date": "2011-06-07",
+    "_mock_price": 100.04,
+    "_mock_change": -1.41,
+    "_mock_change_percent": -1.39
+  },
+  {
+    "code": "601216",
+    "name": "君正集团",
+    "industry": "化学原料",
+    "plate": "沪主板",
+    "list_date": "2018-07-02",
+    "_mock_price": 187.46,
+    "_mock_change": -8.76,
+    "_mock_change_percent": -4.46
+  },
+  {
+    "code": "601217",
+    "name": "君正集团",
+    "industry": "化学原料",
+    "plate": "沪主板",
+    "list_date": "2017-03-07",
+    "_mock_price": 233.84,
+    "_mock_change": 3.88,
+    "_mock_change_percent": 1.68
+  },
+  {
+    "code": "601218",
+    "name": "吉鑫科技",
+    "industry": "铸件",
+    "plate": "沪主板",
+    "list_date": "2014-05-20",
+    "_mock_price": 232.66,
+    "_mock_change": 1.35,
+    "_mock_change_percent": 0.59
+  },
+  {
+    "code": "601222",
+    "name": "林洋能源",
+    "industry": "光伏电站",
+    "plate": "沪主板",
+    "list_date": "2012-08-13",
+    "_mock_price": 6.41,
+    "_mock_change": 0.12,
+    "_mock_change_percent": 1.99
+  },
+  {
+    "code": "601225",
+    "name": "陕西煤业",
+    "industry": "煤炭III",
+    "plate": "沪主板",
+    "list_date": "2016-05-09",
+    "_mock_price": 135.01,
+    "_mock_change": -1.1,
+    "_mock_change_percent": -0.81
+  },
+  {
+    "code": "601228",
+    "name": "广州港",
+    "industry": "港口III",
+    "plate": "沪主板",
+    "list_date": "2017-06-04",
+    "_mock_price": 12.22,
+    "_mock_change": 0.11,
+    "_mock_change_percent": 0.92
+  },
+  {
+    "code": "601231",
+    "name": "环旭电子",
+    "industry": "消费电子",
+    "plate": "沪主板",
+    "list_date": "2013-02-09",
+    "_mock_price": 187.72,
+    "_mock_change": -14.1,
+    "_mock_change_percent": -6.98
+  },
+  {
+    "code": "601233",
+    "name": "桐昆股份",
+    "industry": "涤纶",
+    "plate": "沪主板",
+    "list_date": "2018-12-27",
+    "_mock_price": 42.69,
+    "_mock_change": 3.42,
+    "_mock_change_percent": 8.7
+  },
+  {
+    "code": "601235",
+    "name": "广汽集团",
+    "industry": "乘用车",
+    "plate": "沪主板",
+    "list_date": "2019-10-08",
+    "_mock_price": 208.55,
+    "_mock_change": -1.8,
+    "_mock_change_percent": -0.86
+  },
+  {
+    "code": "601236",
+    "name": "红阳能源",
+    "industry": "火电",
+    "plate": "沪主板",
+    "list_date": "2012-08-08",
+    "_mock_price": 233.46,
+    "_mock_change": 7.38,
+    "_mock_change_percent": 3.26
+  },
+  {
+    "code": "601238",
+    "name": "广汽集团",
+    "industry": "乘用车",
+    "plate": "沪主板",
+    "list_date": "2012-06-23",
+    "_mock_price": 39.41,
+    "_mock_change": -0.89,
+    "_mock_change_percent": -2.19
+  },
+  {
+    "code": "601258",
+    "name": "同花顺",
+    "industry": "金融信息服务",
+    "plate": "沪主板",
+    "list_date": "2012-03-18",
+    "_mock_price": 22.96,
+    "_mock_change": 0.22,
+    "_mock_change_percent": 0.99
+  },
+  {
+    "code": "601268",
+    "name": "二重重装",
+    "industry": "能源及重型设备",
+    "plate": "沪主板",
+    "list_date": "2018-07-08",
+    "_mock_price": 119.92,
+    "_mock_change": -9.13,
+    "_mock_change_percent": -7.07
+  },
+  {
+    "code": "601288",
+    "name": "农业银行",
+    "industry": "银行",
+    "plate": "沪主板",
+    "list_date": "2016-05-13",
+    "_mock_price": 207.72,
+    "_mock_change": 15.84,
+    "_mock_change_percent": 8.26
+  },
+  {
+    "code": "601298",
+    "name": "青岛港",
+    "industry": "港口III",
+    "plate": "沪主板",
+    "list_date": "2015-10-12",
+    "_mock_price": 207.74,
+    "_mock_change": -11.01,
+    "_mock_change_percent": -5.03
+  },
+  {
+    "code": "601318",
+    "name": "中国平安",
+    "industry": "保险III",
+    "plate": "沪主板",
+    "list_date": "2017-11-12",
+    "_mock_price": 194.41,
+    "_mock_change": 3.06,
+    "_mock_change_percent": 1.6
+  },
+  {
+    "code": "601328",
+    "name": "交通银行",
+    "industry": "银行",
+    "plate": "沪主板",
+    "list_date": "2017-05-05",
+    "_mock_price": 166.74,
+    "_mock_change": -2.76,
+    "_mock_change_percent": -1.63
+  },
+  {
+    "code": "601333",
+    "name": "广深铁路",
+    "industry": "铁路III",
+    "plate": "沪主板",
+    "list_date": "2010-10-08",
+    "_mock_price": 280.08,
+    "_mock_change": -5.98,
+    "_mock_change_percent": -2.09
+  },
+  {
+    "code": "601336",
+    "name": "新华保险",
+    "industry": "保险III",
+    "plate": "沪主板",
+    "list_date": "2010-05-21",
+    "_mock_price": 5.39,
+    "_mock_change": 0.32,
+    "_mock_change_percent": 6.2
+  },
+  {
+    "code": "601360",
+    "name": "三六零",
+    "industry": "信息安全",
+    "plate": "沪主板",
+    "list_date": "2017-11-11",
+    "_mock_price": 64.62,
+    "_mock_change": 1.02,
+    "_mock_change_percent": 1.62
+  },
+  {
+    "code": "601369",
+    "name": "陕鼓动力",
+    "industry": "电站设备III",
+    "plate": "沪主板",
+    "list_date": "2011-06-11",
+    "_mock_price": 236.03,
+    "_mock_change": 15.32,
+    "_mock_change_percent": 6.94
+  },
+  {
+    "code": "601390",
+    "name": "中国中铁",
+    "industry": "基建市政工程",
+    "plate": "沪主板",
+    "list_date": "2012-05-22",
+    "_mock_price": 185.12,
+    "_mock_change": 13.29,
+    "_mock_change_percent": 7.73
+  },
+  {
+    "code": "601398",
+    "name": "工商银行",
+    "industry": "银行",
+    "plate": "沪主板",
+    "list_date": "2018-07-22",
+    "_mock_price": 252.25,
+    "_mock_change": 1.23,
+    "_mock_change_percent": 0.49
+  },
+  {
+    "code": "601399",
+    "name": "中国太保",
+    "industry": "保险III",
+    "plate": "沪主板",
+    "list_date": "2011-03-09",
+    "_mock_price": 231.67,
+    "_mock_change": 14.49,
+    "_mock_change_percent": 6.67
+  },
+  {
+    "code": "601555",
+    "name": "东吴证券",
+    "industry": "证券III",
+    "plate": "沪主板",
+    "list_date": "2015-01-10",
+    "_mock_price": 284.92,
+    "_mock_change": 22.18,
+    "_mock_change_percent": 8.44
+  },
+  {
+    "code": "601566",
+    "name": "九牧王",
+    "industry": "服装",
+    "plate": "沪主板",
+    "list_date": "2017-07-13",
+    "_mock_price": 18.37,
+    "_mock_change": -1.68,
+    "_mock_change_percent": -8.36
+  },
+  {
+    "code": "601567",
+    "name": "三星医疗",
+    "industry": "医疗设备",
+    "plate": "沪主板",
+    "list_date": "2014-05-15",
+    "_mock_price": 108.88,
+    "_mock_change": 7.61,
+    "_mock_change_percent": 7.51
+  },
+  {
+    "code": "601577",
+    "name": "长江证券",
+    "industry": "证券III",
+    "plate": "沪主板",
+    "list_date": "2017-07-14",
+    "_mock_price": 80.39,
+    "_mock_change": 4.21,
+    "_mock_change_percent": 5.52
+  },
+  {
+    "code": "601588",
+    "name": "北辰实业",
+    "industry": "园区开发",
+    "plate": "沪主板",
+    "list_date": "2011-01-01",
+    "_mock_price": 271.88,
+    "_mock_change": 7.46,
+    "_mock_change_percent": 2.82
+  },
+  {
+    "code": "601598",
+    "name": "中国外运",
+    "industry": "物流",
+    "plate": "沪主板",
+    "list_date": "2013-10-15",
+    "_mock_price": 150.51,
+    "_mock_change": -14.84,
+    "_mock_change_percent": -8.97
+  },
+  {
+    "code": "601600",
+    "name": "中国铝业",
+    "industry": "铝",
+    "plate": "沪主板",
+    "list_date": "2014-08-09",
+    "_mock_price": 139.1,
+    "_mock_change": -0.15,
+    "_mock_change_percent": -0.11
+  },
+  {
+    "code": "601601",
+    "name": "中国太保",
+    "industry": "保险III",
+    "plate": "沪主板",
+    "list_date": "2014-06-18",
+    "_mock_price": 242.12,
+    "_mock_change": -24.43,
+    "_mock_change_percent": -9.17
+  },
+  {
+    "code": "601606",
+    "name": "索菲亚",
+    "industry": "定制家居",
+    "plate": "沪主板",
+    "list_date": "2017-11-11",
+    "_mock_price": 232.0,
+    "_mock_change": -19.46,
+    "_mock_change_percent": -7.74
+  },
+  {
+    "code": "601607",
+    "name": "上海医药",
+    "industry": "医药流通III",
+    "plate": "沪主板",
+    "list_date": "2014-12-28",
+    "_mock_price": 190.58,
+    "_mock_change": -7.97,
+    "_mock_change_percent": -4.02
+  },
+  {
+    "code": "601618",
+    "name": "中国中冶",
+    "industry": "基建市政工程",
+    "plate": "沪主板",
+    "list_date": "2014-03-11",
+    "_mock_price": 73.34,
+    "_mock_change": 0.5,
+    "_mock_change_percent": 0.7
+  },
+  {
+    "code": "601628",
+    "name": "中国人寿",
+    "industry": "保险III",
+    "plate": "沪主板",
+    "list_date": "2017-08-22",
+    "_mock_price": 137.56,
+    "_mock_change": -2.66,
+    "_mock_change_percent": -1.89
+  },
+  {
+    "code": "601633",
+    "name": "长城汽车",
+    "industry": "乘用车",
+    "plate": "沪主板",
+    "list_date": "2015-12-11",
+    "_mock_price": 172.87,
+    "_mock_change": -5.29,
+    "_mock_change_percent": -2.97
+  },
+  {
+    "code": "601636",
+    "name": "旗滨集团",
+    "industry": "玻璃制造",
+    "plate": "沪主板",
+    "list_date": "2013-02-07",
+    "_mock_price": 27.65,
+    "_mock_change": 2.16,
+    "_mock_change_percent": 8.46
+  },
+  {
+    "code": "601658",
+    "name": "邮储银行",
+    "industry": "银行",
+    "plate": "沪主板",
+    "list_date": "2013-03-08",
+    "_mock_price": 87.67,
+    "_mock_change": -8.57,
+    "_mock_change_percent": -8.9
+  },
+  {
+    "code": "601666",
+    "name": "平煤股份",
+    "industry": "煤炭III",
+    "plate": "沪主板",
+    "list_date": "2012-11-02",
+    "_mock_price": 35.32,
+    "_mock_change": -1.56,
+    "_mock_change_percent": -4.24
+  },
+  {
+    "code": "601668",
+    "name": "中国建筑",
+    "industry": "基建市政工程",
+    "plate": "沪主板",
+    "list_date": "2015-10-24",
+    "_mock_price": 75.82,
+    "_mock_change": -1.53,
+    "_mock_change_percent": -1.98
+  },
+  {
+    "code": "601669",
+    "name": "兖矿能源",
+    "industry": "煤炭III",
+    "plate": "沪主板",
+    "list_date": "2014-12-03",
+    "_mock_price": 233.44,
+    "_mock_change": 11.04,
+    "_mock_change_percent": 4.96
+  },
+  {
+    "code": "601678",
+    "name": "渤海化学",
+    "industry": "纯碱",
+    "plate": "沪主板",
+    "list_date": "2013-05-08",
+    "_mock_price": 284.99,
+    "_mock_change": 20.79,
+    "_mock_change_percent": 7.87
+  },
+  {
+    "code": "601686",
+    "name": "皖通高速",
+    "industry": "高速公路III",
+    "plate": "沪主板",
+    "list_date": "2013-11-10",
+    "_mock_price": 86.37,
+    "_mock_change": -5.95,
+    "_mock_change_percent": -6.45
+  },
+  {
+    "code": "601688",
+    "name": "华泰证券",
+    "industry": "证券III",
+    "plate": "沪主板",
+    "list_date": "2018-05-03",
+    "_mock_price": 279.18,
+    "_mock_change": 22.84,
+    "_mock_change_percent": 8.91
+  },
+  {
+    "code": "601696",
+    "name": "中盐化工",
+    "industry": "纯碱",
+    "plate": "沪主板",
+    "list_date": "2010-06-07",
+    "_mock_price": 175.02,
+    "_mock_change": 5.36,
+    "_mock_change_percent": 3.16
+  },
+  {
+    "code": "601698",
+    "name": "贵航股份",
+    "industry": "航空装备III",
+    "plate": "沪主板",
+    "list_date": "2018-01-08",
+    "_mock_price": 210.91,
+    "_mock_change": 4.28,
+    "_mock_change_percent": 2.07
+  },
+  {
+    "code": "601699",
+    "name": "马钢股份",
+    "industry": "普钢",
+    "plate": "沪主板",
+    "list_date": "2018-11-13",
+    "_mock_price": 25.02,
+    "_mock_change": 1.12,
+    "_mock_change_percent": 4.68
+  },
+  {
+    "code": "601700",
+    "name": "风神股份",
+    "industry": "轮胎",
+    "plate": "沪主板",
+    "list_date": "2019-01-15",
+    "_mock_price": 100.02,
+    "_mock_change": -9.74,
+    "_mock_change_percent": -8.88
+  },
+  {
+    "code": "601702",
+    "name": "华峰氨纶",
+    "industry": "氨纶",
+    "plate": "沪主板",
+    "list_date": "2016-08-08",
+    "_mock_price": 29.97,
+    "_mock_change": -1.62,
+    "_mock_change_percent": -5.12
+  },
+  {
+    "code": "601717",
+    "name": "郑煤机",
+    "industry": "煤炭机械",
+    "plate": "沪主板",
+    "list_date": "2014-04-07",
+    "_mock_price": 204.45,
+    "_mock_change": 16.26,
+    "_mock_change_percent": 8.64
+  },
+  {
+    "code": "601718",
+    "name": "际华集团",
+    "industry": "服装",
+    "plate": "沪主板",
+    "list_date": "2014-12-23",
+    "_mock_price": 76.53,
+    "_mock_change": -7.85,
+    "_mock_change_percent": -9.3
+  },
+  {
+    "code": "601728",
+    "name": "中国电信",
+    "industry": "通信运营III",
+    "plate": "沪主板",
+    "list_date": "2011-09-04",
+    "_mock_price": 253.48,
+    "_mock_change": -12.86,
+    "_mock_change_percent": -4.83
+  },
+  {
+    "code": "601766",
+    "name": "中国中车",
+    "industry": "轨道交通设备III",
+    "plate": "沪主板",
+    "list_date": "2017-01-20",
+    "_mock_price": 190.8,
+    "_mock_change": 9.34,
+    "_mock_change_percent": 5.14
+  },
+  {
+    "code": "601777",
+    "name": "力帆股份",
+    "industry": "乘用车",
+    "plate": "沪主板",
+    "list_date": "2013-06-20",
+    "_mock_price": 51.28,
+    "_mock_change": 3.47,
+    "_mock_change_percent": 7.27
+  },
+  {
+    "code": "601788",
+    "name": "光大证券",
+    "industry": "证券III",
+    "plate": "沪主板",
+    "list_date": "2013-06-22",
+    "_mock_price": 217.3,
+    "_mock_change": 14.48,
+    "_mock_change_percent": 7.14
+  },
+  {
+    "code": "601799",
+    "name": "星宇股份",
+    "industry": "汽车零部件III",
+    "plate": "沪主板",
+    "list_date": "2018-05-06",
+    "_mock_price": 245.98,
+    "_mock_change": -0.77,
+    "_mock_change_percent": -0.31
+  },
+  {
+    "code": "601800",
+    "name": "中国交建",
+    "industry": "基建市政工程",
+    "plate": "沪主板",
+    "list_date": "2017-12-15",
+    "_mock_price": 287.32,
+    "_mock_change": -0.61,
+    "_mock_change_percent": -0.21
+  },
+  {
+    "code": "601808",
+    "name": "中海油服",
+    "industry": "油田服务",
+    "plate": "沪主板",
+    "list_date": "2018-10-14",
+    "_mock_price": 195.31,
+    "_mock_change": -14.84,
+    "_mock_change_percent": -7.06
+  },
+  {
+    "code": "601809",
+    "name": "金山办公",
+    "industry": "办公软件",
+    "plate": "沪主板",
+    "list_date": "2015-01-19",
+    "_mock_price": 206.07,
+    "_mock_change": -6.2,
+    "_mock_change_percent": -2.92
+  },
+  {
+    "code": "601816",
+    "name": "京沪高铁",
+    "industry": "铁路III",
+    "plate": "沪主板",
+    "list_date": "2019-07-21",
+    "_mock_price": 78.6,
+    "_mock_change": -2.04,
+    "_mock_change_percent": -2.53
+  },
+  {
+    "code": "601818",
+    "name": "光大银行",
+    "industry": "银行",
+    "plate": "沪主板",
+    "list_date": "2012-05-28",
+    "_mock_price": 76.29,
+    "_mock_change": 2.57,
+    "_mock_change_percent": 3.49
+  },
+  {
+    "code": "601822",
+    "name": "中海油服",
+    "industry": "油田服务",
+    "plate": "沪主板",
+    "list_date": "2013-11-11",
+    "_mock_price": 195.52,
+    "_mock_change": -11.36,
+    "_mock_change_percent": -5.49
+  },
+  {
+    "code": "601825",
+    "name": "沪硅产业",
+    "industry": "硅片",
+    "plate": "沪主板",
+    "list_date": "2011-01-18",
+    "_mock_price": 13.74,
+    "_mock_change": 0.66,
+    "_mock_change_percent": 5.04
+  },
+  {
+    "code": "601828",
+    "name": "美凯龙",
+    "industry": "专业市场III",
+    "plate": "沪主板",
+    "list_date": "2014-04-07",
+    "_mock_price": 92.86,
+    "_mock_change": -2.76,
+    "_mock_change_percent": -2.89
+  },
+  {
+    "code": "601830",
+    "name": "大地传媒",
+    "industry": "出版",
+    "plate": "沪主板",
+    "list_date": "2014-03-13",
+    "_mock_price": 22.57,
+    "_mock_change": -1.44,
+    "_mock_change_percent": -5.99
+  },
+  {
+    "code": "601832",
+    "name": "招商港口",
+    "industry": "港口III",
+    "plate": "沪主板",
+    "list_date": "2012-12-23",
+    "_mock_price": 118.95,
+    "_mock_change": 7.47,
+    "_mock_change_percent": 6.7
+  },
+  {
+    "code": "601836",
+    "name": "京能热力",
+    "industry": "热力及电碳III",
+    "plate": "沪主板",
+    "list_date": "2019-08-28",
+    "_mock_price": 68.8,
+    "_mock_change": 3.33,
+    "_mock_change_percent": 5.09
+  },
+  {
+    "code": "601838",
+    "name": "成都银行",
+    "industry": "银行",
+    "plate": "沪主板",
+    "list_date": "2013-10-14",
+    "_mock_price": 43.7,
+    "_mock_change": 3.41,
+    "_mock_change_percent": 8.47
+  },
+  {
+    "code": "601857",
+    "name": "中国石油",
+    "industry": "油气勘探III",
+    "plate": "沪主板",
+    "list_date": "2011-12-16",
+    "_mock_price": 33.89,
+    "_mock_change": -0.51,
+    "_mock_change_percent": -1.48
+  },
+  {
+    "code": "601869",
+    "name": "长飞光纤",
+    "industry": "光纤光缆",
+    "plate": "沪主板",
+    "list_date": "2017-02-28",
+    "_mock_price": 225.06,
+    "_mock_change": -1.24,
+    "_mock_change_percent": -0.55
+  },
+  {
+    "code": "601872",
+    "name": "招商南油",
+    "industry": "油运",
+    "plate": "沪主板",
+    "list_date": "2010-07-11",
+    "_mock_price": 149.52,
+    "_mock_change": -12.98,
+    "_mock_change_percent": -7.99
+  },
+  {
+    "code": "601877",
+    "name": "正泰电器",
+    "industry": "配电设备",
+    "plate": "沪主板",
+    "list_date": "2019-02-13",
+    "_mock_price": 29.58,
+    "_mock_change": 1.2,
+    "_mock_change_percent": 4.23
+  },
+  {
+    "code": "601878",
+    "name": "浙商证券",
+    "industry": "证券III",
+    "plate": "沪主板",
+    "list_date": "2015-01-28",
+    "_mock_price": 229.11,
+    "_mock_change": 19.73,
+    "_mock_change_percent": 9.42
+  },
+  {
+    "code": "601880",
+    "name": "大连港",
+    "industry": "港口III",
+    "plate": "沪主板",
+    "list_date": "2012-02-11",
+    "_mock_price": 64.07,
+    "_mock_change": -4.62,
+    "_mock_change_percent": -6.73
+  },
+  {
+    "code": "601881",
+    "name": "中国银河",
+    "industry": "证券III",
+    "plate": "沪主板",
+    "list_date": "2014-11-07",
+    "_mock_price": 14.04,
+    "_mock_change": -1.3,
+    "_mock_change_percent": -8.45
+  },
+  {
+    "code": "601888",
+    "name": "中国中免",
+    "industry": "免税III",
+    "plate": "沪主板",
+    "list_date": "2018-02-20",
+    "_mock_price": 152.95,
+    "_mock_change": -14.41,
+    "_mock_change_percent": -8.61
+  },
+  {
+    "code": "601899",
+    "name": "紫金矿业",
+    "industry": "黄金III",
+    "plate": "沪主板",
+    "list_date": "2010-10-07",
+    "_mock_price": 46.74,
+    "_mock_change": -0.27,
+    "_mock_change_percent": -0.56
+  },
+  {
+    "code": "601900",
+    "name": "南方传媒",
+    "industry": "出版",
+    "plate": "沪主板",
+    "list_date": "2017-12-12",
+    "_mock_price": 251.99,
+    "_mock_change": 9.49,
+    "_mock_change_percent": 3.91
+  },
+  {
+    "code": "601901",
+    "name": "方正证券",
+    "industry": "证券III",
+    "plate": "沪主板",
+    "list_date": "2018-03-09",
+    "_mock_price": 305.23,
+    "_mock_change": 11.52,
+    "_mock_change_percent": 3.92
+  },
+  {
+    "code": "601916",
+    "name": "浙商银行",
+    "industry": "银行",
+    "plate": "沪主板",
+    "list_date": "2019-04-25",
+    "_mock_price": 151.42,
+    "_mock_change": 8.51,
+    "_mock_change_percent": 5.95
+  },
+  {
+    "code": "601918",
+    "name": "新集能源",
+    "industry": "煤炭III",
+    "plate": "沪主板",
+    "list_date": "2015-09-17",
+    "_mock_price": 262.15,
+    "_mock_change": -10.13,
+    "_mock_change_percent": -3.72
+  },
+  {
+    "code": "601919",
+    "name": "中远海控",
+    "industry": "航运",
+    "plate": "沪主板",
+    "list_date": "2010-11-09",
+    "_mock_price": 138.25,
+    "_mock_change": 3.81,
+    "_mock_change_percent": 2.83
+  },
+  {
+    "code": "601928",
+    "name": "凤凰传媒",
+    "industry": "出版",
+    "plate": "沪主板",
+    "list_date": "2011-06-17",
+    "_mock_price": 114.07,
+    "_mock_change": -6.75,
+    "_mock_change_percent": -5.59
+  },
+  {
+    "code": "601929",
+    "name": "吉视传媒",
+    "industry": "广电",
+    "plate": "沪主板",
+    "list_date": "2016-06-21",
+    "_mock_price": 132.72,
+    "_mock_change": 10.93,
+    "_mock_change_percent": 8.97
+  },
+  {
+    "code": "601933",
+    "name": "金徽酒",
+    "industry": "白酒II",
+    "plate": "沪主板",
+    "list_date": "2017-07-14",
+    "_mock_price": 57.47,
+    "_mock_change": -4.45,
+    "_mock_change_percent": -7.18
+  },
+  {
+    "code": "601939",
+    "name": "建设银行",
+    "industry": "银行",
+    "plate": "沪主板",
+    "list_date": "2011-02-20",
+    "_mock_price": 63.52,
+    "_mock_change": 4.34,
+    "_mock_change_percent": 7.33
+  },
+  {
+    "code": "601946",
+    "name": "无锡银行",
+    "industry": "银行",
+    "plate": "沪主板",
+    "list_date": "2013-08-14",
+    "_mock_price": 104.45,
+    "_mock_change": -5.89,
+    "_mock_change_percent": -5.34
+  },
+  {
+    "code": "601952",
+    "name": "苏垦农发",
+    "industry": "种植业",
+    "plate": "沪主板",
+    "list_date": "2018-11-25",
+    "_mock_price": 28.21,
+    "_mock_change": 1.93,
+    "_mock_change_percent": 7.35
+  },
+  {
+    "code": "601958",
+    "name": "金钼股份",
+    "industry": "钼",
+    "plate": "沪主板",
+    "list_date": "2017-04-08",
+    "_mock_price": 227.87,
+    "_mock_change": 13.94,
+    "_mock_change_percent": 6.52
+  },
+  {
+    "code": "601985",
+    "name": "中国核电",
+    "industry": "核电",
+    "plate": "沪主板",
+    "list_date": "2018-05-27",
+    "_mock_price": 181.17,
+    "_mock_change": -16.05,
+    "_mock_change_percent": -8.14
+  },
+  {
+    "code": "601988",
+    "name": "中国银行",
+    "industry": "银行",
+    "plate": "沪主板",
+    "list_date": "2011-03-20",
+    "_mock_price": 302.09,
+    "_mock_change": 10.19,
+    "_mock_change_percent": 3.49
+  },
+  {
+    "code": "601989",
+    "name": "中国人民保险",
+    "industry": "保险III",
+    "plate": "沪主板",
+    "list_date": "2019-12-24",
+    "_mock_price": 228.94,
+    "_mock_change": 10.4,
+    "_mock_change_percent": 4.76
+  },
+  {
+    "code": "601990",
+    "name": "南京证券",
+    "industry": "证券III",
+    "plate": "沪主板",
+    "list_date": "2011-12-26",
+    "_mock_price": 87.74,
+    "_mock_change": -1.6,
+    "_mock_change_percent": -1.79
+  },
+  {
+    "code": "601991",
+    "name": "大唐发电",
+    "industry": "火电",
+    "plate": "沪主板",
+    "list_date": "2014-04-05",
+    "_mock_price": 163.95,
+    "_mock_change": -7.2,
+    "_mock_change_percent": -4.21
+  },
+  {
+    "code": "601992",
+    "name": "北京地铁",
+    "industry": "轨道交通III",
+    "plate": "沪主板",
+    "list_date": "2014-05-27",
+    "_mock_price": 235.37,
+    "_mock_change": -18.75,
+    "_mock_change_percent": -7.38
+  },
+  {
+    "code": "601995",
+    "name": "中金公司",
+    "industry": "证券III",
+    "plate": "沪主板",
+    "list_date": "2010-12-20",
+    "_mock_price": 144.67,
+    "_mock_change": 3.89,
+    "_mock_change_percent": 2.77
+  },
+  {
+    "code": "601998",
+    "name": "中信银行",
+    "industry": "银行",
+    "plate": "沪主板",
+    "list_date": "2018-02-04",
+    "_mock_price": 203.14,
+    "_mock_change": 16.17,
+    "_mock_change_percent": 8.65
+  },
+  {
+    "code": "603019",
+    "name": "中科曙光",
+    "industry": "计算机设备",
+    "plate": "沪主板",
+    "list_date": "2016-03-28",
+    "_mock_price": 129.84,
+    "_mock_change": -9.75,
+    "_mock_change_percent": -6.99
+  },
+  {
+    "code": "720",
+    "name": "祁连山",
+    "industry": "水泥",
+    "plate": "其他",
+    "list_date": "2014-05-28",
+    "_mock_price": 160.74,
+    "_mock_change": -14.15,
+    "_mock_change_percent": -8.09
+  }
+]

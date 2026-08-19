@@ -15,7 +15,7 @@ import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
 import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.observable
 import com.tencent.kuikly.core.reactive.handler.observableList
-import com.kuikly.stock.network.ApiService
+import com.kuikly.stock.data.StockRepository
 import com.tencent.kuikly.core.coroutines.launch
 
 /**
@@ -119,7 +119,8 @@ class StockListPage : Pager() {
     }
 
     /**
-     * 真正的网络请求封装
+     * 真正的数据加载封装
+     * 优先使用本地数据（离线），网络作为可选补充
      * @param isRefresh 是否清空已有列表（首屏/刷新/搜索为 true，加载更多为 false）
      */
     private fun loadStockList(isRefresh: Boolean) {
@@ -130,15 +131,22 @@ class StockListPage : Pager() {
 
         lifecycleScope.launch {
             try {
-                val list = ApiService.getStockList(
-                    page = currentPage,
-                    size = 20,
-                    keyword = currentKeyword.ifBlank { null }
-                )
-                stockList.addAll(list)
+                // 统一走 StockRepository（按开发者选项路由离线/在线）
+                val localList = StockRepository.loadStockList(currentKeyword.ifBlank { null })
+
+                // 分页截取（每页20条）
+                val startIdx = if (isRefresh) 0 else stockList.size
+                val pageItems = localList.drop(startIdx).take(20)
+
+                if (pageItems.isNotEmpty()) {
+                    stockList.addAll(pageItems)
+                } else if (stockList.isEmpty()) {
+                    loadError = true
+                    loadErrorMessage = "暂无数据"
+                }
             } catch (e: Throwable) {
                 loadError = true
-                loadErrorMessage = e.message ?: "未知错误"
+                loadErrorMessage = e.message ?: "数据加载失败"
             } finally {
                 isLoading = false
             }
@@ -476,7 +484,7 @@ internal fun ViewContainer<*, *>.loadErrorView(ctx: StockListPage) {
         }
         Text {
             attr {
-                text("加载失败\n\n${ctx.loadErrorMessage}\n\n请确认后端服务已启动，且手机与电脑在同一 WiFi")
+                text("加载失败\n\n${ctx.loadErrorMessage}")
                 fontSize(14f)
                 color(0xFFE53935)
                 textAlignCenter()
