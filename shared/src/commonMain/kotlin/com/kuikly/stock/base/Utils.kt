@@ -15,12 +15,14 @@ internal object Utils : BaseObject() {
         bridgeModule(pagerId).log(content)
     }
 
+    @Suppress("DEPRECATION")
     fun currentBridgeModule(): BridgeModule {
         return PagerManager.getPager(BridgeManager.currentPageId).acquireModule<BridgeModule>(
             BridgeModule.MODULE_NAME
         )
     }
 
+    @Suppress("DEPRECATION")
     fun logToNative(content: String) {
         bridgeModule(BridgeManager.currentPageId).log(content)
     }

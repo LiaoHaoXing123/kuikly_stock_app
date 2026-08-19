@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.kuikly.stock.base
 
 import com.tencent.kuikly.core.base.IPagerId

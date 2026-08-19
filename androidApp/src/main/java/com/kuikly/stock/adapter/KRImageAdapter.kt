@@ -47,6 +47,7 @@ class KRImageAdapter(val context: Context) : IKRImageAdapter {
         return drawable.intrinsicHeight.toFloat()
     }
 
+    @Suppress("UNCHECKED_CAST")
     private fun requestImage(
         imageLoadOption: HRImageLoadOption,
         callback: (drawable: Drawable?) -> Unit,

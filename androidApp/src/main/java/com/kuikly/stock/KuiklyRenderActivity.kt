@@ -38,7 +38,7 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
             return if (pn.isNotEmpty()) {
                 return pn
             } else {
-                "router"
+                "chat_main"
             }
         }
 
@@ -98,6 +98,7 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
         return JSONObject(jsonStr).toMap()
     }
 
+    @Suppress("DEPRECATION")
     private fun setupImmersiveMode() {
         window?.apply {
             addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)

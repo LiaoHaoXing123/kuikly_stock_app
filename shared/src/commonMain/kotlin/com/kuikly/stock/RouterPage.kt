@@ -258,7 +258,7 @@ internal class RouterNavigationBar : ComposeView<RouterNavigationBarAttr, Compos
                         attr {
                             text(ctx.attr.title)
                             fontSize(17f)
-                            fontWeightSemisolid()
+                            fontWeightSemiBold()
                             backgroundLinearGradient(
                                 Direction.TO_BOTTOM,
                                 ColorStop(Color(0xFF23D3FD), 0f),

@@ -44,10 +44,7 @@ class StockDetailPage : Pager() {
     override fun didInit() {
         super.didInit()
         // 从路由参数中获取股票代码
-        val params = pagerData.params
-        if (params != null) {
-            stockCode = params.optString("code", "")
-        }
+        stockCode = pagerData.params.optString("code", "")
 
         // 加载数据
         if (stockCode.isNotEmpty()) {
