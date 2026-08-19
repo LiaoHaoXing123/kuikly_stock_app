@@ -2,13 +2,19 @@ package com.kuikly.stock.pages
 
 import com.tencent.kuikly.core.annotations.Page
 import com.tencent.kuikly.core.base.*
+import com.tencent.kuikly.core.directives.vfor
+import com.tencent.kuikly.core.directives.vif
+import com.tencent.kuikly.core.directives.velse
+import com.tencent.kuikly.core.directives.velseif
 import com.tencent.kuikly.core.module.RouterModule
 import com.tencent.kuikly.core.pager.Pager
 import com.tencent.kuikly.core.views.*
 import com.tencent.kuikly.core.layout.FlexAlign
 import com.tencent.kuikly.core.layout.FlexJustifyContent
 import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
+import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.observable
+import com.tencent.kuikly.core.reactive.handler.observableList
 
 /**
  * 行情列表页（Task 1 首页）
@@ -23,8 +29,8 @@ import com.tencent.kuikly.core.reactive.handler.observable
 @Page("stock_list")
 class StockListPage : Pager() {
 
-    // 状态：股票列表数据
-    internal var stockList by observable(mutableListOf<StockListItem>())
+    // 状态：股票列表数据（ObservableList + vfor 实现响应式刷新）
+    internal var stockList: ObservableList<StockListItem> by observableList()
 
     // 状态：搜索关键词
     internal var searchKeyword by observable("")
@@ -78,14 +84,16 @@ class StockListPage : Pager() {
      */
     internal fun refreshData() {
         currentPage = 1
-        stockList = loadMockData()
+        stockList.clear()
+        stockList.addAll(loadMockData())
     }
 
     /**
      * 搜索股票
      */
     internal fun searchStocks() {
-        stockList = loadMockData()
+        stockList.clear()
+        stockList.addAll(loadMockData())
     }
 
     /**
@@ -95,7 +103,7 @@ class StockListPage : Pager() {
         if (isLoading) return
         isLoading = true
         currentPage++
-        stockList = (stockList + loadMockData()).toMutableList()
+        stockList.addAll(loadMockData())
         isLoading = false
     }
 
@@ -103,8 +111,8 @@ class StockListPage : Pager() {
      * 加载模拟数据（开发测试用）
      * 实际项目中应替换为真实 API 调用
      */
-    internal fun loadMockData(): MutableList<StockListItem> {
-        return mutableListOf(
+    internal fun loadMockData(): List<StockListItem> {
+        return listOf(
             StockListItem(code = "000001", name = "平安银行", price = 11.05, changePercent = 1.20),
             StockListItem(code = "600519", name = "贵州茅台", price = 1685.00, changePercent = -0.50),
             StockListItem(code = "000002", name = "万科A", price = 8.92, changePercent = 2.30),
@@ -287,24 +295,25 @@ internal fun ViewContainer<*, *>.sortChip(ctx: StockListPage, option: String) {
  */
 internal fun ViewContainer<*, *>.stockListView(ctx: StockListPage) {
     Scroller {
-        val scroller = this
         attr {
             flex(1f)
             flexDirectionColumn()
             scrollEnable(true)
         }
-        with(scroller) {
-            if (ctx.isLoading && ctx.stockList.isEmpty()) {
-                stockListLoadingView()
-            } else if (ctx.stockList.isEmpty()) {
-                emptyView()
-            } else {
-                ctx.stockList.forEach { stock ->
-                    stockListItem(ctx, stock)
-                }
-                if (ctx.isLoading) {
-                    loadingMoreView()
-                }
+        // 使用 Kuikly 条件指令实现 loading / empty / list 的响应式切换
+        vif({ ctx.isLoading && ctx.stockList.isEmpty() }) {
+            stockListLoadingView()
+        }
+        velseif({ ctx.stockList.isEmpty() }) {
+            emptyView()
+        }
+        velse {
+            // 使用 vfor 让股票列表响应式增删
+            vfor({ ctx.stockList }) { stock ->
+                stockListItem(ctx, stock)
+            }
+            vif({ ctx.isLoading }) {
+                loadingMoreView()
             }
         }
     }

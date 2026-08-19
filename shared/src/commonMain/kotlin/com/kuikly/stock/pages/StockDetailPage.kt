@@ -2,11 +2,16 @@ package com.kuikly.stock.pages
 
 import com.tencent.kuikly.core.annotations.Page
 import com.tencent.kuikly.core.base.*
+import com.tencent.kuikly.core.directives.vfor
+import com.tencent.kuikly.core.directives.vif
+import com.tencent.kuikly.core.directives.velse
+import com.tencent.kuikly.core.directives.velseif
 import com.tencent.kuikly.core.layout.FlexAlign
 import com.tencent.kuikly.core.layout.FlexJustifyContent
 import com.tencent.kuikly.core.layout.FlexWrap
 import com.tencent.kuikly.core.module.RouterModule
 import com.tencent.kuikly.core.pager.Pager
+import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.observable
 import com.tencent.kuikly.core.views.*
 
@@ -62,11 +67,13 @@ class StockDetailPage : Pager() {
                     backgroundColor(0xFFF5F5F5)
                 }
 
-                if (ctx.isLoading) {
+                vif({ ctx.isLoading }) {
                     stockDetailLoadingView()
-                } else if (ctx.stockDetail == null) {
+                }
+                velseif({ ctx.stockDetail == null }) {
                     errorView(ctx)
-                } else {
+                }
+                velse {
                     // 顶部导航栏
                     detailNavigationBar(ctx)
 
@@ -558,13 +565,14 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
             }
         }
 
-        if (klineData != null && klineData.isNotEmpty()) {
+        vif({ klineData != null && klineData.isNotEmpty() }) {
             // 图表占位符（实际项目应使用图表库渲染）
-            chartPlaceholder(klineData)
+            chartPlaceholder(klineData!!)
 
             // 最新几条K线数据摘要
             klineSummary(klineData)
-        } else {
+        }
+        velse {
             // 无数据提示
             View {
                 attr {
@@ -693,7 +701,7 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
                 }
             }
 
-            if (!ctx.isAnalyzing) {
+            vif({ !ctx.isAnalyzing }) {
                 View {
                     attr {
                         marginLeft(8f)
@@ -717,15 +725,17 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
             }
         }
 
-        if (ctx.isAnalyzing) {
+        vif({ ctx.isAnalyzing }) {
             // 分析中状态
             analyzingView()
-        } else if (analysis == null) {
+        }
+        velseif({ analysis == null }) {
             // 未分析状态
             notAnalyzedView(ctx)
-        } else {
-            // 显示分析卡片
-            analysis.cards.forEach { card ->
+        }
+        velse {
+            // 显示分析卡片（普通 List 需包成 ObservableList 才能给 vfor 用）
+            vfor({ ObservableList(analysis!!.cards.toMutableList()) }) { card ->
                 renderAICard(card)
             }
         }

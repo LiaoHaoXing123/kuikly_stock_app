@@ -2,13 +2,18 @@ package com.kuikly.stock.pages
 
 import com.tencent.kuikly.core.annotations.Page
 import com.tencent.kuikly.core.base.*
+import com.tencent.kuikly.core.directives.vfor
+import com.tencent.kuikly.core.directives.vif
+import com.tencent.kuikly.core.directives.velse
 import com.tencent.kuikly.core.module.RouterModule
 import com.tencent.kuikly.core.pager.Pager
 import com.tencent.kuikly.core.views.*
 import com.tencent.kuikly.core.layout.FlexAlign
 import com.tencent.kuikly.core.layout.FlexJustifyContent
 import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
+import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.observable
+import com.tencent.kuikly.core.reactive.handler.observableList
 
 /**
  * AI 聊天主页面（默认首页）
@@ -22,8 +27,8 @@ import com.tencent.kuikly.core.reactive.handler.observable
 @Page("chat_main")
 class ChatMainPage : Pager() {
 
-    // 状态：消息列表（使用 observable 触发 UI 刷新）
-    internal var messages by observable(mutableListOf<ChatMessageItem>())
+    // 状态：消息列表（使用 ObservableList + vfor 实现响应式列表刷新）
+    internal var messages: ObservableList<ChatMessageItem> by observableList()
 
     // 状态：输入框文本
     internal var inputText by observable("")
@@ -42,10 +47,11 @@ class ChatMainPage : Pager() {
                 }
                 // 顶部导航栏
                 topBar(ctx)
-                // 消息列表或空态提示（根据是否有消息自动切换）
-                if (ctx.messages.isEmpty()) {
+                // 消息列表或空态提示（根据是否有消息自动切换，必须用 Kuikly 的 vif/velse）
+                vif({ ctx.messages.isEmpty() }) {
                     welcomeHint()
-                } else {
+                }
+                velse {
                     messageList(ctx)
                 }
                 // 底部输入区域
@@ -61,8 +67,8 @@ class ChatMainPage : Pager() {
         val text = inputText.trim()
         if (text.isEmpty()) return
 
-        // 添加用户消息到列表（整体替换触发 observable 刷新，Kuikly 的 observable 不拦截 list.add）
-        messages = (messages + ChatMessageItem(role = "user", content = text, isUser = true)).toMutableList()
+        // 添加用户消息到列表（ObservableList.add 会自动触发 vfor 刷新）
+        messages.add(ChatMessageItem(role = "user", content = text, isUser = true))
 
         // 清空输入框（状态 + 原生控件）
         inputText = ""
@@ -104,8 +110,8 @@ class ChatMainPage : Pager() {
             )
         )
 
-        // 整体替换触发 observable 刷新
-        messages = (messages + mockReply).toMutableList()
+        // ObservableList.add 会自动触发 vfor 刷新
+        messages.add(mockReply)
     }
 }
 
@@ -174,17 +180,15 @@ internal fun ViewContainer<*, *>.topBar(ctx: ChatMainPage) {
  */
 internal fun ViewContainer<*, *>.messageList(ctx: ChatMainPage) {
     Scroller {
-        val scroller = this
         attr {
             flex(1f)
             flexDirectionColumn()
             scrollEnable(true)
             padding(left = 12f, top = 8f, right = 12f, bottom = 8f)
         }
-        with(scroller) {
-            ctx.messages.forEach { message ->
-                chatBubble(ctx, message)
-            }
+        // 使用 vfor 让消息列表响应式增删
+        vfor({ ctx.messages }) { message ->
+            chatBubble(ctx, message)
         }
     }
 }
