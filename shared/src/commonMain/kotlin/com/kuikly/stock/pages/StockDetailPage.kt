@@ -14,6 +14,9 @@ import com.tencent.kuikly.core.pager.Pager
 import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.observable
 import com.tencent.kuikly.core.views.*
+import com.kuikly.stock.network.ApiService
+import com.kuikly.stock.base.BridgeModule
+import com.tencent.kuikly.core.coroutines.launch
 
 /**
  * 个股详情页
@@ -106,124 +109,94 @@ class StockDetailPage : Pager() {
 
     /**
      * 加载股票详情
+     * 调用后端 GET /api/v1/stocks/{code}/detail
      */
     internal fun loadStockDetail() {
+        if (stockCode.isEmpty()) return
         isLoading = true
 
-        // TODO: 调用后端 API
-        // GET /api/v1/stocks/{code}/detail
-
-        // 模拟延迟
-        // Thread.sleep(800)
-
-        // 模拟数据（开发测试用）
-        stockDetail = StockDetailData(
-            info = StockInfoData(
-                code = stockCode,
-                name = getMockName(stockCode),
-                industry = "银行",
-                plate = if (stockCode.startsWith("6")) "沪市" else "深市",
-                listDate = "1991-04-03"
-            ),
-            realtime = RealtimeQuoteData(
-                code = stockCode,
-                name = getMockName(stockCode),
-                price = 11.05,
-                change = 0.13,
-                changePercent = 1.20,
-                openPrice = 11.00,
-                preClose = 10.92,
-                high = 11.14,
-                low = 11.01,
-                volume = 808930.0,
-                amount = 896000000.0,
-                peTtm = 5.23,
-                pb = 0.62
-            ),
-            kline = generateMockKlineData(stockCode, 30)
-        )
-
-        isLoading = false
-
-        // TODO: 通知 UI 刷新
+        lifecycleScope.launch {
+            try {
+                val vo = ApiService.getStockDetail(stockCode)
+                stockDetail = StockDetailData(
+                    info = StockInfoData(
+                        code = vo.info.code,
+                        name = vo.info.name,
+                        industry = vo.info.industry,
+                        plate = vo.info.plate,
+                        listDate = vo.info.listDate
+                    ),
+                    realtime = vo.realtime?.let {
+                        RealtimeQuoteData(
+                            code = it.code,
+                            name = it.name,
+                            price = it.price,
+                            change = it.change,
+                            changePercent = it.changePercent,
+                            openPrice = it.openPrice,
+                            preClose = it.preClose,
+                            high = it.high,
+                            low = it.low,
+                            volume = it.volume,
+                            amount = it.amount,
+                            peTtm = it.peTtm,
+                            pb = it.pb
+                        )
+                    },
+                    kline = vo.kline.map {
+                        KLineDataItem(
+                            code = it.code,
+                            tradeDate = it.tradeDate,
+                            open = it.open,
+                            close = it.close,
+                            high = it.high,
+                            low = it.low,
+                            volume = it.volume,
+                            amount = it.amount
+                        )
+                    }
+                )
+            } catch (e: Throwable) {
+                stockDetail = null
+                BridgeModule().toast("加载失败：${e.message}")
+            } finally {
+                isLoading = false
+            }
+        }
     }
 
     /**
      * 触发 AI 分析
+     * 调用后端 POST /api/v1/ai/analyze/{code}
      */
     internal fun triggerAIAnalysis() {
         if (stockCode.isEmpty()) return
 
         isAnalyzing = true
 
-        // TODO: 调用后端 AI 分析接口
-        // POST /api/v1/ai/analyze/{code}
-
-        // 模拟延迟（AI 分析通常需要 5-15 秒）
-        // Thread.sleep(2000)
-
-        // 模拟 AI 分析结果
-        aiAnalysis = AIAnalysisData(
-            code = stockCode,
-            name = getMockName(stockCode),
-            analysis = mapOf(
-                "trend" to "短期震荡上行，中期看涨。股价在 10.80-11.50 区间震荡整理，成交量温和放大，显示多头力量逐步增强。",
-                "support_price" to "10.80",
-                "resistance_price" to "11.50",
-                "risk_level" to "中等",
-                "suggestion" to "持有观望",
-                "target_price" to "11.80",
-                "stop_loss" to "10.60",
-                "summary" to "平安银行当前处于震荡上行阶段，建议持有等待突破确认，关注量能变化。"
-            ),
-            cards = listOf(
-                mapOf(
-                    "type" to "trend_card",
-                    "title" to "趋势判断",
-                    "content" to "短期震荡上行，中期看涨。股价在 10.80-11.50 区间震荡整理。",
-                    "color" to "#FF6B6B"
-                ),
-                mapOf(
-                    "type" to "signal_card",
-                    "title" to "技术信号",
-                    "signals" to listOf("MA5 金叉 MA20", "MACD 柱状图转正", "成交量温和放大"),
-                    "color" to "#45B7D1"
-                ),
-                mapOf(
-                    "type" to "risk_card",
-                    "title" to "风险评估",
-                    "risk_level" to "中等",
-                    "risks" to listOf("大盘系统性风险", "银行业政策变化"),
-                    "color" to "#FFEAA7"
-                ),
-                mapOf(
-                    "type" to "suggestion_card",
-                    "title" to "操作建议",
-                    "suggestion" to "持有观望",
-                    "target_price" to "11.80",
-                    "stop_loss" to "10.60",
-                    "support_price" to "10.80",
-                    "resistance_price" to "11.50",
-                    "color" to "#96CEB4"
-                ),
-                mapOf(
-                    "type" to "summary_card",
-                    "title" to "AI 总结",
-                    "summary" to "当前处于震荡上行阶段，建议持有等待突破确认。",
-                    "color" to "#DDA0DD"
+        lifecycleScope.launch {
+            try {
+                val vo = ApiService.analyzeStock(stockCode)
+                // 后端返回的 cards 是 List<Map<String,String>>，结构字段与前端渲染一致
+                aiAnalysis = AIAnalysisData(
+                    code = vo.code,
+                    name = vo.name,
+                    analysis = vo.analysis,
+                    cards = vo.cards.map { it as Map<String, Any?> }
                 )
-            )
-        )
-
-        isAnalyzing = false
-
-        // TODO: 通知 UI 刷新
+            } catch (e: Throwable) {
+                aiAnalysis = null
+                BridgeModule().toast("AI 分析失败：${e.message}")
+            } finally {
+                isAnalyzing = false
+            }
+        }
     }
 
     // ==================== 辅助方法 ====================
 
     /**
-     * 获取模拟股票名称
+     * 获取模拟股票名称（仅在数据缺失时兜底显示）
      */
     private fun getMockName(code: String): String {
         return when (code) {
@@ -234,44 +207,6 @@ class StockDetailPage : Pager() {
             "300750" -> "宁德时代"
             else -> "未知股票"
         }
-    }
-
-    /**
-     * 生成模拟 K 线数据
-     */
-    private fun generateMockKlineData(code: String, days: Int): List<KLineDataItem> {
-        val basePrice = when (code) {
-            "600519" -> 1685.0
-            "000001" -> 11.0
-            else -> 50.0
-        }
-
-        val result = mutableListOf<KLineDataItem>()
-        var price = basePrice
-
-        for (i in 1..days) {
-            val change = (Math.random() - 0.48) * basePrice * 0.02  // 倾向于上涨
-            val open = price
-            val close = price + change
-            val high = maxOf(open, close) + Math.random() * basePrice * 0.01
-            val low = minOf(open, close) - Math.random() * basePrice * 0.01
-            val volume = (Math.random() * 1000000).toLong()
-
-            result.add(KLineDataItem(
-                code = code,
-                tradeDate = "2026-08-${18 - i}",
-                open = open,
-                close = close,
-                high = high,
-                low = low,
-                volume = volume.toDouble(),
-                amount = volume.toDouble() * (open + close) / 2
-            ))
-
-            price = close
-        }
-
-        return result.reversed()  // 按日期升序
     }
 }
 

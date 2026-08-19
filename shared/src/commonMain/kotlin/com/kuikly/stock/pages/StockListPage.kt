@@ -15,6 +15,9 @@ import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
 import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.observable
 import com.tencent.kuikly.core.reactive.handler.observableList
+import com.kuikly.stock.network.ApiService
+import com.kuikly.stock.base.BridgeModule
+import com.tencent.kuikly.core.coroutines.launch
 
 /**
  * 行情列表页（Task 1 首页）
@@ -41,6 +44,12 @@ class StockListPage : Pager() {
     // 状态：是否正在加载
     internal var isLoading by observable(false)
 
+    // 状态：是否加载失败
+    internal var loadError by observable(false)
+
+    // 存储当前关键词，供加载更多复用
+    internal var currentKeyword by observable("")
+
     override fun body(): ViewBuilder {
         val ctx = this
         return {
@@ -64,8 +73,13 @@ class StockListPage : Pager() {
                 stockListView(ctx)
 
                 // 加载更多按钮
-                if (!ctx.isLoading && ctx.stockList.isNotEmpty()) {
+                if (!ctx.isLoading && !ctx.loadError && ctx.stockList.isNotEmpty()) {
                     loadMoreButton(ctx)
+                }
+
+                // 加载失败重试
+                vif({ ctx.loadError }) {
+                    loadErrorView(ctx)
                 }
             }
         }
@@ -81,49 +95,57 @@ class StockListPage : Pager() {
 
     /**
      * 刷新数据（首屏由 didInit 触发，也可点刷新按钮触发）
+     * 调用后端 GET /api/v1/stocks
      */
     internal fun refreshData() {
         currentPage = 1
-        stockList.clear()
-        stockList.addAll(loadMockData())
+        currentKeyword = searchKeyword
+        loadStockList(isRefresh = true)
     }
 
     /**
      * 搜索股票
      */
     internal fun searchStocks() {
-        stockList.clear()
-        stockList.addAll(loadMockData())
+        currentKeyword = searchKeyword
+        currentPage = 1
+        loadStockList(isRefresh = true)
     }
 
     /**
      * 加载更多
      */
     internal fun loadMore() {
-        if (isLoading) return
-        isLoading = true
+        if (isLoading || loadError) return
         currentPage++
-        stockList.addAll(loadMockData())
-        isLoading = false
+        loadStockList(isRefresh = false)
     }
 
     /**
-     * 加载模拟数据（开发测试用）
-     * 实际项目中应替换为真实 API 调用
+     * 真正的网络请求封装
+     * @param isRefresh 是否清空已有列表（首屏/刷新/搜索为 true，加载更多为 false）
      */
-    internal fun loadMockData(): List<StockListItem> {
-        return listOf(
-            StockListItem(code = "000001", name = "平安银行", price = 11.05, changePercent = 1.20),
-            StockListItem(code = "600519", name = "贵州茅台", price = 1685.00, changePercent = -0.50),
-            StockListItem(code = "000002", name = "万科A", price = 8.92, changePercent = 2.30),
-            StockListItem(code = "600036", name = "招商银行", price = 35.68, changePercent = 0.85),
-            StockListItem(code = "300750", name = "宁德时代", price = 218.50, changePercent = -1.25),
-            StockListItem(code = "601318", name = "中国平安", price = 48.32, changePercent = 1.05),
-            StockListItem(code = "000858", name = "五粮液", price = 152.80, changePercent = -0.35),
-            StockListItem(code = "002594", name = "比亚迪", price = 256.90, changePercent = 3.20),
-            StockListItem(code = "600900", name = "长江电力", price = 28.45, changePercent = 0.15),
-            StockListItem(code = "300001", name = "特锐德", price = 22.18, changePercent = -2.10)
-        )
+    private fun loadStockList(isRefresh: Boolean) {
+        if (isLoading) return
+        isLoading = true
+        loadError = false
+        if (isRefresh) stockList.clear()
+
+        lifecycleScope.launch {
+            try {
+                val list = ApiService.getStockList(
+                    page = currentPage,
+                    size = 20,
+                    keyword = currentKeyword.ifBlank { null }
+                )
+                stockList.addAll(list)
+            } catch (e: Throwable) {
+                loadError = true
+                BridgeModule().toast("加载失败：${e.message}")
+            } finally {
+                isLoading = false
+            }
+        }
     }
 }
 
@@ -300,9 +322,12 @@ internal fun ViewContainer<*, *>.stockListView(ctx: StockListPage) {
             flexDirectionColumn()
             scrollEnable(true)
         }
-        // 使用 Kuikly 条件指令实现 loading / empty / list 的响应式切换
+        // 使用 Kuikly 条件指令实现 loading / error / empty / list 的响应式切换
         vif({ ctx.isLoading && ctx.stockList.isEmpty() }) {
             stockListLoadingView()
+        }
+        velseif({ ctx.loadError && ctx.stockList.isEmpty() }) {
+            loadErrorView(ctx)
         }
         velseif({ ctx.stockList.isEmpty() }) {
             emptyView()
@@ -421,6 +446,50 @@ internal fun ViewContainer<*, *>.emptyView() {
                 fontSize(14f)
                 color(0xFF999999)
                 textAlignCenter()
+            }
+        }
+    }
+}
+
+/**
+ * 加载失败视图
+ */
+internal fun ViewContainer<*, *>.loadErrorView(ctx: StockListPage) {
+    View {
+        attr {
+            flex(1f)
+            flexDirectionColumn()
+            alignItems(FlexAlign.CENTER)
+            justifyContent(FlexJustifyContent.CENTER)
+        }
+        Text {
+            attr {
+                text("⚠️ 加载失败\n\n请确认后端服务已启动，且手机与电脑在同一 WiFi")
+                fontSize(14f)
+                color(0xFFE53935)
+                textAlignCenter()
+            }
+        }
+        // 重试按钮
+        View {
+            attr {
+                marginTop(16f)
+                padding(top = 10f, left = 24f, bottom = 10f, right = 24f)
+                backgroundColor(0xFF1976D2)
+                borderRadius(20f)
+            }
+            event {
+                click {
+                    ctx.refreshData()
+                }
+            }
+            Text {
+                attr {
+                    text("重试\nRetry")
+                    fontSize(14f)
+                    fontWeightBold()
+                    color(0xFFFFFFFF)
+                }
             }
         }
     }

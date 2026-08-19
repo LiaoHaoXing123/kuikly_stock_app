@@ -14,6 +14,9 @@ import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
 import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.observable
 import com.tencent.kuikly.core.reactive.handler.observableList
+import com.kuikly.stock.network.ApiService
+import com.kuikly.stock.base.BridgeModule
+import com.tencent.kuikly.core.coroutines.launch
 
 /**
  * AI 聊天主页面（默认首页）
@@ -62,6 +65,7 @@ class ChatMainPage : Pager() {
 
     /**
      * 发送消息
+     * 调用后端 POST /api/v1/ai/chat
      */
     internal fun sendMessage() {
         val text = inputText.trim()
@@ -74,44 +78,29 @@ class ChatMainPage : Pager() {
         inputText = ""
         inputRef.view?.setText("")
 
-        // 模拟 AI 回复（开发阶段）
-        simulateAIResponse(text)
-    }
-
-    /**
-     * 模拟 AI 回复（开发测试用）
-     * 实际项目中应替换为真实的 API 调用
-     */
-    internal fun simulateAIResponse(userMessage: String) {
-        val mockReply = ChatMessageItem(
-            role = "assistant",
-            content = "收到您的问题：\"$userMessage\"\n\n" +
-                "这是一个模拟回复。在实际应用中，这里会显示 DeepSeek AI 的分析结果。" +
-                "支持 Markdown 格式文本和结构化卡片展示。",
-            isUser = false,
-            cards = listOf(
-                mapOf(
-                    "type" to "stock_card",
-                    "code" to "000001",
-                    "name" to "平安银行",
-                    "price" to "11.05",
-                    "changePercent" to "+1.20%"
-                ),
-                mapOf(
-                    "type" to "trend_card",
-                    "title" to "趋势判断",
-                    "content" to "短期震荡上行，中期看涨",
-                    "color" to "#FF6B6B"
+        // 调用真实后端 AI 问答
+        lifecycleScope.launch {
+            try {
+                val reply = ApiService.chat(text)
+                messages.add(
+                    ChatMessageItem(
+                        role = "assistant",
+                        content = reply.text,
+                        isUser = false,
+                        cards = reply.cards?.map { it as Map<String, Any?> },
+                        suggestions = reply.suggestions
+                    )
                 )
-            ),
-            suggestions = listOf(
-                "查看技术指标？",
-                "对比同行业？"
-            )
-        )
-
-        // ObservableList.add 会自动触发 vfor 刷新
-        messages.add(mockReply)
+            } catch (e: Throwable) {
+                messages.add(
+                    ChatMessageItem(
+                        role = "assistant",
+                        content = "⚠️ 调用 AI 失败：${e.message}\n\n请确认后端服务已启动，且手机与电脑在同一 WiFi。",
+                        isUser = false
+                    )
+                )
+            }
+        }
     }
 }
 
