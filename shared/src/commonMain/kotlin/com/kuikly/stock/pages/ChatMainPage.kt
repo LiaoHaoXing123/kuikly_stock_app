@@ -117,8 +117,9 @@ internal fun ViewContainer<*, *>.topBar(ctx: ChatMainPage) {
         attr {
             flexDirectionRow()
             alignItems(FlexAlign.CENTER)
-            height(48f)
+            height(56f)
             backgroundColor(0xFFFFFFFF)
+            paddingTop(ctx.pagerData.statusBarHeight)
         }
 
         // 左侧：【大盘行情】按钮
@@ -219,7 +220,7 @@ internal fun ViewContainer<*, *>.chatBubble(
                     text(message.content)
                     fontSize(15f)
                     color(0xFF333333)
-                    lineHeight(1.5f)
+                    lineHeight(1.6f)
                 }
             }
 
@@ -352,6 +353,7 @@ internal fun ViewContainer<*, *>.aiCard(
                 fontSize(13f)
                 color(0xFF555555)
                 marginTop(4f)
+                lineHeight(1.5f)
             }
         }
     }
@@ -389,6 +391,7 @@ internal fun ViewContainer<*, *>.chartCard(card: Map<String, Any?>) {
                 fontSize(12f)
                 color(0xFF666666)
                 marginTop(4f)
+                lineHeight(1.5f)
             }
         }
     }
@@ -465,6 +468,7 @@ internal fun ViewContainer<*, *>.welcomeHint() {
                 fontSize(14f)
                 color(0xFF666666)
                 textAlignCenter()
+                lineHeight(1.8f)
             }
         }
     }
@@ -482,22 +486,31 @@ internal fun ViewContainer<*, *>.inputArea(ctx: ChatMainPage) {
             backgroundColor(0xFFFFFFFF)
         }
 
-        // 输入框
+        // 输入框容器（圆角背景）
         View {
             attr {
                 flex(1f)
-                height(36f)
+                height(40f)
                 backgroundColor(0xFFF5F5F5)
-                borderRadius(18f)
+                borderRadius(20f)
+                flexDirectionRow()
                 alignItems(FlexAlign.CENTER)
-                padding(left = 12f, right = 12f)
             }
-
-            Text {
+            // 真正的可编辑输入框
+            Input {
                 attr {
-                    text(if (ctx.inputText.isEmpty()) "输入问题..." else ctx.inputText)
+                    flex(1f)
                     fontSize(14f)
-                    color(if (ctx.inputText.isEmpty()) 0xFF999999 else 0xFF333333)
+                    color(Color(0xFF333333))
+                    placeholder("输入问题...")
+                    placeholderColor(Color(0xFF999999))
+                    marginLeft(16f)
+                    marginRight(16f)
+                }
+                event {
+                    textDidChange {
+                        ctx.inputText = it.text
+                    }
                 }
             }
         }
