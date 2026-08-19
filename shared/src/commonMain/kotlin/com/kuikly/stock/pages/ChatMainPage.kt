@@ -22,11 +22,14 @@ import com.tencent.kuikly.core.reactive.handler.observable
 @Page("chat_main")
 class ChatMainPage : Pager() {
 
-    // 状态：消息列表
-    internal val messages = mutableListOf<ChatMessageItem>()
+    // 状态：消息列表（使用 observable 触发 UI 刷新）
+    internal var messages by observable(mutableListOf<ChatMessageItem>())
 
     // 状态：输入框文本
     internal var inputText by observable("")
+
+    // 输入框引用，用于主动清空/聚焦
+    lateinit var inputRef: ViewRef<InputView>
 
     override fun body(): ViewBuilder {
         val ctx = this
@@ -39,8 +42,12 @@ class ChatMainPage : Pager() {
                 }
                 // 顶部导航栏
                 topBar(ctx)
-                // 消息列表区域
-                messageList(ctx)
+                // 消息列表或空态提示（根据是否有消息自动切换）
+                if (ctx.messages.isEmpty()) {
+                    welcomeHint()
+                } else {
+                    messageList(ctx)
+                }
                 // 底部输入区域
                 inputArea(ctx)
             }
@@ -57,8 +64,9 @@ class ChatMainPage : Pager() {
         // 添加用户消息到列表
         messages.add(ChatMessageItem(role = "user", content = text, isUser = true))
 
-        // 清空输入框
+        // 清空输入框（状态 + 原生控件）
         inputText = ""
+        inputRef.view?.setText("")
 
         // TODO: 调用后端 API 发送消息
         // 1. POST /api/v1/ai/chat
@@ -103,7 +111,6 @@ class ChatMainPage : Pager() {
         )
 
         messages.add(mockReply)
-        // TODO: 通知 UI 刷新
     }
 }
 
@@ -182,9 +189,6 @@ internal fun ViewContainer<*, *>.messageList(ctx: ChatMainPage) {
         with(scroller) {
             ctx.messages.forEach { message ->
                 chatBubble(ctx, message)
-            }
-            if (ctx.messages.isEmpty()) {
-                welcomeHint()
             }
         }
     }
@@ -416,6 +420,7 @@ internal fun ViewContainer<*, *>.suggestionChip(
             click {
                 // 点击推荐问题，自动发送
                 ctx.inputText = suggestion
+                ctx.inputRef.view?.setText(suggestion)
                 ctx.sendMessage()
             }
         }
@@ -453,6 +458,7 @@ internal fun ViewContainer<*, *>.welcomeHint() {
             flexDirectionColumn()
             alignItems(FlexAlign.CENTER)
             justifyContent(FlexJustifyContent.CENTER)
+            padding(left = 32f, top = 16f, right = 32f, bottom = 16f)
         }
 
         Text {
@@ -498,8 +504,12 @@ internal fun ViewContainer<*, *>.inputArea(ctx: ChatMainPage) {
             }
             // 真正的可编辑输入框
             Input {
+                ref {
+                    ctx.inputRef = it
+                }
                 attr {
                     flex(1f)
+                    height(36f)
                     fontSize(14f)
                     color(Color(0xFF333333))
                     placeholder("输入问题...")
