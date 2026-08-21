@@ -13,8 +13,8 @@ object DataSourceManager {
 
     enum class Mode { OFFLINE, ONLINE }
 
-    /** 当前模式，默认离线 */
-    var mode: Mode = Mode.OFFLINE
+    /** 当前模式，默认在线（优先走真实后端 AI，不可达时由 Repository 自动回退离线） */
+    var mode: Mode = Mode.ONLINE
         private set
 
     val isOnline: Boolean

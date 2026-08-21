@@ -82,5 +82,8 @@ object ApiEndpoints {
 
         // 会话消息记录
         const val SESSION_MESSAGES = "$BASE/sessions/{id}/messages"
+
+        // 服务状态（连接检测）
+        const val STATUS = "$BASE/status"
     }
 }

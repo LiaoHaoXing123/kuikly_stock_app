@@ -15,6 +15,7 @@ import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.observable
 import com.tencent.kuikly.core.views.*
 import com.kuikly.stock.data.StockRepository
+import com.tencent.kuikly.core.coroutines.delay
 import com.tencent.kuikly.core.coroutines.launch
 
 /**
@@ -121,6 +122,8 @@ class StockDetailPage : Pager() {
             try {
                 // 统一走 StockRepository（按开发者选项路由离线/在线）
                 val data = StockRepository.loadStockDetail(stockCode)
+                // 网络调用恢复在 OkHttp 线程，用 Kuikly delay(0) 切回渲染线程再更新 observable
+                delay(0)
                 if (data != null) {
                     stockDetail = data
                 } else {
@@ -128,6 +131,7 @@ class StockDetailPage : Pager() {
                     loadErrorMessage = "未找到股票 $stockCode 的数据"
                 }
             } catch (e: Throwable) {
+                delay(0)  // 网络异常在 OkHttp 线程抛出，先切回渲染线程再更新 observable
                 stockDetail = null
                 loadErrorMessage = e.message ?: "数据加载失败"
             } finally {
@@ -138,94 +142,16 @@ class StockDetailPage : Pager() {
 
     /**
      * 触发 AI 分析
-     * 离线模式：生成基于本地数据的模拟分析结果
-     * 在线模式（可选）：可扩展为调用后端 API
+     * 优先调用后端真实 AI（基于数据文件夹作答）；后端不可达自动回退本地模板分析
      */
     internal fun triggerAIAnalysis() {
         if (stockCode.isEmpty()) return
-
         isAnalyzing = true
-
         lifecycleScope.launch {
-            try {
-                // 模拟 AI 分析延迟
-                kotlinx.coroutines.delay(800L)
-
-                val detail = stockDetail
-                val name = detail?.info?.name ?: "未知"
-                val price = detail?.realtime?.price ?: 0.0
-                val changePct = detail?.realtime?.changePercent ?: 0.0
-
-                // 基于本地数据生成模拟分析结论
-                val trend = if (changePct > 3) "强势上涨"
-                    else if (changePct > 0) "震荡偏多"
-                    else if (changePct == 0.0) "横盘整理"
-                    else if (changePct > -3) "弱势调整"
-                    else "大幅下跌"
-
-                val signals = mutableListOf<String>()
-                if (price > 50) signals.add("高价股，注意波动风险")
-                if (changePct > 2) signals.add("短期动能较强")
-                if (changePct < -2) signals.add("短期承压明显")
-                if ((detail?.kline?.size ?: 0) >= 5) {
-                    val recent = detail!!.kline!!.takeLast(5)
-                    val upCount = recent.count { it.close > it.open }
-                    if (upCount >= 4) signals.add("连续收阳，多头占优")
-                    else if (upCount <= 1) signals.add("连续收阴，空头主导")
-                }
-                if (signals.isEmpty()) signals.add("观望为主，等待方向选择")
-
-                aiAnalysis = AIAnalysisData(
-                    code = stockCode,
-                    name = name,
-                    analysis = mapOf(
-                        "趋势判断" to trend,
-                        "最新价" to "${String.format("%.2f", price)}",
-                        "涨跌幅" to "${String.format("%.2f", changePct)}%",
-                        "数据来源" to "本地离线数据（模拟分析）"
-                    ),
-                    cards = listOf(
-                        mapOf(
-                            "type" to "trend_card",
-                            "title" to "趋势研判",
-                            "content" to "$name 当前处于$trend 阶段，建议关注成交量变化和均线支撑。",
-                            "color" to "#1976D2"
-                        ),
-                        mapOf(
-                            "type" to "signal_card",
-                            "title" to "技术信号",
-                            "signals" to signals.toMutableList<Any?>(),
-                            "color" to "#FF9800"
-                        ),
-                        mapOf(
-                            "type" to "risk_card",
-                            "title" to "风险提示",
-                            "content" to "本分析基于本地模拟数据，不构成投资建议。股市有风险，投资需谨慎。",
-                            "color" to "#E53935"
-                        ),
-                        mapOf(
-                            "type" to "suggestion_card",
-                            "title" to "操作建议",
-                            "suggestion" to if (changePct > 1) "短线可持有，设好止损"
-                                else if (changePct < -1) "轻仓观望，等待企稳"
-                                else "保持现有仓位，控制风险",
-                            "target_price" to String.format("%.2f", price * 1.05),
-                            "stop_loss" to String.format("%.2f", price * 0.95),
-                            "color" to "#43A047"
-                        ),
-                        mapOf(
-                            "type" to "summary_card",
-                            "title" to "总结",
-                            "content" to "$name($stockCode): $trend | ${signals.size}项技术信号 | 离线模式演示版",
-                            "color" to "#7B1FA2"
-                        )
-                    )
-                )
-            } catch (e: Throwable) {
-                aiAnalysis = null
-            } finally {
-                isAnalyzing = false
-            }
+            val result = StockRepository.analyzeStock(stockCode)
+            delay(0)
+            aiAnalysis = result
+            isAnalyzing = false
         }
     }
 

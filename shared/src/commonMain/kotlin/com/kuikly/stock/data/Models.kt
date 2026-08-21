@@ -2,6 +2,7 @@ package com.kuikly.stock.data
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 /**
  * 通用 API 响应（后端统一包裹：{ success, message, data }）
@@ -96,7 +97,7 @@ data class AIAnalysisResponse(
     val code: String,
     val name: String? = null,
     val analysis: Map<String, String> = emptyMap(),
-    val cards: List<Map<String, String>> = emptyList()
+    val cards: List<Map<String, JsonElement>> = emptyList()
 )
 
 /**
@@ -112,10 +113,37 @@ data class ChatResponse(
 
 /**
  * AI 聊天回复
+ * cards 用 JsonElement 承载，兼容后端卡片里的嵌套数组（signals、chart data）
  */
 @Serializable
 data class ChatReply(
     val text: String = "",
-    val cards: List<Map<String, String>>? = null,
+    val cards: List<Map<String, JsonElement>>? = null,
     val suggestions: List<String>? = null
+)
+
+/**
+ * AI 服务状态（连接检测用）
+ * 对应后端 GET /api/v1/ai/status 的 data 结构
+ */
+@Serializable
+data class AiStatusResponse(
+    val llm: AiLlmInfo = AiLlmInfo(),
+    @SerialName("data_mode") val dataMode: String = "",
+    val database: String = "",
+    @SerialName("local_data") val localData: AiLocalDataInfo = AiLocalDataInfo()
+)
+
+@Serializable
+data class AiLlmInfo(
+    @SerialName("base_url") val baseUrl: String = "",
+    val model: String = "",
+    @SerialName("api_key_configured") val apiKeyConfigured: Boolean = false
+)
+
+@Serializable
+data class AiLocalDataInfo(
+    val available: Boolean = false,
+    val stocks: Int = 0,
+    @SerialName("kline_codes") val klineCodes: Int = 0
 )

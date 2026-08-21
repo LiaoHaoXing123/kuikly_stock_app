@@ -16,6 +16,7 @@ import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.observable
 import com.tencent.kuikly.core.reactive.handler.observableList
 import com.kuikly.stock.data.StockRepository
+import com.tencent.kuikly.core.coroutines.delay
 import com.tencent.kuikly.core.coroutines.launch
 
 /**
@@ -52,6 +53,12 @@ class StockListPage : Pager() {
     // 存储当前关键词，供加载更多复用
     internal var currentKeyword by observable("")
 
+    // 状态：操作提示（刷新/加载更多后的反馈，2 秒后自动消失）
+    internal var hint by observable("")
+
+    // 状态：是否还有更多数据（控制"加载更多"按钮显隐）
+    internal var hasMore by observable(true)
+
     override fun body(): ViewBuilder {
         val ctx = this
         return {
@@ -74,9 +81,14 @@ class StockListPage : Pager() {
                 // 股票列表（内部已包含 loading / error / empty / list 的响应式切换）
                 stockListView(ctx)
 
-                // 加载更多按钮（非加载中、非失败、列表有数据时显示）
-                vif({ !ctx.isLoading && !ctx.loadError && ctx.stockList.isNotEmpty() }) {
+                // 加载更多按钮（非加载中、非失败、列表有数据且还有更多时显示）
+                vif({ !ctx.isLoading && !ctx.loadError && ctx.stockList.isNotEmpty() && ctx.hasMore }) {
                     loadMoreButton(ctx)
+                }
+
+                // 独立提示弹窗（悬浮在页面顶部，不占布局、不挤页面，点击或自动消失）
+                vif({ ctx.hint.isNotEmpty() }) {
+                    hintPopup(ctx)
                 }
             }
         }
@@ -95,6 +107,8 @@ class StockListPage : Pager() {
      * 调用后端 GET /api/v1/stocks
      */
     internal fun refreshData() {
+        if (isLoading) return
+        showHint("正在刷新…")
         currentPage = 1
         currentKeyword = searchKeyword
         loadStockList(isRefresh = true)
@@ -104,6 +118,8 @@ class StockListPage : Pager() {
      * 搜索股票
      */
     internal fun searchStocks() {
+        if (isLoading) return
+        showHint("正在搜索…")
         currentKeyword = searchKeyword
         currentPage = 1
         loadStockList(isRefresh = true)
@@ -114,8 +130,18 @@ class StockListPage : Pager() {
      */
     internal fun loadMore() {
         if (isLoading || loadError) return
+        showHint("正在加载更多…")
         currentPage++
         loadStockList(isRefresh = false)
+    }
+
+    /** 显示临时提示（2 秒后自动消失） */
+    internal fun showHint(msg: String) {
+        hint = msg
+        lifecycleScope.launch {
+            delay(2000)
+            if (hint == msg) hint = ""
+        }
     }
 
     /**
@@ -127,7 +153,10 @@ class StockListPage : Pager() {
         if (isLoading) return
         isLoading = true
         loadError = false
-        if (isRefresh) stockList.clear()
+        if (isRefresh) {
+            stockList.clear()
+            hasMore = true
+        }
 
         lifecycleScope.launch {
             try {
@@ -138,15 +167,26 @@ class StockListPage : Pager() {
                 val startIdx = if (isRefresh) 0 else stockList.size
                 val pageItems = localList.drop(startIdx).take(20)
 
+                // 网络调用恢复在 OkHttp 线程，用 Kuikly delay(0) 切回渲染线程再更新 observable
+                delay(0)
                 if (pageItems.isNotEmpty()) {
                     stockList.addAll(pageItems)
+                    hasMore = pageItems.size >= 20
+                    hint = if (isRefresh) "已刷新，共 ${stockList.size} 只股票"
+                        else "已加载 ${pageItems.size} 条"
                 } else if (stockList.isEmpty()) {
                     loadError = true
                     loadErrorMessage = "暂无数据"
+                    hint = "未找到相关股票"
+                } else {
+                    hasMore = false
+                    hint = "没有更多了"
                 }
             } catch (e: Throwable) {
+                delay(0)  // 网络异常在 OkHttp 线程抛出，先切回渲染线程再更新 observable
                 loadError = true
                 loadErrorMessage = e.message ?: "数据加载失败"
+                hint = "加载失败：" + (e.message ?: "未知错误")
             } finally {
                 isLoading = false
             }
@@ -509,6 +549,37 @@ internal fun ViewContainer<*, *>.loadErrorView(ctx: StockListPage) {
                     fontSize(14f)
                     fontWeightBold()
                     color(0xFFFFFFFF)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 独立提示弹窗（悬浮在页面顶部中央，深色圆角卡片，点击或 2 秒后自动消失）
+ * 只占顶部一条区域，不遮挡列表操作，避免与页面内容挤在一起。
+ */
+internal fun ViewContainer<*, *>.hintPopup(ctx: StockListPage) {
+    View {
+        attr {
+            absolutePosition(top = 96f, left = 0f, right = 0f)
+            alignItems(FlexAlign.CENTER)
+        }
+        event { click { ctx.hint = "" } }
+        View {
+            attr {
+                maxWidth(ctx.pagerData.pageViewWidth - 80f)
+                backgroundColor(0xE6333333)
+                borderRadius(20f)
+                padding(left = 18f, top = 9f, right = 18f, bottom = 9f)
+            }
+            Text {
+                attr {
+                    text(ctx.hint)
+                    fontSize(13f)
+                    color(0xFFFFFFFF)
+                    textAlignCenter()
+                    lineHeight(1.5f)
                 }
             }
         }

@@ -1,15 +1,26 @@
 package com.kuikly.stock.network
 
 import com.kuikly.stock.data.*
-import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import kotlinx.serialization.serializer
 
 /**
  * 后端 API 服务层
@@ -21,15 +32,22 @@ import kotlinx.serialization.json.put
  */
 object ApiService {
 
-    /** 拆包后端统一响应，失败时抛出异常 */
+    /**
+     * 拆包后端统一响应 { success, message, data } 并反序列化 data。
+     * 用原始文本 + 显式 serializer 解析，避免 Ktor 泛型包装 ApiResponse<T> 的序列化坑。
+     */
     private suspend inline fun <reified T> unwrap(
-        request: suspend () -> ApiResponse<T>
+        request: suspend () -> HttpResponse
     ): T {
         val resp = request()
-        if (!resp.success || resp.data == null) {
-            throw Exception(resp.message.ifEmpty { "请求失败" })
+        val root = ApiClient.json.parseToJsonElement(resp.bodyAsText()).jsonObject
+        val success = root["success"]?.jsonPrimitive?.booleanOrNull ?: false
+        if (!success) {
+            val msg = root["message"]?.jsonPrimitive?.contentOrNull ?: "请求失败"
+            throw Exception(msg)
         }
-        return resp.data
+        val data = root["data"] ?: throw Exception("响应缺少 data 字段")
+        return ApiClient.json.decodeFromJsonElement(serializer<T>(), data)
     }
 
     /**
@@ -51,7 +69,7 @@ object ApiService {
             if (!order.isNullOrBlank()) append("&order=$order")
         }
         val paginated = unwrap<PaginatedResponse<StockInfo>> {
-            ApiClient.client.get(url).body<ApiResponse<PaginatedResponse<StockInfo>>>()
+            ApiClient.client.get(url)
         }
         return paginated.items.map { it.toStockListItem() }
     }
@@ -63,7 +81,7 @@ object ApiService {
     suspend fun getStockDetail(code: String): StockDetailVO {
         val url = "${ApiEndpoints.BASE_URL}${ApiEndpoints.Stocks.DETAIL}".replace("{code}", code)
         val data = unwrap<StockDetail> {
-            ApiClient.client.get(url).body<ApiResponse<StockDetail>>()
+            ApiClient.client.get(url)
         }
         return data.toVO(code)
     }
@@ -79,7 +97,7 @@ object ApiService {
             ApiClient.client.post(url) {
                 contentType(ContentType.Application.Json)
                 setBody(buildJsonObject { put("analysis_type", "full") })
-            }.body<ApiResponse<AIAnalysisResponse>>()
+            }
         }
         return data.toVO()
     }
@@ -98,9 +116,21 @@ object ApiService {
             ApiClient.client.post(url) {
                 contentType(ContentType.Application.Json)
                 setBody(bodyJson)
-            }.body<ApiResponse<ChatResponse>>()
+            }
         }
         return data.toVO()
+    }
+
+    /**
+     * AI 服务状态（连接检测）
+     * GET /api/v1/ai/status
+     */
+    suspend fun getAiStatus(): AiStatusResponse {
+        // 带 probe=app 标记，后端日志据此区分是 App 还是浏览器在请求
+        val url = "${ApiEndpoints.BASE_URL}${ApiEndpoints.AI.STATUS}?probe=app"
+        return unwrap<AiStatusResponse> {
+            ApiClient.client.get(url)
+        }
     }
 
     /** 简单 URL 编码（避免引入额外依赖） */
@@ -189,25 +219,42 @@ data class AIAnalysisVO(
     val code: String,
     val name: String?,
     val analysis: Map<String, String>,
-    val cards: List<Map<String, String>>
+    val cards: List<Map<String, Any?>>
 )
 
 fun AIAnalysisResponse.toVO(): AIAnalysisVO = AIAnalysisVO(
     code = code,
     name = name,
     analysis = analysis,
-    cards = cards
+    cards = cards.map { it.mapValues { (_, v) -> v.toAny() } }
 )
 
 /** 页面使用的 AI 问答回复 */
 data class ChatReplyVO(
     val text: String,
-    val cards: List<Map<String, String>>?,
+    val cards: List<Map<String, Any?>>?,
     val suggestions: List<String>?
 )
 
 fun ChatResponse.toVO(): ChatReplyVO = ChatReplyVO(
     text = reply.text,
-    cards = reply.cards,
+    cards = reply.cards?.map { it.mapValues { (_, v) -> v.toAny() } },
     suggestions = reply.suggestions
 )
+
+/**
+ * kotlinx JsonElement -> 页面可用的 Any?
+ * 字符串保持字符串（卡片显示用），数字转 Double，数组/对象递归转换。
+ */
+internal fun JsonElement.toAny(): Any? = when (this) {
+    // JsonNull 是 JsonPrimitive 的子类，必须先判断
+    is JsonNull -> null
+    is JsonPrimitive -> when {
+        isString -> content
+        content == "true" -> true
+        content == "false" -> false
+        else -> content.toDoubleOrNull() ?: content
+    }
+    is JsonArray -> map { it.toAny() }
+    is JsonObject -> mapValues { it.value.toAny() }
+}

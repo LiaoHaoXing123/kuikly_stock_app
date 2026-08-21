@@ -271,3 +271,54 @@ Build → Rebuild Project  （或 Ctrl+F9）
 ## 七、一句话总结
 
 方案B 通过 **expect/actual 跨平台 Assets 读取 + LocalDataService 本地数据替代网络 API + Mock AI 分析**（共 10 个文件改造），彻底去除对局域网后端的依赖；编译期暴露的 4 类错误（expect/actual 位置不一致、序列化 `.double` 缺失 import、缓存类型不匹配、`roundToInt` 误用）及 KMP 平台特定 API 隐患均已修复，待用户 Rebuild 验证与真机测试。
+---
+
+# 方案C：离线模式接入真实 AI（DeepSeek，基于数据文件夹作答）
+
+> 改造时间：2026-08-18
+> 背景：方案B 的离线 AI 问答/分析是本地模板（只有 3 类固定回答），用户要求"离线模式联通真实 AI，且 AI 直接基于已保存的数据文件夹作答"。
+
+## 一、新架构
+
+手机 App（Kuikly）
+  - 离线模式：股票列表/详情 ← assets 内置 JSON（不变）
+  - AI 问答/个股分析 ← POST 局域网后端 /api/v1/ai/chat、/api/v1/ai/analyze/{code}
+      （后端不可达时自动回退内置模板，App 不中断）
+
+电脑 FastAPI 后端（无需 MySQL 也能跑 AI）
+  - 数据源：config.AI_DATA_MODE=local（默认）
+      读取 backend/data/（= assets 数据文件夹的拷贝：388 只股票 + 50 只x30 日K线）
+      AI 上下文 = 数据文件夹里的真实行情 + K线 + 市场概览
+  - LLM：DeepSeek（OpenAI 兼容，base_url/model 可在 .env 配置）
+      httpx trust_env=True，支持 HTTP_PROXY/HTTPS_PROXY 代理
+
+## 二、关键改动
+
+| 文件 | 改动 |
+|------|------|
+| backend/data/stock_list.json、stock_kline.json | 新增：数据文件夹（从 assets 拷贝） |
+| backend/services/local_data_source.py | 新增：读数据文件夹（无需 MySQL），含股票识别（代码+名称）、市场概览、确定性模拟行情 |
+| backend/services/ai_service.py | 重构：数据源按 AI_DATA_MODE 路由；AI 问答/分析基于数据文件夹真实数据组装 Prompt 后调用 DeepSeek；宽容解析卡片字段（change_percent/chart_type） |
+| backend/prompts/chat.py | 重写：要求 Markdown 排版（## 标题、**加粗**、- 列表、空行）、只引用给定数据、snake_case 卡片字段 |
+| backend/prompts/stock_analysis.py | 修复 kline 循环变量 bug（kk→k） |
+| backend/config.py | 新增 AI_DATA_MODE / LOCAL_DATA_DIR |
+| backend/routers/ai_chat.py | 新增 GET /api/v1/ai/status（排查用） |
+| shared/.../data/Models.kt | ChatReply/AIAnalysisResponse 的 cards 改 List<Map<String, JsonElement>>（支持嵌套数组） |
+| shared/.../network/ApiService.kt | JsonElement→Any? 转换器；VO 类型更新 |
+| shared/.../data/StockRepository.kt | chat/analyzeStock 一律先调后端真实 AI，失败回退模板并提示 |
+| shared/.../data/LocalDataService.kt | 新增 mockAnalysis()（回退用）；mockChat 保留为回退 |
+| shared/.../pages/ChatMainPage.kt | 排版升级：Markdown 渲染（标题/加粗/列表/引用/代码块）、"AI 正在思考…"气泡、卡片字段兼容、开发者面板文案 |
+| shared/.../pages/StockDetailPage.kt | AI 分析改走后端（回退模板） |
+
+## 三、验证
+
+- 后端：AST 语法检查通过；本地数据源单测通过（388 只/50 K线/股票识别/确定性行情）；
+  TestClient 冒烟：/health、/ai/status、/stocks、/ai/chat（真实 DeepSeek 返回 Markdown + 股票卡片 + 追问）。
+- App：Kotlin 改动待 Android Studio Rebuild 验证。
+
+## 四、使用前提（重要）
+
+- 手机与电脑同一网络；电脑端启动后端：python main.py（backend 目录）。
+- 电脑需能访问 DeepSeek（api.deepseek.com）；如走代理，在 backend/.env 放开 HTTP_PROXY/HTTPS_PROXY。
+- 若 DeepSeek 报模型不存在：DeepSeek 官方模型名为 deepseek-chat / deepseek-reasoner，改 .env 的 DEEPSEEK_MODEL。
+- 后端不可达/无网时，App 自动回退内置模板回答（聊天会显示提示行）。

@@ -3,6 +3,7 @@ import com.tencent.kuikly.gradle.config.KuiklyConfig
 plugins {
     kotlin("multiplatform")
     kotlin("native.cocoapods")
+    kotlin("plugin.serialization")
     id("com.android.library")
     id("com.google.devtools.ksp")
     id("maven-publish")
@@ -63,6 +64,8 @@ kotlin {
                 implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.0")
                 // 日志插件（跨平台，含 JS）
                 implementation("io.ktor:ktor-client-logging:2.3.0")
+                // kotlinx-serialization 运行时（Kotlin 2.1 配套版本；依赖 serialization 编译插件生成代码）
+                implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
                 implementation("com.tencent.kuikly-open:core:${Version.getKuiklyVersion()}")
                 implementation("com.tencent.kuikly-open:core-annotations:${Version.getKuiklyVersion()}")
 
@@ -78,6 +81,8 @@ kotlin {
                 api("com.tencent.kuikly-open:core-render-android:${Version.getKuiklyVersion()}")
                 // Android 上使用 OkHttp 引擎，比 CIO 在真机网络环境下更稳定
                 implementation("io.ktor:ktor-client-okhttp:2.3.0")
+                // 提供 Dispatchers.Main：协程里更新 Kuikly 响应式状态必须在主线程
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4")
             }
         }
 

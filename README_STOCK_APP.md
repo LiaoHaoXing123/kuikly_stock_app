@@ -1,5 +1,8 @@
 # AI 股票行情原型 Demo - Kuikly 前端项目
 
+> **当前版本：v0.0.01（内测版 / Alpha）** — 2026-08-21
+> 本版本为内测阶段，首次打通「App ↔ FastAPI ↔ DeepSeek」全链路，包含三层核心根因修复与多项体验优化，详见 [CHANGELOG.md](./CHANGELOG.md)。
+
 ## 📋 项目简介
 
 基于 **Kuikly (KMP)** 跨平台框架的 AI 股票行情应用前端，配合 FastAPI 后端服务，实现完整的双通路功能。
