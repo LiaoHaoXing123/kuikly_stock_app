@@ -4,7 +4,11 @@ import io.ktor.client.HttpClient
 import io.ktor.client.HttpClientConfig
 import io.ktor.client.engine.okhttp.OkHttp
 import java.net.Inet4Address
+import java.net.UnknownHostException
 import java.net.InetAddress
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
 
 /**
@@ -23,6 +27,9 @@ import java.util.concurrent.TimeUnit
  * 永久挂起、withTimeout 失效、UI 永远显示"正在检测/正在思考"。
  * 在 OkHttpClient.Builder 上设置的超时是底层 Socket 级别的，能真正生效。
  */
+/** DNS 解析专用单线程池（避免每次解析都建线程） */
+private val DNS_EXECUTOR: ExecutorService = Executors.newSingleThreadExecutor()
+
 actual fun createHttpClient(config: HttpClientConfig<*>.() -> Unit): HttpClient {
     return HttpClient(OkHttp) {
         config()
@@ -48,9 +55,16 @@ actual fun createHttpClient(config: HttpClientConfig<*>.() -> Unit): HttpClient 
                 // 强制 IPv4：自定义 DNS 只返回 A 记录（IPv4），过滤 AAAA（IPv6）
                 dns(object : okhttp3.Dns {
                     override fun lookup(hostname: String): List<InetAddress> {
-                        val addresses = okhttp3.Dns.SYSTEM.lookup(hostname)
-                        return addresses.filterIsInstance<Inet4Address>()
-                            .ifEmpty { addresses } // 如果没有 IPv4 则回退全部
+                        val future: Future<List<InetAddress>> = DNS_EXECUTOR.submit<List<InetAddress>> {
+                            okhttp3.Dns.SYSTEM.lookup(hostname)
+                        }
+                        return try {
+                            val addresses = future.get(5, TimeUnit.SECONDS)
+                            addresses.filterIsInstance<Inet4Address>().ifEmpty { addresses }
+                        } catch (e: Exception) {
+                            future.cancel(true)
+                            throw UnknownHostException(hostname)
+                        }
                     }
                 })
             }

@@ -72,28 +72,46 @@ object LocalDataService {
      * 加载个股详情（基础信息 + 模拟实时行情 + K线）
      */
     fun loadStockDetail(code: String): StockDetailData? {
-        // 1. 从列表中找基础信息 + 价格
-        val stock = loadStockList().find { it.code == code } ?: return null
+        // 1. 从原始 JSON 取完整字段（assets 已升级为真实数据，含真实行情字段）
+        val raw = loadAssetText("stock_list.json") ?: return null
+        val arr = json.parseToJsonElement(raw).jsonArray
+        val obj = arr.firstOrNull {
+            it.jsonObject["code"]?.jsonPrimitive?.content == code
+        }?.jsonObject ?: return null
 
-        // 2. 构造模拟实时行情
-        val price = stock.price ?: 10.0
-        val changePct = stock.changePercent ?: 0.0
-        val change = price * changePct / 100.0
+        val name = obj["name"]?.jsonPrimitive?.content
+        val price = obj["price"]?.jsonPrimitive?.doubleOrNull
+            ?: obj["_mock_price"]?.jsonPrimitive?.doubleOrNull
+            ?: 10.0
+        val changePct = obj["change_percent"]?.jsonPrimitive?.doubleOrNull
+            ?: obj["_mock_change_percent"]?.jsonPrimitive?.doubleOrNull
+            ?: 0.0
+        val change = obj["change"]?.jsonPrimitive?.doubleOrNull
+            ?: (price * changePct / 100.0)
 
+        // 2. 构造实时行情：优先用 assets 中的真实行情字段，缺失时用随机值兜底
         val realtime = RealtimeQuoteData(
             code = code,
-            name = stock.name,
+            name = name,
             price = price,
             change = round2(change),
             changePercent = round2(changePct),
-            openPrice = round2(price * randomFactor(0.97, 1.03)),
-            preClose = round2(price / (1 + changePct / 100.0)),
-            high = round2(price * randomFactor(1.0, 1.05)),
-            low = round2(price * randomFactor(0.95, 1.0)),
-            volume = randomDouble(10000.0, 500000.0),
-            amount = randomDouble(8000000.0, 200000000.0),
-            peTtm = randomDouble(5.0, 80.0),
-            pb = randomDouble(0.5, 10.0)
+            openPrice = obj["open"]?.jsonPrimitive?.doubleOrNull
+                ?: round2(price * randomFactor(0.97, 1.03)),
+            preClose = obj["pre_close"]?.jsonPrimitive?.doubleOrNull
+                ?: round2(price / (1 + changePct / 100.0)),
+            high = obj["high"]?.jsonPrimitive?.doubleOrNull
+                ?: round2(price * randomFactor(1.0, 1.05)),
+            low = obj["low"]?.jsonPrimitive?.doubleOrNull
+                ?: round2(price * randomFactor(0.95, 1.0)),
+            volume = obj["volume"]?.jsonPrimitive?.doubleOrNull
+                ?: randomDouble(10000.0, 500000.0),
+            amount = obj["amount"]?.jsonPrimitive?.doubleOrNull
+                ?: randomDouble(8000000.0, 200000000.0),
+            peTtm = obj["pe_ttm"]?.jsonPrimitive?.doubleOrNull
+                ?: randomDouble(5.0, 80.0),
+            pb = obj["pb"]?.jsonPrimitive?.doubleOrNull
+                ?: randomDouble(0.5, 10.0)
         )
 
         // 3. 加载K线数据
@@ -104,19 +122,13 @@ object LocalDataService {
                 low = it.low, volume = it.volume, amount = it.amount)
         } ?: emptyList()
 
-        // 4. 基础信息（从原始JSON取完整字段）
-        val raw = loadAssetText("stock_list.json") ?: return null
-        val arr = json.parseToJsonElement(raw).jsonArray
-        val infoObj = arr.firstOrNull {
-            it.jsonObject["code"]?.jsonPrimitive?.content == code
-        }?.jsonObject ?: return null
-
+        // 4. 基础信息
         val info = StockInfoData(
-            code = infoObj["code"]!!.jsonPrimitive.content,
-            name = infoObj["name"]?.jsonPrimitive?.content,
-            industry = infoObj["industry"]?.jsonPrimitive?.content,
-            plate = infoObj["plate"]?.jsonPrimitive?.content,
-            listDate = infoObj["list_date"]?.jsonPrimitive?.content
+            code = obj["code"]!!.jsonPrimitive.content,
+            name = name,
+            industry = obj["industry"]?.jsonPrimitive?.content,
+            plate = obj["plate"]?.jsonPrimitive?.content,
+            listDate = obj["list_date"]?.jsonPrimitive?.content
         )
 
         return StockDetailData(info = info, realtime = realtime, kline = klineItems)

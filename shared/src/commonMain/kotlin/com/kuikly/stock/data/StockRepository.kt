@@ -5,11 +5,16 @@ import com.kuikly.stock.network.ApiClient
 import com.kuikly.stock.network.ApiEndpoints
 import com.kuikly.stock.network.ApiService
 import com.kuikly.stock.network.ChatReplyVO
+import com.kuikly.stock.network.DeepSeekApi
+import com.kuikly.stock.network.DeepSeekConfig
 import com.kuikly.stock.network.StockDetailVO
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import com.kuikly.stock.pages.AIAnalysisData
+import com.kuikly.stock.pages.IndicatorData
 import com.kuikly.stock.pages.KLineDataItem
+import com.kuikly.stock.pages.MinutePoint
+import com.kuikly.stock.pages.OrderBookData
 import com.kuikly.stock.pages.RealtimeQuoteData
 import com.kuikly.stock.pages.StockDetailData
 import com.kuikly.stock.pages.StockInfoData
@@ -24,28 +29,23 @@ import com.kuikly.stock.pages.StockListItem
  */
 object StockRepository {
 
-    /** 股票列表（含关键词搜索） */
+    /** 股票列表（含关键词搜索，客户端分页用全量匹配集） */
     suspend fun loadStockList(keyword: String?): List<StockListItem> {
-        return if (DataSourceManager.isOnline) {
-            try {
-                ApiService.getStockList(keyword = keyword)
-            } catch (e: Throwable) {
-                offlineList(keyword)
-            }
-        } else {
-            offlineList(keyword)
+        return try {
+            StockDb.listStocks(keyword, null, null, 1, 5000).items
+        } catch (e: Throwable) {
+            // SQLite 不可用时回退旧离线 JSON（assets 内的真实数据）
+            val k = keyword ?: ""
+            if (k.isBlank()) LocalDataService.loadStockList()
+            else LocalDataService.searchStocks(k)
         }
     }
 
-    /** 个股详情（基础信息 + 实时行情 + K线） */
+    /** 个股详情（基础信息 + 实时行情 + K线 + 最新技术指标，全部来自本地 SQLite） */
     suspend fun loadStockDetail(code: String): StockDetailData? {
-        return if (DataSourceManager.isOnline) {
-            try {
-                ApiService.getStockDetail(code).toStockDetailData()
-            } catch (e: Throwable) {
-                LocalDataService.loadStockDetail(code)
-            }
-        } else {
+        return try {
+            StockDb.stockDetail(code) ?: LocalDataService.loadStockDetail(code)
+        } catch (e: Throwable) {
             LocalDataService.loadStockDetail(code)
         }
     }
@@ -62,13 +62,25 @@ object StockRepository {
         if (!DataSourceManager.isOnline) {
             val mock = LocalDataService.mockChat(message)
             return mock.copy(
-                text = "【当前处于离线模式，行情数据不可用】\n\n" + mock.text,
-                errorNotice = "离线模式：未调用后端，回答基于本地数据"
+                text = "【AI 已关闭，以下为本地模板回答】\n\n" + mock.text,
+                errorNotice = "AI 已关闭：回答基于本地数据"
+            )
+        }
+        if (!DeepSeekConfig.enabled) {
+            val mock = LocalDataService.mockChat(message)
+            return mock.copy(
+                text = "⚠️ 未配置 DeepSeek API Key（见 network/DeepSeekApi.kt 中 DeepSeekConfig），以下为本地模板回答：\n\n" + mock.text,
+                errorNotice = "未配置 DeepSeek API Key"
             )
         }
         return try {
-            // 95 秒硬上限：即使底层连接异常卡死，也不会让用户无限等待
-            withTimeout(95000) { ApiService.chat(message) }.toChatResult()
+            // 方案 B：数据上下文来自本地 SQLite，AI 直连 DeepSeek
+            val mentioned = StockDb.detectMentioned(message)
+            withTimeout(95000) {
+                DeepSeekApi.chat(message, mentioned) {
+                    DeepSeekApi.buildChatContext(message, mentioned)
+                }
+            }
         } catch (e: TimeoutCancellationException) {
             ApiClient.recreate()
             val mock = LocalDataService.mockChat(message)
@@ -77,7 +89,6 @@ object StockRepository {
                 errorNotice = "AI 响应超时（已重置连接，请重试）"
             )
         } catch (e: Throwable) {
-            // 回退内置回答，并在文本里明确标注，避免误导用户
             val mock = LocalDataService.mockChat(message)
             val reason = friendlyAiError(e.message)
             mock.copy(
@@ -87,13 +98,32 @@ object StockRepository {
         }
     }
 
-    /** AI 个股分析：优先真实 AI（后端），不可达回退本地模拟分析 */
+    /** AI 个股分析：真实 AI（DeepSeek 直连），不可达回退本地模拟分析 */
     suspend fun analyzeStock(code: String): AIAnalysisData? {
+        if (!DataSourceManager.isOnline || !DeepSeekConfig.enabled) {
+            println("[Repo] analyzeStock OFFLINE fallback for " + code)
+            return LocalDataService.mockAnalysis(code)
+        }
         return try {
-            ApiService.analyzeStock(code).toAIAnalysisData()
+            val detail = StockDb.stockDetail(code) ?: return LocalDataService.mockAnalysis(code)
+            println("[Repo] analyzeStock calling DeepSeek for " + code)
+            val result = DeepSeekApi.analyzeStock(detail)
+            println("[Repo] analyzeStock DONE cards=" + result.cards.size)
+            result
         } catch (e: Throwable) {
+            println("[Repo] analyzeStock FAILED: " + (e.message ?: e.toString()))
             LocalDataService.mockAnalysis(code)
         }
+    }
+
+    /** 分时1分钟数据：本地 SQLite（离线即用） */
+    suspend fun loadMinute(code: String): List<MinutePoint>? {
+        return try { StockDb.minute(code) } catch (e: Throwable) { null }
+    }
+
+    /** 五档盘口：本地 SQLite（仅 11 只热门股有数据） */
+    suspend fun loadOrderBook(code: String): OrderBookData? {
+        return try { StockDb.orderBook(code) } catch (e: Throwable) { null }
     }
 
     // ==================== 离线分支 ====================
@@ -124,49 +154,18 @@ object StockRepository {
     }
 
     /**
-     * 检测 AI 服务连接（开发者面板"连接检测"用）
-     * 返回一段可直接展示的状态文本
-     */
-    /**
-     * 检测 AI 服务连接（开发者面板"连接检测"用）
-     * 返回一段可直接展示的状态文本。
-     * 失败自动重建连接池并重试一次：OkHttp 连接池可能缓存了被后端关闭的 keep-alive
-     * 死连接（如后端重启/实例切换），复用会抛 "unexpected end of stream"，重试即可成功。
+     * 方案 B 连接检测（开发者面板用）：报告本地 SQLite + DeepSeek 配置
      */
     suspend fun checkAiService(): String {
-        var lastError: String? = null
-        repeat(2) { attempt ->
-            try {
-                // 15 秒硬上限：状态接口本地秒回，卡住说明连接层异常，不再无限等待
-                val s = withTimeout(15000) { ApiService.getAiStatus() }
-                val result = "✅ 后端可达" + "\n" +
-                    "地址：" + ApiEndpoints.BASE_URL + "\n" +
-                    "AI 模型：" + s.llm.model + "\n" +
-                    "数据源：" + s.dataMode + "（" + s.localData.stocks + " 只 / " + s.localData.klineCodes + " 只K线）\n" +
-                    "数据库：" + s.database
-                println("[AiCheck] OK: " + result.replace("\n", " | "))
-                return result
-            } catch (e: TimeoutCancellationException) {
-                // 连接卡死：重置 HTTP 客户端（清掉异常连接池），重试一次
-                ApiClient.recreate()
-                lastError = "检测超时（已重置连接）"
-                println("[AiCheck] TIMEOUT attempt=$attempt: ${e.message}")
-            } catch (e: Throwable) {
-                // 典型：复用被后端关闭的 keep-alive 连接 → "unexpected end of stream"，重置后重试
-                ApiClient.recreate()
-                lastError = (e.message ?: "未知错误").let {
-                    if (it.length > 60) it.substring(0, 60) + "…" else it
-                }
-                println("[AiCheck] ERROR attempt=$attempt: $lastError")
-            }
-        }
-        return "❌ 无法连接后端" + "\n" +
-            "地址：" + ApiEndpoints.BASE_URL + "\n" +
-            "原因：" + (lastError ?: "未知错误") + "\n" +
-            "排查：①后端是否启动 ②是否同一网络 ③防火墙 8000"
+        val dbOk = try { StockDb.isAvailable() } catch (e: Throwable) { false }
+        val dataLine = if (dbOk) "✅ 本地 SQLite：已就绪" else "❌ 本地 SQLite：未就绪（检查 assets/stock.db）"
+        val aiLine = if (!DataSourceManager.isOnline) "AI：已关闭（开发者选项处于离线）"
+            else if (!DeepSeekConfig.enabled) "⚠️ DeepSeek：未配置 API Key（见 network/DeepSeekApi.kt）"
+            else "✅ DeepSeek：${DeepSeekConfig.MODEL}（key 已配置）"
+        return "$dataLine\n$aiLine\n方案 B：数据本地 SQLite，AI 直连 DeepSeek"
     }
 
-    // ==================== 在线 VO -> 页面数据类映射 ====================
+    // ==================== 在线 VO -> 页面数据类映射（旧后端路径，保留兼容） ====================
 
     private fun StockDetailVO.toStockDetailData(): StockDetailData = StockDetailData(
         info = StockInfoData(info.code, info.name, info.industry, info.plate, info.listDate),
@@ -182,6 +181,14 @@ object StockRepository {
             KLineDataItem(
                 code = it.code, tradeDate = it.tradeDate, open = it.open, close = it.close,
                 high = it.high, low = it.low, volume = it.volume, amount = it.amount
+            )
+        },
+        indicator = indicator?.let {
+            IndicatorData(
+                tradeDate = it.tradeDate,
+                ma5 = it.ma5, ma10 = it.ma10, ma20 = it.ma20,
+                dif = it.dif, dea = it.dea, macd = it.macd,
+                rsi6 = it.rsi6, kdjK = it.kdjK, kdjD = it.kdjD, kdjJ = it.kdjJ
             )
         }
     )

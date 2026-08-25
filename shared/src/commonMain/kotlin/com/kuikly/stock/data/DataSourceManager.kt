@@ -1,10 +1,12 @@
 package com.kuikly.stock.data
 
 /**
- * 数据源模式管理（开发者选项）
+ * AI 开关（开发者选项）
  *
- * - OFFLINE（默认）：读取 assets 内嵌 JSON，零网络，真机无需与电脑同网
- * - ONLINE：调用局域网后端 ApiService；不可达时由 StockRepository 自动回退离线
+ * 方案 B 下数据全部来自本地 SQLite（[StockDb]，读 assets/stock.db），与网络无关；
+ * 这个开关现在只控制 **AI 是否走真实 DeepSeek**：
+ * - ONLINE（默认）：AI 问答/分析直连 DeepSeek（真实模型，需联网 + 已配置 API Key）
+ * - OFFLINE：AI 关闭，问答/分析回退本地模板回答（行情数据仍可正常浏览）
  *
  * 模式用普通 var 存放（不做跨页响应式绑定），各页在加载数据时读取；
  * 持久化由首页 ChatMainPage 通过 SharedPreferencesModule 读写。

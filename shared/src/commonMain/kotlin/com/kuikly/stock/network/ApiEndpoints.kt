@@ -2,21 +2,18 @@ package com.kuikly.stock.network
 
 /**
  * API 端点定义
+ *
+ * 方案 B：数据全部本地 SQLite（assets/stock.db），不依赖后端；
+ * AI 直连 DeepSeek（配置见 DeepSeekConfig）。
+ * 下面的后端端点常量仅供旧 ApiService 路径兼容，当前未被数据/AI 主链路使用。
  */
 object ApiEndpoints {
 
     /**
-     * 基础 URL（开发环境）
-     *
-     * ⚠️ 真机调试必须用电脑的【局域网 IP】，不能用 127.0.0.1 / localhost（那是手机自己）。
-     * 本机当前局域网 IP（WLAN）：10.160.9.90
-     *
-     * 切换方式：
-     * - Android 模拟器访问宿主机：用 "http://10.0.2.2:8000"
-     * - 真机（手机与电脑同一 WiFi）：用电脑局域网 IP，例如 "http://10.160.9.90:8000"
-     * - 已部署的服务器：换成对应域名/IP
+     * 旧后端基础 URL（方案 A 用过；方案 B 已不使用，保留兼容）
+     * 本地联调如需启用后端，可临时改回电脑局域网 IP，例如 "http://10.160.9.90:8000"
      */
-    const val BASE_URL = "http://10.160.9.90:8000"
+    const val BASE_URL = "http://127.0.0.1:8000"
 
     // ==================== 股票接口 ====================
 
@@ -29,8 +26,17 @@ object ApiEndpoints {
         // 获取个股基础信息
         const val INFO = "$BASE/{code}"
 
-        // 获取个股完整详情
+        // 获取个股完整详情（含最新技术指标）
         const val DETAIL = "$BASE/{code}/detail"
+
+        // 技术指标（MA/MACD/RSI/KDJ）
+        const val INDICATOR = "$BASE/{code}/indicator"
+
+        // 分时1分钟数据
+        const val MINUTE = "$BASE/{code}/minute"
+
+        // 五档盘口
+        const val ORDERBOOK = "$BASE/{code}/orderbook"
     }
 
     // ==================== 行情接口 ====================

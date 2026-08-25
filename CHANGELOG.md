@@ -1,5 +1,54 @@
 # Changelog
 
+## [v0.0.02-dev] - 2026-08-25（SQLite 进 APK 全链路验证版）
+
+> 目标：**App 装好即用，不再需要数据线连接手机和电脑**。数据全部本地 SQLite（assets/stock.db），AI 直连 DeepSeek。本版在 Android 模拟器（Pixel_6, Android 16）上完成全链路实测。
+
+### 本次修复的关键问题（均在模拟器实测发现并验证）
+
+**1. stock.db 打进 APK 后 App 读不到 → 数据层全空（根因 + 修复）**
+
+- 症状：initStockDb 的 assets.openFd("stock.db") 抛异常（被 catch 吞掉），files/stock.db 从不生成，SQLite 数据层不可用
+- 根因：AGP 默认把 .db 等非图片资产 deflate 压缩进 APK，AssetManager.openFd() 对压缩资产抛 FileNotFoundException（"probably compressed"）
+- 修复：shared/build.gradle.kts 增加 androidResources { noCompress += "db" }，stock.db 以未压缩方式存储；ensureDb() 对 openFd 失败做容错（缓存缺失才拷贝，避免每次启动重拷）
+- 验证：APK 内 assets/stock.db 由 deflate 变 stored；设备 files/stock.db 与资产 SHA256 一致（5095424 字节）
+
+**2. 断网时 AI 请求挂死 1-2 分钟（DNS 阻塞不受超时控制）**
+
+- 症状：无网络时 DeepSeek 调用卡在"正在分析/思考"，withTimeout(95s) 也救不回（阻塞在不可取消的 DNS lookup）
+- 修复：androidMain/ApiClient.kt 自定义 Dns 把解析丢到独立线程并加 5 秒超时，超时抛 UnknownHostException 快速失败；配合 connectTimeout(10s)，断网场景约 5-15 秒回退本地模板
+- 验证：飞行模式下发送消息 → 5 秒内失败 → 本地模板卡片正常渲染
+
+**3. SQLite 连接泄漏（logcat 告警）**
+
+- 症状：每次查询 openDatabase() 后不 close，logcat 报 "A SQLiteConnection object ... was leaked!"
+- 修复：openDb() 改为缓存单例只读连接（App 生命周期内复用，进程结束由系统回收）
+- 验证：修复后连续 list/detail/AI 查询不再出现泄漏告警
+
+**4. DeepSeek key 占位 → 已填入真实 key**
+
+- DeepSeekConfig.API_KEY 从占位符替换为 backend/.env 中的真实 key（个人 Demo，key 随 APK 分发会暴露，正式分发需自建中转）；deepseek-chat 模型实测可返回内容
+
+### 模拟器全链路实测记录（2026-08-25）
+
+- 通过：SQL → SQLite（convert_sql_to_sqlite.py --deploy 重跑成功：stock_info 5212 / realtime 5212 / kline 4382 / indicator 4381 / minute 21670 / orderbook 11，PRAGMA integrity_check = ok）
+- 通过：列表 listStocks -> total=5212 items=5000（SQLite 路径，非 JSON 回退）
+- 通过：详情 stockDetail 000001 -> info=true realtime=true kline=30 ind=2026-08-25
+- 通过：通路一 AI 分析（在线）App 直连 DeepSeek，4.3 秒返回，6 张 AI 卡片渲染
+- 通过：通路二 AI 问答（在线）analyze 600519 → DeepSeek 4 秒返回 Markdown，气泡渲染
+- 通过：离线/无网络飞行模式下快速失败回退本地模板卡片
+- 通过：全程无崩溃、无 FATAL
+
+### 涉及文件
+
+- shared/build.gradle.kts（noCompress "db"）
+- shared/src/androidMain/kotlin/com/kuikly/stock/network/ApiClient.kt（DNS 5s 超时）
+- shared/src/androidMain/kotlin/com/kuikly/stock/data/StockDb.kt（单例连接 + 日志标记）
+- shared/src/commonMain/kotlin/com/kuikly/stock/network/DeepSeekApi.kt（真实 key + 链路日志）
+- shared/src/commonMain/kotlin/com/kuikly/stock/data/StockRepository.kt（分析链路日志）
+
+# Changelog
+
 ## [v0.0.01] - 2026-08-21（内测版 / Alpha）
 
 首个可完整走通「手机 App ↔ 局域网 FastAPI ↔ DeepSeek 真实 AI」全链路的版本，主要用于内测验证，可能存在未发现的缺陷。

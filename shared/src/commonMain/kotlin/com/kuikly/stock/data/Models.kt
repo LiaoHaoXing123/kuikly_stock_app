@@ -27,6 +27,7 @@ data class PaginatedResponse<T>(
 
 /**
  * 股票列表项（对齐后端 snake_case 字段）
+ * price/change_percent 来自后端 JOIN stock_realtime 的列表查询
  */
 @Serializable
 data class StockInfo(
@@ -34,7 +35,9 @@ data class StockInfo(
     val name: String? = null,
     val industry: String? = null,
     val plate: String? = null,
-    @SerialName("list_date") val listDate: String? = null
+    @SerialName("list_date") val listDate: String? = null,
+    val price: Double? = null,
+    @SerialName("change_percent") val changePercent: Double? = null
 )
 
 /**
@@ -78,14 +81,77 @@ data class KLineData(
 )
 
 /**
+ * 技术指标（stock_indicator 表）
+ */
+@Serializable
+data class TechnicalIndicator(
+    val code: String,
+    @SerialName("trade_date") val tradeDate: String,
+    val ma5: Double? = null,
+    val ma10: Double? = null,
+    val ma20: Double? = null,
+    val dif: Double? = null,
+    val dea: Double? = null,
+    val macd: Double? = null,
+    val rsi6: Double? = null,
+    @SerialName("kdj_k") val kdjK: Double? = null,
+    @SerialName("kdj_d") val kdjD: Double? = null,
+    @SerialName("kdj_j") val kdjJ: Double? = null
+)
+
+/**
+ * 分时1分钟数据（stock_minute 表）
+ */
+@Serializable
+data class MinuteData(
+    val code: String,
+    @SerialName("trade_date") val tradeDate: String,
+    val time: String,
+    val price: Double,
+    @SerialName("avg_price") val avgPrice: Double? = null,
+    val volume: Double? = null
+)
+
+/**
+ * 五档盘口（stock_order_book 表）
+ */
+@Serializable
+data class OrderBook(
+    val code: String,
+    @SerialName("update_time") val updateTime: String? = null,
+    @SerialName("bid1_price") val bid1Price: Double? = null,
+    @SerialName("bid1_vol") val bid1Vol: Double? = null,
+    @SerialName("bid2_price") val bid2Price: Double? = null,
+    @SerialName("bid2_vol") val bid2Vol: Double? = null,
+    @SerialName("bid3_price") val bid3Price: Double? = null,
+    @SerialName("bid3_vol") val bid3Vol: Double? = null,
+    @SerialName("bid4_price") val bid4Price: Double? = null,
+    @SerialName("bid4_vol") val bid4Vol: Double? = null,
+    @SerialName("bid5_price") val bid5Price: Double? = null,
+    @SerialName("bid5_vol") val bid5Vol: Double? = null,
+    @SerialName("ask1_price") val ask1Price: Double? = null,
+    @SerialName("ask1_vol") val ask1Vol: Double? = null,
+    @SerialName("ask2_price") val ask2Price: Double? = null,
+    @SerialName("ask2_vol") val ask2Vol: Double? = null,
+    @SerialName("ask3_price") val ask3Price: Double? = null,
+    @SerialName("ask3_vol") val ask3Vol: Double? = null,
+    @SerialName("ask4_price") val ask4Price: Double? = null,
+    @SerialName("ask4_vol") val ask4Vol: Double? = null,
+    @SerialName("ask5_price") val ask5Price: Double? = null,
+    @SerialName("ask5_vol") val ask5Vol: Double? = null,
+    @SerialName("commission_ratio") val commissionRatio: Double? = null
+)
+
+/**
  * 个股完整详情（聚合）
- * 后端 realtime 可能为 null（行情表无数据），需容错
+ * 后端 realtime/indicator 可能为 null（对应表无数据），需容错
  */
 @Serializable
 data class StockDetail(
     val info: StockInfo? = null,
     val realtime: RealtimeQuote? = null,
-    val kline: List<KLineData>? = null
+    val kline: List<KLineData>? = null,
+    val indicator: TechnicalIndicator? = null
 )
 
 /**

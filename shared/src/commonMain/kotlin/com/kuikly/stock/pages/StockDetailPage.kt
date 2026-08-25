@@ -49,6 +49,12 @@ class StockDetailPage : Pager() {
     // 状态：是否正在加载 AI 分析
     internal var isAnalyzing by observable(false)
 
+    // 状态：分时数据（在线才有，离线为 null）
+    internal var minuteData by observable<List<MinutePoint>?>(null)
+
+    // 状态：五档盘口（在线才有，仅部分热门股）
+    internal var orderBook by observable<OrderBookData?>(null)
+
     // 状态：加载失败的错误信息
     internal var loadErrorMessage by observable("")
 
@@ -60,6 +66,7 @@ class StockDetailPage : Pager() {
         // 加载数据
         if (stockCode.isNotEmpty()) {
             loadStockDetail()
+            loadExtraQuote()
         }
     }
 
@@ -97,8 +104,17 @@ class StockDetailPage : Pager() {
                         // 实时行情卡片
                         realtimeCard(ctx)
 
+                        // 技术指标卡片（来自 stock_indicator）
+                        indicatorCard(ctx)
+
                         // K线图表区域
                         klineChartArea(ctx)
+
+                        // 分时数据卡片（在线才有）
+                        minuteCard(ctx)
+
+                        // 五档盘口卡片（在线才有，仅部分热门股）
+                        orderBookCard(ctx)
 
                         // AI 解读卡片区域
                         aiAnalysisCards(ctx)
@@ -152,6 +168,25 @@ class StockDetailPage : Pager() {
             delay(0)
             aiAnalysis = result
             isAnalyzing = false
+        }
+    }
+
+    /**
+     * 加载分时与盘口数据（仅在线；离线返回 null，对应卡片不显示）
+     */
+    internal fun loadExtraQuote() {
+        if (stockCode.isEmpty()) return
+        lifecycleScope.launch {
+            try {
+                val minute = StockRepository.loadMinute(stockCode)
+                delay(0)
+                minuteData = minute
+                val book = StockRepository.loadOrderBook(stockCode)
+                delay(0)
+                orderBook = book
+            } catch (e: Throwable) {
+                delay(0)
+            }
         }
     }
 
@@ -437,6 +472,176 @@ internal fun ViewContainer<*, *>.quoteItem(
         }
     }
 }
+
+/**
+ * 技术指标卡片（MA / MACD / RSI / KDJ）
+ */
+internal fun ViewContainer<*, *>.indicatorCard(ctx: StockDetailPage) {
+    val ind = ctx.stockDetail?.indicator ?: return
+
+    View {
+        attr {
+            flexDirectionColumn()
+            margin(4f, 12f, 4f, 12f)
+            padding(top = 12f, left = 16f, bottom = 12f, right = 16f)
+            backgroundColor(0xFFFFFFFF)
+            borderRadius(10f)
+        }
+
+        Text {
+            attr {
+                text("技术指标（${ind.tradeDate}）")
+                fontSize(15f)
+                fontWeightBold()
+                color(0xFF333333)
+                marginBottom(8f)
+            }
+        }
+
+        indicatorItem("MA5", ind.ma5)
+        indicatorItem("MA10", ind.ma10)
+        indicatorItem("MA20", ind.ma20)
+
+        View {
+            attr { height(1f); backgroundColor(0xFFEEEEEE); margin(8f, 0f, 8f, 0f) }
+        }
+
+        View {
+            attr { flexDirectionRow(); marginTop(6f) }
+            Text { attr { text("MACD"); fontSize(12f); color(0xFF666666); width(60f) } }
+            Text {
+                attr {
+                    text("DIF ${fmtInd(ind.dif)}  DEA ${fmtInd(ind.dea)}  柱 ${fmtInd(ind.macd)}")
+                    fontSize(12f); color(0xFF333333)
+                }
+            }
+        }
+        View {
+            attr { flexDirectionRow(); marginTop(6f) }
+            Text { attr { text("RSI6"); fontSize(12f); color(0xFF666666); width(60f) } }
+            Text { attr { text(fmtInd(ind.rsi6)); fontSize(12f); color(0xFF333333) } }
+        }
+        View {
+            attr { flexDirectionRow(); marginTop(6f) }
+            Text { attr { text("KDJ"); fontSize(12f); color(0xFF666666); width(60f) } }
+            Text {
+                attr {
+                    text("K ${fmtInd(ind.kdjK)}  D ${fmtInd(ind.kdjD)}  J ${fmtInd(ind.kdjJ)}")
+                    fontSize(12f); color(0xFF333333)
+                }
+            }
+        }
+    }
+}
+
+internal fun ViewContainer<*, *>.indicatorItem(label: String, value: Double?) {
+    View {
+        attr { flexDirectionRow(); marginTop(4f) }
+        Text { attr { text(label); fontSize(12f); color(0xFF666666); width(60f) } }
+        Text { attr { text(fmtInd(value)); fontSize(12f); color(0xFF333333) } }
+    }
+}
+
+private fun fmtInd(v: Double?): String = if (v == null) "-" else String.format("%.3f", v)
+
+/**
+ * 分时数据卡片（在线才有）
+ */
+internal fun ViewContainer<*, *>.minuteCard(ctx: StockDetailPage) {
+    val data = ctx.minuteData ?: return
+
+    View {
+        attr {
+            flexDirectionColumn()
+            margin(4f, 12f, 4f, 12f)
+            padding(top = 12f, left = 16f, bottom = 12f, right = 16f)
+            backgroundColor(0xFFFFFFFF)
+            borderRadius(10f)
+        }
+
+        Text {
+            attr {
+                text("分时数据（共 ${data.size} 分钟）")
+                fontSize(15f); fontWeightBold(); color(0xFF333333); marginBottom(8f)
+            }
+        }
+
+        val latest = data.lastOrNull()
+        if (latest != null) {
+            View {
+                attr { flexDirectionRow() }
+                Text { attr { text("最新分时"); fontSize(12f); color(0xFF666666); width(72f) } }
+                Text {
+                    attr {
+                        text("${latest.time}  价 ${String.format("%.2f", latest.price)}  均价 ${fmtOpt(latest.avgPrice)}")
+                        fontSize(12f); color(0xFF333333)
+                    }
+                }
+            }
+            View {
+                attr { flexDirectionRow(); marginTop(4f) }
+                Text { attr { text("区间"); fontSize(12f); color(0xFF666666); width(72f) } }
+                val prices = data.map { it.price }
+                val hi = prices.maxOrNull(); val lo = prices.minOrNull()
+                Text {
+                    attr { text("高 ${fmtOpt(hi)}  低 ${fmtOpt(lo)}"); fontSize(12f); color(0xFF333333) }
+                }
+            }
+        }
+        Text {
+            attr { text("提示：分时仅 11 只热门股有数据"); fontSize(11f); color(0xFF999999); marginTop(6f) }
+        }
+    }
+}
+
+/**
+ * 五档盘口卡片（在线才有，仅部分热门股）
+ */
+internal fun ViewContainer<*, *>.orderBookCard(ctx: StockDetailPage) {
+    val book = ctx.orderBook ?: return
+
+    View {
+        attr {
+            flexDirectionColumn()
+            margin(4f, 12f, 4f, 12f)
+            padding(top = 12f, left = 16f, bottom = 12f, right = 16f)
+            backgroundColor(0xFFFFFFFF)
+            borderRadius(10f)
+        }
+
+        Text {
+            attr {
+                text("五档盘口${book.updateTime?.let { "（$it）" } ?: ""}")
+                fontSize(15f); fontWeightBold(); color(0xFF333333); marginBottom(8f)
+            }
+        }
+
+        book.asks.reversed().forEachIndexed { i, (price, vol) ->
+            orderBookRow("卖${5 - i}", price, vol, 0xFF43A047)
+        }
+        View { attr { height(1f); backgroundColor(0xFFEEEEEE); margin(4f, 0f, 4f, 0f) } }
+        book.bids.forEachIndexed { i, (price, vol) ->
+            orderBookRow("买${i + 1}", price, vol, 0xFFE53935)
+        }
+
+        book.commissionRatio?.let { ratio ->
+            Text {
+                attr { text("委比 ${String.format("%.2f", ratio)}%"); fontSize(12f); color(0xFF666666); marginTop(6f) }
+            }
+        }
+    }
+}
+
+internal fun ViewContainer<*, *>.orderBookRow(label: String, price: Double?, vol: Double?, color: Long) {
+    View {
+        attr { flexDirectionRow(); marginTop(3f) }
+        Text { attr { text(label); fontSize(12f); color(0xFF666666); width(40f) } }
+        Text { attr { text(fmtOpt(price)); fontSize(12f); color(color); flex(1f) } }
+        Text { attr { text(fmtOpt(vol)); fontSize(12f); color(0xFF666666) } }
+    }
+}
+
+private fun fmtOpt(v: Double?): String = if (v == null) "-" else String.format("%.2f", v)
 
 /**
  * K线图表区域
@@ -917,6 +1122,17 @@ data class RealtimeQuoteData(
 )
 
 /**
+ * 技术指标（简化版）
+ */
+data class IndicatorData(
+    val tradeDate: String,
+    val ma5: Double?, val ma10: Double?, val ma20: Double?,
+    val dif: Double?, val dea: Double?, val macd: Double?,
+    val rsi6: Double?,
+    val kdjK: Double?, val kdjD: Double?, val kdjJ: Double?
+)
+
+/**
  * K线数据项（简化版）
  */
 data class KLineDataItem(
@@ -931,12 +1147,33 @@ data class KLineDataItem(
 )
 
 /**
+ * 分时数据点（简化版）
+ */
+data class MinutePoint(
+    val time: String,
+    val price: Double,
+    val avgPrice: Double?,
+    val volume: Double?
+)
+
+/**
+ * 五档盘口（简化版）
+ */
+data class OrderBookData(
+    val updateTime: String?,
+    val bids: List<Pair<Double?, Double?>>,   // 买1~5 (price, vol)
+    val asks: List<Pair<Double?, Double?>>,   // 卖1~5
+    val commissionRatio: Double?
+)
+
+/**
  * 股票详情聚合数据
  */
 data class StockDetailData(
     val info: StockInfoData?,
     val realtime: RealtimeQuoteData?,
-    val kline: List<KLineDataItem>?
+    val kline: List<KLineDataItem>?,
+    val indicator: IndicatorData? = null
 )
 
 /**

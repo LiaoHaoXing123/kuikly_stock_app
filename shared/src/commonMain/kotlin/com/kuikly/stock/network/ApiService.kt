@@ -133,6 +133,40 @@ object ApiService {
         }
     }
 
+    /**
+     * 获取技术指标（MA/MACD/RSI/KDJ）
+     * GET /api/v1/stocks/{code}/indicator?limit=30
+     */
+    suspend fun getIndicators(code: String, limit: Int = 30): List<TechnicalIndicator> {
+        val url = "${ApiEndpoints.BASE_URL}${ApiEndpoints.Stocks.INDICATOR}".replace("{code}", code) +
+            "?limit=$limit"
+        return unwrap<List<TechnicalIndicator>> { ApiClient.client.get(url) }
+    }
+
+    /**
+     * 获取分时1分钟数据
+     * GET /api/v1/stocks/{code}/minute
+     */
+    suspend fun getMinuteData(code: String): List<MinuteData> {
+        val url = "${ApiEndpoints.BASE_URL}${ApiEndpoints.Stocks.MINUTE}".replace("{code}", code)
+        return unwrap<List<MinuteData>> { ApiClient.client.get(url) }
+    }
+
+    /**
+     * 获取五档盘口（仅部分热门股有数据）
+     * GET /api/v1/stocks/{code}/orderbook
+     */
+    suspend fun getOrderBook(code: String): OrderBook? {
+        val url = "${ApiEndpoints.BASE_URL}${ApiEndpoints.Stocks.ORDERBOOK}".replace("{code}", code)
+        val root = ApiClient.json.parseToJsonElement(
+            ApiClient.client.get(url).bodyAsText()
+        ).jsonObject
+        if ((root["success"]?.jsonPrimitive?.booleanOrNull ?: false) == false) return null
+        val data = root["data"] ?: return null
+        if (data is JsonNull) return null
+        return ApiClient.json.decodeFromJsonElement(serializer(), data)
+    }
+
     /** 简单 URL 编码（避免引入额外依赖） */
     private fun encode(s: String): String {
         return s.map { c ->
@@ -148,15 +182,24 @@ object ApiService {
 fun StockInfo.toStockListItem(): com.kuikly.stock.pages.StockListItem = com.kuikly.stock.pages.StockListItem(
     code = code,
     name = name,
-    price = null,
-    changePercent = null
+    price = price,
+    changePercent = changePercent
 )
 
 /** 页面使用的个股详情聚合 */
 data class StockDetailVO(
     val info: StockInfoDataVO,
     val realtime: RealtimeQuoteDataVO?,
-    val kline: List<KLineDataItemVO>
+    val kline: List<KLineDataItemVO>,
+    val indicator: IndicatorVO?
+)
+
+data class IndicatorVO(
+    val tradeDate: String,
+    val ma5: Double?, val ma10: Double?, val ma20: Double?,
+    val dif: Double?, val dea: Double?, val macd: Double?,
+    val rsi6: Double?,
+    val kdjK: Double?, val kdjD: Double?, val kdjJ: Double?
 )
 
 data class StockInfoDataVO(
@@ -210,6 +253,14 @@ fun StockDetail.toVO(fallbackCode: String): StockDetailVO = StockDetailVO(
         KLineDataItemVO(
             code = it.code, tradeDate = it.tradeDate, open = it.open, close = it.close,
             high = it.high, low = it.low, volume = it.volume, amount = it.amount
+        )
+    },
+    indicator = indicator?.let {
+        IndicatorVO(
+            tradeDate = it.tradeDate,
+            ma5 = it.ma5, ma10 = it.ma10, ma20 = it.ma20,
+            dif = it.dif, dea = it.dea, macd = it.macd,
+            rsi6 = it.rsi6, kdjK = it.kdjK, kdjD = it.kdjD, kdjJ = it.kdjJ
         )
     }
 )

@@ -1,7 +1,14 @@
 # AI 股票行情原型 Demo - Kuikly 前端项目
 
-> **当前版本：v0.0.01（内测版 / Alpha）** — 2026-08-21
-> 本版本为内测阶段，首次打通「App ↔ FastAPI ↔ DeepSeek」全链路，包含三层核心根因修复与多项体验优化，详见 [CHANGELOG.md](./CHANGELOG.md)。
+> **当前架构：方案 B（离线 SQLite + 直连 DeepSeek）**
+> - 数据：`kuikly_stock_demo.sql` 转出的 `stock.db` 打进 APK（5MB，6 表全量），**装好即用，无需数据线/电脑/后端**
+> - AI：App 直连真实 DeepSeek 模型（联网，key 配在 `shared/.../network/DeepSeekApi.kt` 的 `DeepSeekConfig`）
+> - 改数据：只动 `data/stock.db`，跑 `python data/convert_sql_to_sqlite.py --deploy` 同步到 assets，详见 `data/README.md`
+
+> **当前版本：v0.0.02-dev（SQLite 进 APK 全链路验证版）** — 2026-08-25
+> 2026-08-25 已在 Android 模拟器完成「SQL→SQLite→APK→离线查询→在线 AI」全链路实测（含 3 个关键修复：noCompress db、DNS 5s 超时、SQLite 单例连接，详见 [CHANGELOG.md](./CHANGELOG.md)）。
+>
+> **v0.0.01（内测版 / Alpha）** — 2026-08-21，首次打通「App ↔ FastAPI ↔ DeepSeek」全链路，含三层核心根因修复。
 
 ## 📋 项目简介
 

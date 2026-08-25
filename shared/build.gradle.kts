@@ -160,6 +160,11 @@ android {
             assets.srcDirs("src/commonMain/assets")
         }
     }
+    // stock.db 必须未压缩存储，否则 Android AssetManager.openFd() 拿不到文件描述符
+    // （压缩资产 openFd 抛异常），导致 initStockDb 拷贝失败。App 离线查库依赖此配置。
+    androidResources {
+        noCompress += "db"
+    }
 }
 
 fun getPageName(): String {
