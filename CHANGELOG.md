@@ -1,5 +1,36 @@
 # Changelog
 
+## [v0.0.02-dev2] - 2026-08-25（UI/交互优化：K线图 + AI气泡 + 会话持久化）
+
+> 依据用户反馈完成界面与交互优化，已在 vivo 真机（V2505A）实测通过。
+
+### 1. K 线图表：占位 → 真实 30 日蜡烛图
+
+- **渲染真实 K 线**：用 Kuikly Canvas 绘制 30 根日 K 蜡烛（红涨绿跌，蜡烛实体=开收盘，影线=最高最低，含网格、最高/最低价刻度、首尾交易日标注），替换原 `[K线图表区域]` 调试占位文本
+- **文案业务化**：加载中显示 `K线数据加载中...`；无数据/失败显示 `K线数据获取失败，请重试`（不再永久停留在占位）
+
+### 2. AI 智能解读：聊天气泡 + loading 防重复
+
+- **微信式聊天气泡**：AI 分析结果改为浅蓝气泡（`#F1F5FF`，左对齐、显式 width 自适应、圆角），内部用 Markdown 排版（复用聊天页 renderMarkdown），解决大段黄色无效底色/文字顶左问题
+- **loading 防重复**：`triggerAIAnalysis` 加 `isAnalyzing` 防抖；分析中显示 `AI 正在分析中...` 加载卡片，开始/刷新按钮隐藏（杜绝重复提交）
+- **修复响应式快照 bug**：`aiAnalysisCards` 原用局部 `val analysis = ctx.aiAnalysis` 作 velseif 条件（构建期快照），分析完成后永远停留在"尚未进行 AI 分析"（velse 永不执行）——改为直接读 `ctx.aiAnalysis`（observable 响应式）
+
+### 3. 会话持久化 + 【新建对话】
+
+- **对话不再丢失**：消息列表序列化到 SharedPreferences（`chat_history_v1`），`viewDidLoad` 恢复；离开页面（进列表/详情）再返回，历史对话完整保留
+- **新增【新建对话】按钮**（顶栏）：一键清空当前会话 + 清除持久化记录，并给出提示条
+
+### 4. 布局细节
+
+- K 线卡片/AI 解读区/未分析卡片/消息列表内边距压缩（减少留白）
+
+### 涉及文件
+
+- shared/src/commonMain/kotlin/com/kuikly/stock/pages/StockDetailPage.kt
+- shared/src/commonMain/kotlin/com/kuikly/stock/pages/ChatMainPage.kt
+
+# Changelog
+
 ## [v0.0.02-dev] - 2026-08-25（SQLite 进 APK 全链路验证版）
 
 > 目标：**App 装好即用，不再需要数据线连接手机和电脑**。数据全部本地 SQLite（assets/stock.db），AI 直连 DeepSeek。本版在 Android 模拟器（Pixel_6, Android 16）上完成全链路实测。

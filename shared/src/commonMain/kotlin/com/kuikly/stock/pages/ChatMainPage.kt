@@ -13,6 +13,7 @@ import com.tencent.kuikly.core.layout.FlexAlign
 import com.tencent.kuikly.core.layout.FlexJustifyContent
 import com.tencent.kuikly.core.layout.FlexWrap
 import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
+import com.tencent.kuikly.core.nvi.serialization.json.JSONArray
 import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.observable
 import com.tencent.kuikly.core.reactive.handler.observableList
@@ -66,6 +67,11 @@ class ChatMainPage : Pager() {
     // 输入框引用，用于主动清空/聚焦
     lateinit var inputRef: ViewRef<InputView>
 
+    companion object {
+        /** 会话记录持久化 key（SharedPreferences） */
+        private const val CHAT_HISTORY_KEY = "chat_history_v1"
+    }
+
     override fun body(): ViewBuilder {
         val ctx = this
         return {
@@ -114,6 +120,104 @@ class ChatMainPage : Pager() {
             DataSourceManager.setMode(DataSourceManager.Mode.ONLINE)
         }
         devModeOnline = DataSourceManager.isOnline
+        // 恢复历史会话（离开页面再回来对话不丢失）
+        restoreMessages()
+    }
+
+    /**
+     * 新建对话：清空当前消息列表 + 清空持久化记录
+     */
+    internal fun newChat() {
+        messages.clear()
+        clearPersistedHistory()
+        inputText = ""
+        inputRef.view?.setText("")
+        aiErrorNotice = "已新建对话，开始新的提问吧"
+    }
+
+    /** 把当前会话序列化到 SharedPreferences（每次消息变更后调用） */
+    private fun persistMessages() {
+        val arr = JSONArray()
+        for (m in messages) {
+            val obj = JSONObject()
+            obj.put("role", m.role)
+            obj.put("content", m.content)
+            obj.put("isUser", m.isUser)
+            m.cards?.let { cards ->
+                val ca = JSONArray()
+                for (c in cards) {
+                    val co = JSONObject()
+                    for ((k, v) in c) co.put(k, v)
+                    ca.put(co)
+                }
+                obj.put("cards", ca)
+            }
+            m.suggestions?.let { sugs ->
+                val sa = JSONArray()
+                for (s in sugs) sa.put(s)
+                obj.put("suggestions", sa)
+            }
+            arr.put(obj)
+        }
+        try {
+            acquireModule<SharedPreferencesModule>(SharedPreferencesModule.MODULE_NAME)
+                .setItem(CHAT_HISTORY_KEY, arr.toString())
+        } catch (e: Throwable) {
+            // 持久化失败不影响当前会话
+        }
+    }
+
+    /** 从 SharedPreferences 恢复历史会话 */
+    private fun restoreMessages() {
+        val saved = try {
+            acquireModule<SharedPreferencesModule>(SharedPreferencesModule.MODULE_NAME)
+                .getItem(CHAT_HISTORY_KEY)
+        } catch (e: Throwable) {
+            null
+        }
+        if (saved.isNullOrEmpty()) return
+        try {
+            val arr = JSONArray(saved)
+            for (i in 0 until arr.length()) {
+                val obj = arr.optJSONObject(i) ?: continue
+                val role = obj.optString("role", "assistant")
+                val content = obj.optString("content", "")
+                val isUser = obj.optBoolean("isUser", false)
+                val cards = obj.optJSONArray("cards")?.let { ca ->
+                    buildList {
+                        for (j in 0 until ca.length()) {
+                            val co = ca.optJSONObject(j) ?: continue
+                            val map = mutableMapOf<String, Any?>()
+                            for (k in co.keySet()) map[k] = co.opt(k)
+                            add(map)
+                        }
+                    }
+                }
+                val suggestions = obj.optJSONArray("suggestions")?.let { sa ->
+                    buildList {
+                        for (j in 0 until sa.length()) {
+                            sa.optString(j)?.let { add(it) }
+                        }
+                    }
+                }
+                if (content.isNotEmpty()) {
+                    messages.add(ChatMessageItem(role, content, isUser, cards, suggestions))
+                }
+            }
+        } catch (e: Throwable) {
+            // 历史数据损坏则清空重来
+            messages.clear()
+            clearPersistedHistory()
+        }
+    }
+
+    /** 清空持久化的会话记录 */
+    private fun clearPersistedHistory() {
+        try {
+            acquireModule<SharedPreferencesModule>(SharedPreferencesModule.MODULE_NAME)
+                .setItem(CHAT_HISTORY_KEY, "")
+        } catch (e: Throwable) {
+        }
     }
 
     /**
@@ -151,6 +255,7 @@ class ChatMainPage : Pager() {
 
         // 添加用户消息到列表（ObservableList.add 会自动触发 vfor 刷新）
         messages.add(ChatMessageItem(role = "user", content = text, isUser = true))
+        persistMessages()
 
         // 清空输入框（状态 + 原生控件）
         inputText = ""
@@ -175,6 +280,7 @@ class ChatMainPage : Pager() {
                         suggestions = reply.suggestions
                     )
                 )
+                persistMessages()
                 val notice = reply.errorNotice
                 if (notice != null && notice.isNotEmpty()) {
                     aiErrorNotice = notice
@@ -193,6 +299,7 @@ class ChatMainPage : Pager() {
                         isUser = false
                     )
                 )
+                persistMessages()
             } finally {
                 isThinking = false
             }
@@ -288,6 +395,19 @@ internal fun ViewContainer<*, *>.topBar(ctx: ChatMainPage) {
                 }
             }
         }
+        // 新建对话：清空当前会话（历史已持久化，随时可回来）
+        View {
+            attr { padding(left = 10f, top = 12f, right = 6f, bottom = 12f) }
+            event { click { ctx.newChat() } }
+            Text {
+                attr {
+                    text("新建对话")
+                    fontSize(13f)
+                    color(0xFF1976D2)
+                    fontWeightBold()
+                }
+            }
+        }
         View {
             attr { padding(left = 12f, top = 12f, right = 16f, bottom = 12f) }
             event { click { ctx.showDevPanel = true } }
@@ -311,7 +431,7 @@ internal fun ViewContainer<*, *>.messageList(ctx: ChatMainPage) {
             flex(1f)
             flexDirectionColumn()
             scrollEnable(true)
-            padding(left = 12f, top = 8f, right = 12f, bottom = 8f)
+            padding(left = 10f, top = 6f, right = 10f, bottom = 6f)
         }
         // 使用 vfor 让消息列表响应式增删
         vfor({ ctx.messages }) { message ->

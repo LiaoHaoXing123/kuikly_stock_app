@@ -13,7 +13,9 @@ import com.tencent.kuikly.core.module.RouterModule
 import com.tencent.kuikly.core.pager.Pager
 import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.observable
+import com.tencent.kuikly.core.reactive.handler.observableList
 import com.tencent.kuikly.core.views.*
+import com.tencent.kuikly.core.views.TextAlign
 import com.kuikly.stock.data.StockRepository
 import com.tencent.kuikly.core.coroutines.delay
 import com.tencent.kuikly.core.coroutines.launch
@@ -48,6 +50,8 @@ class StockDetailPage : Pager() {
 
     // 状态：是否正在加载 AI 分析
     internal var isAnalyzing by observable(false)
+
+
 
     // 状态：分时数据（在线才有，离线为 null）
     internal var minuteData by observable<List<MinutePoint>?>(null)
@@ -161,13 +165,20 @@ class StockDetailPage : Pager() {
      * 优先调用后端真实 AI（基于数据文件夹作答）；后端不可达自动回退本地模板分析
      */
     internal fun triggerAIAnalysis() {
-        if (stockCode.isEmpty()) return
+        // 防重复：分析进行中直接忽略再次点击（按钮已切换为 loading 态）
+        if (stockCode.isEmpty() || isAnalyzing) return
         isAnalyzing = true
         lifecycleScope.launch {
-            val result = StockRepository.analyzeStock(stockCode)
-            delay(0)
-            aiAnalysis = result
-            isAnalyzing = false
+            try {
+                val result = StockRepository.analyzeStock(stockCode)
+                delay(0)
+                aiAnalysis = result
+            } catch (e: Throwable) {
+                delay(0)
+                aiAnalysis = null
+            } finally {
+                isAnalyzing = false
+            }
         }
     }
 
@@ -653,7 +664,7 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
         attr {
             flexDirectionColumn()
             margin(4f, 12f, 4f, 12f)
-            padding(top = 12f, left = 16f, bottom = 12f, right = 16f)
+            padding(top = 10f, left = 12f, bottom = 10f, right = 12f)
             backgroundColor(0xFFFFFFFF)
             borderRadius(10f)
         }
@@ -665,32 +676,23 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                 fontSize(15f)
                 fontWeightBold()
                 color(0xFF333333)
-                marginBottom(8f)
+                marginBottom(6f)
             }
         }
 
-        vif({ klineData != null && klineData.isNotEmpty() }) {
-            // 图表占位符（实际项目应使用图表库渲染）
-            chartPlaceholder(klineData!!)
-
+        vif({ ctx.isLoading }) {
+            // 加载中：业务文案提示（非调试占位）
+            klineLoadingView()
+        }
+        velseif({ klineData != null && klineData.isNotEmpty() }) {
+            // 真实 30 日 K 线蜡烛图（Canvas 绘制）
+            klineChartCanvas(klineData!!)
             // 最新几条K线数据摘要
             klineSummary(klineData)
         }
         velse {
-            // 无数据提示
-            View {
-                attr {
-                    padding(top = 20f, left = 0f, bottom = 20f, right = 0f)
-                }
-                Text {
-                    attr {
-                        text("暂无K线数据")
-                        fontSize(13f)
-                        color(0xFF999999)
-                        textAlignCenter()
-                    }
-                }
-            }
+            // 错误/空数据兜底：不能永久停留在占位文案
+            klineErrorView()
         }
     }
 }
@@ -698,24 +700,125 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
 /**
  * 图表占位符
  */
-internal fun ViewContainer<*, *>.chartPlaceholder(klineData: List<KLineDataItem>) {
+/**
+ * K线加载中（业务文案）
+ */
+internal fun ViewContainer<*, *>.klineLoadingView() {
     View {
         attr {
             height(200f)
-            backgroundColor(0xFFF9F9F9)
-            borderRadius(8f)
             alignItems(FlexAlign.CENTER)
             justifyContent(FlexJustifyContent.CENTER)
         }
-
         Text {
             attr {
-                text("[K线图表区域] 展示 ${klineData.size} 条K线数据")
-                fontSize(12f)
+                text("K线数据加载中...")
+                fontSize(13f)
                 color(0xFF999999)
                 textAlignCenter()
             }
         }
+    }
+}
+
+/**
+ * K线数据获取失败/为空 兜底（不永久停留在占位）
+ */
+internal fun ViewContainer<*, *>.klineErrorView() {
+    View {
+        attr {
+            padding(top = 24f, left = 0f, bottom = 24f, right = 0f)
+            alignItems(FlexAlign.CENTER)
+        }
+        Text {
+            attr {
+                text("K线数据获取失败，请重试")
+                fontSize(13f)
+                color(0xFF999999)
+                textAlignCenter()
+            }
+        }
+    }
+}
+
+/**
+ * 真实 30 日 K 线蜡烛图（Kuikly Canvas 绘制）
+ * - 红涨绿跌（中国习惯）：close >= open 红色，close < open 绿色
+ * - 蜡烛实体 = open~close，上下影线 = high~low
+ * - 顶部/底部标注最高/最低价，底部标注首尾交易日
+ */
+internal fun ViewContainer<*, *>.klineChartCanvas(klineData: List<KLineDataItem>) {
+    Canvas({
+        attr {
+            height(220f)
+            marginTop(2f)
+        }
+    }) { context, width, height ->
+        val n = klineData.size
+        if (n == 0 || width <= 0f || height <= 0f) return@Canvas
+
+        // 价格区间（含最高/最低价）
+        val all = klineData.flatMap { listOf(it.high, it.low, it.open, it.close) }
+        var minP = all.minOrNull() ?: 0.0
+        var maxP = all.maxOrNull() ?: 1.0
+        if (maxP <= minP) maxP = minP + 1.0
+
+        val padT = 12f
+        val padB = 20f
+        val chartH = height - padT - padB
+        fun py(p: Double): Float = padT + chartH * ((maxP - p) / (maxP - minP)).toFloat()
+
+        val step = width / n
+        val cw = (step * 0.55f).coerceAtLeast(1.5f)
+
+        // 背景横向网格
+        context.strokeStyle(Color(0xFFEDEDED))
+        context.lineWidth(1f)
+        for (i in 0..4) {
+            val gy = padT + chartH * i / 4f
+            context.beginPath()
+            context.moveTo(0f, gy)
+            context.lineTo(width, gy)
+            context.stroke()
+        }
+
+        // 蜡烛
+        klineData.forEachIndexed { i, k ->
+            val cx = step * i + step / 2f
+            val up = k.close >= k.open
+            val color = if (up) Color(0xFFE53935) else Color(0xFF43A047)
+            // 上下影线
+            context.strokeStyle(color)
+            context.lineWidth(1f)
+            context.beginPath()
+            context.moveTo(cx, py(k.high))
+            context.lineTo(cx, py(k.low))
+            context.stroke()
+            // 蜡烛实体
+            val yo = py(k.open)
+            val yc = py(k.close)
+            val top = minOf(yo, yc)
+            val bh = kotlin.math.abs(yo - yc).coerceAtLeast(1.2f)
+            context.fillStyle(color)
+            context.beginPath()
+            context.moveTo(cx - cw / 2f, top)
+            context.lineTo(cx + cw / 2f, top)
+            context.lineTo(cx + cw / 2f, top + bh)
+            context.lineTo(cx - cw / 2f, top + bh)
+            context.closePath()
+            context.fill()
+        }
+
+        // 价格刻度（最高/最低）
+        context.fillStyle(Color(0xFF999999))
+        context.font(10f)
+        context.textAlign(TextAlign.LEFT)
+        context.fillText(String.format("%.2f", maxP), 4f, padT + 9f)
+        context.fillText(String.format("%.2f", minP), 4f, height - padB + 9f)
+        // 日期刻度（首尾交易日）
+        context.textAlign(TextAlign.CENTER)
+        context.fillText(klineData.first().tradeDate, step / 2f, height - 3f)
+        context.fillText(klineData.last().tradeDate, width - step / 2f, height - 3f)
     }
 }
 
@@ -780,8 +883,9 @@ internal fun ViewContainer<*, *>.klineSummary(klineData: List<KLineDataItem>) {
  * AI 解读卡片区域
  */
 internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
-    val analysis = ctx.aiAnalysis
-
+    // 注意：vif/velseif 条件必须直接读 ctx.aiAnalysis（observable 响应式），
+    // 不能缓存到局部 val —— 局部快照不会随分析结果更新，会导致分析完成后
+    // 永远停留在"尚未进行 AI 分析"状态（velse 永不执行）。
     View {
         attr {
             flexDirectionColumn()
@@ -830,110 +934,110 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
         }
 
         vif({ ctx.isAnalyzing }) {
-            // 分析中状态
-            analyzingView()
+            // 分析中状态（带动画，防止重复点击）
+            analyzingView(ctx)
         }
-        velseif({ analysis == null }) {
+        velseif({ ctx.aiAnalysis == null }) {
             // 未分析状态
             notAnalyzedView(ctx)
         }
         velse {
-            // 显示分析卡片（普通 List 需包成 ObservableList 才能给 vfor 用）
-            vfor({ ObservableList(analysis!!.cards.toMutableList()) }) { card ->
-                renderAICard(card)
-            }
+            // AI 分析结果：渲染为微信式聊天气泡（Markdown 排版，自适应宽度）
+            renderAnalysisBubble(ctx, ctx.aiAnalysis!!)
         }
     }
 }
 
 /**
- * 渲染单个 AI 卡片
+ * AI 分析结果：微信式聊天气泡（左对齐、浅蓝底、自适应宽度、Markdown 排版）
+ * 把结构化卡片内容转成 Markdown 文本后复用 ChatMainPage 的 markdown 渲染，
+ * 避免大段无效底色 / 文字顶左的问题。
  */
-internal fun ViewContainer<*, *>.renderAICard(card: Map<String, Any?>) {
-    val type = card["type"] as? String ?: ""
-    val title = card["title"] as? String ?: ""
-    val content = card["content"] as? String ?: ""
-    val color = card["color"] as? String ?: "#FF6B6B"
+internal fun ViewContainer<*, *>.renderAnalysisBubble(ctx: StockDetailPage, analysis: AIAnalysisData) {
+    val text = buildAnalysisMarkdown(analysis)
 
     View {
         attr {
-            flexDirectionColumn()
-            marginTop(8f)
-            padding(top = 10f, left = 12f, bottom = 10f, right = 12f)
-            backgroundColor(0xFFFFF9C4)
-            borderRadius(8f)
+            flexDirectionRow()
+            marginTop(6f)
+            justifyContent(FlexJustifyContent.FLEX_START)
         }
-
-        // 卡片标题和图标
-        val icon = when (type) {
-            "trend_card" -> "[趋势]"
-            "signal_card" -> "[信号]"
-            "risk_card" -> "[风险]"
-            "suggestion_card" -> "[建议]"
-            "summary_card" -> "[总结]"
-            else -> "[卡片]"
-        }
-
-        Text {
+        View {
+            // 微信式气泡：Kuikly 的 maxWidth 不参与 flex 计算（会拉满），
+            // 必须显式 width。AI 分析结果通常为多段长文，直接用最大宽。
+            val bubbleW = ctx.pagerData.pageViewWidth - 96f
             attr {
-                text("$icon $title")
-                fontSize(13f)
-                fontWeightBold()
-                color(0xFF333333)
+                flexDirectionColumn()
+                width(bubbleW)
+                backgroundColor(0xFFF1F5FF)
+                borderRadius(12f)
+                padding(left = 12f, top = 10f, right = 12f, bottom = 10f)
             }
-        }
-
-        // 卡片内容
-        when (type) {
-            "signal_card" -> {
-                // 信号列表
-                val signals = card["signals"] as? List<*> ?: emptyList<Any>()
-                signals.forEach { signal ->
-                    Text {
-                        attr {
-                            text("• $signal")
-                            fontSize(12f)
-                            color(0xFF555555)
-                            marginTop(2f)
-                        }
-                    }
-                }
-            }
-            "suggestion_card" -> {
-                // 建议详情
-                Text {
-                    attr {
-                        text("建议: ${card["suggestion"] ?: "-"}\n目标: ${card["target_price"] ?: "-"}\n止损: ${card["stop_loss"] ?: "-"}")
-                        fontSize(12f)
-                        color(0xFF555555)
-                        marginTop(4f)
-                    }
-                }
-            }
-            else -> {
-                // 默认文本内容
-                Text {
-                    attr {
-                        text(content)
-                        fontSize(12f)
-                        color(0xFF555555)
-                        marginTop(4f)
-                    }
-                }
-            }
+            renderMarkdown(text)
         }
     }
 }
 
+/** 把 AI 分析卡片列表转成 Markdown 文本（聊天气泡渲染用） */
+private fun buildAnalysisMarkdown(a: AIAnalysisData): String {
+    val sb = StringBuilder()
+    for (card in a.cards) {
+        val title = card["title"]?.toString() ?: continue
+        when (card["type"] as? String) {
+            "trend_card" -> {
+                sb.append("**").append(title).append("**\n")
+                sb.append(card["content"] ?: "").append("\n\n")
+            }
+            "signal_card" -> {
+                sb.append("**").append(title).append("**\n")
+                (card["signals"] as? List<*>)?.forEach { sb.append("• ").append(it).append("\n") }
+                sb.append("\n")
+            }
+            "suggestion_card" -> {
+                sb.append("**").append(title).append("**\n")
+                sb.append("建议：").append(card["suggestion"] ?: "-").append("\n")
+                sb.append("目标价：").append(card["target_price"] ?: "-").append("\n")
+                sb.append("止损价：").append(card["stop_loss"] ?: "-").append("\n")
+                card["support_price"]?.let {
+                    if (it.toString().isNotBlank() && it.toString() != "-") sb.append("支撑位：").append(it).append("\n")
+                }
+                card["resistance_price"]?.let {
+                    if (it.toString().isNotBlank() && it.toString() != "-") sb.append("压力位：").append(it).append("\n")
+                }
+                sb.append("\n")
+            }
+            "risk_card" -> {
+                sb.append("**").append(title).append("**\n")
+                card["risk_level"]?.let { sb.append("风险等级：").append(it).append("\n") }
+                (card["risks"] as? List<*>)?.forEach { sb.append("• ").append(it).append("\n") }
+                sb.append("\n")
+            }
+            "summary_card" -> {
+                val summary = card["summary"] ?: card["content"] ?: ""
+                if (summary.toString().isNotBlank()) {
+                    sb.append("**").append(title).append("**\n").append(summary).append("\n\n")
+                }
+            }
+            else -> {
+                val content = card["content"] ?: ""
+                if (content.toString().isNotBlank()) {
+                    sb.append("**").append(title).append("**\n").append(content).append("\n\n")
+                }
+            }
+        }
+    }
+    if (sb.isEmpty()) return "AI 分析完成，暂无详细内容。"
+    return sb.toString().trimEnd()
+}
 /**
  * 分析中视图
  */
-internal fun ViewContainer<*, *>.analyzingView() {
+internal fun ViewContainer<*, *>.analyzingView(ctx: StockDetailPage) {
     View {
         attr {
             flexDirectionColumn()
             alignItems(FlexAlign.CENTER)
-            padding(top = 20f, left = 16f, bottom = 20f, right = 16f)
+            padding(top = 14f, left = 16f, bottom = 14f, right = 16f)
             backgroundColor(0xFFFFFFFF)
             borderRadius(10f)
         }
@@ -951,7 +1055,7 @@ internal fun ViewContainer<*, *>.analyzingView() {
                 text("请稍候，DeepSeek 正在为您生成专业分析报告")
                 fontSize(12f)
                 color(0xFF999999)
-                marginTop(8f)
+                marginTop(6f)
             }
         }
     }
@@ -965,7 +1069,7 @@ internal fun ViewContainer<*, *>.notAnalyzedView(ctx: StockDetailPage) {
         attr {
             flexDirectionColumn()
             alignItems(FlexAlign.CENTER)
-            padding(top = 20f, left = 16f, bottom = 20f, right = 16f)
+            padding(top = 14f, left = 16f, bottom = 14f, right = 16f)
             backgroundColor(0xFFFFFFFF)
             borderRadius(10f)
         }
