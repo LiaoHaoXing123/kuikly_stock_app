@@ -18,6 +18,8 @@ import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.observable
 import com.tencent.kuikly.core.reactive.handler.observableList
 import com.kuikly.stock.data.DataSourceManager
+import com.kuikly.stock.data.LocalDataService
+import com.kuikly.stock.data.StockDb
 import com.kuikly.stock.data.StockRepository
 import com.kuikly.stock.network.ApiEndpoints
 import com.tencent.kuikly.core.coroutines.delay
@@ -35,16 +37,28 @@ import com.tencent.kuikly.core.coroutines.launch
 @Page("chat_main")
 class ChatMainPage : Pager() {
 
-    // 状态：消息列表（使用 ObservableList + vfor 实现响应式列表刷新）
+    // 状态：消息列表（当前会话，使用 ObservableList + vfor 实现响应式列表刷新）
     internal var messages: ObservableList<ChatMessageItem> by observableList()
 
     // 状态：输入框文本
     internal var inputText by observable("")
 
-    // 状态：开发者面板显隐
-    internal var showDevPanel by observable(false)
+    // 会话列表（多会话，抽屉侧栏展示）
+    internal var sessions: ObservableList<ChatSession> by observableList()
 
-    // 状态：当前数据源模式（供顶栏徽标与面板单选使用）
+    // 当前会话 id
+    internal var activeSessionId by observable("")
+
+    // 顶栏标题（当前会话标题，随切换更新）
+    internal var activeTitle by observable("AI 智能助手")
+
+    // 抽屉（历史对话侧栏）显隐
+    internal var showDrawer by observable(false)
+
+    // 快捷提问文案（动态取数据库第一条股票：请帮我分析XXX）
+    internal var quickQuestion by observable("")
+
+    // 状态：当前数据源模式（抽屉内模式切换使用）
     internal var devModeOnline by observable(DataSourceManager.isOnline)
 
     // 状态：AI 是否正在思考（显示"正在思考…"气泡）
@@ -93,9 +107,9 @@ class ChatMainPage : Pager() {
                 // 底部输入区域
                 inputArea(ctx)
 
-                // 开发者选项面板（覆盖层，最后渲染在最上层）
-                vif({ ctx.showDevPanel }) {
-                    devPanel(ctx)
+                // 历史对话抽屉（左侧滑出，含会话列表 + 模式切换/开发者）
+                vif({ ctx.showDrawer }) {
+                    drawer(ctx)
                 }
 
                 // AI 服务连接检测结果弹窗（独立弹窗）
@@ -120,104 +134,204 @@ class ChatMainPage : Pager() {
             DataSourceManager.setMode(DataSourceManager.Mode.ONLINE)
         }
         devModeOnline = DataSourceManager.isOnline
-        // 恢复历史会话（离开页面再回来对话不丢失）
-        restoreMessages()
+        // 恢复历史会话（多会话：退出 App/清后台也会保留，除非卸载）
+        restoreSessions()
+        // 加载快捷提问（数据库第一条股票，换库自动更新）
+        loadQuickQuestion()
     }
 
     /**
-     * 新建对话：清空当前消息列表 + 清空持久化记录
+     * 新建对话：新增一个独立会话页面（不清空、不覆盖已有会话）
+     * 旧会话保留在左侧历史对话抽屉中，可随时切回。
      */
     internal fun newChat() {
+        val id = createSessionId()
+        sessions.add(ChatSession(id = id, title = "新对话", messages = emptyList(), updatedAt = System.currentTimeMillis()))
+        switchToSession(id, persist = false)
+        aiErrorNotice = "已新建对话，可点击左上角☰查看历史对话"
+    }
+
+    /**
+     * 切换会话：保存当前会话消息 → 加载目标会话消息
+     */
+    internal fun switchToSession(id: String, persist: Boolean = true) {
+        val target = sessions.firstOrNull { it.id == id } ?: return
+        saveActiveMessages()
+        activeSessionId = id
+        activeTitle = if (target.title.isBlank()) "AI 智能助手" else target.title
         messages.clear()
-        clearPersistedHistory()
+        target.messages.forEach { messages.add(it) }
         inputText = ""
         inputRef.view?.setText("")
-        aiErrorNotice = "已新建对话，开始新的提问吧"
+        showDrawer = false
+        if (persist) persistAllSessions()
     }
 
-    /** 把当前会话序列化到 SharedPreferences（每次消息变更后调用） */
-    private fun persistMessages() {
-        val arr = JSONArray()
-        for (m in messages) {
-            val obj = JSONObject()
-            obj.put("role", m.role)
-            obj.put("content", m.content)
-            obj.put("isUser", m.isUser)
-            m.cards?.let { cards ->
-                val ca = JSONArray()
-                for (c in cards) {
-                    val co = JSONObject()
-                    for ((k, v) in c) co.put(k, v)
-                    ca.put(co)
-                }
-                obj.put("cards", ca)
+    /** 把当前会话消息写回 sessions（标题取首条用户消息） */
+    private fun saveActiveMessages() {
+        val idx = sessions.indexOfFirst { it.id == activeSessionId }
+        if (idx < 0) return
+        val s = sessions[idx]
+        val msgs = messages.toList()
+        val title = if (s.title.isBlank() || s.title == "新对话") {
+            msgs.firstOrNull { it.isUser }?.content?.take(14) ?: "新对话"
+        } else s.title
+        sessions[idx] = s.copy(messages = msgs, title = title, updatedAt = System.currentTimeMillis())
+        activeTitle = if (title.isBlank()) "AI 智能助手" else title
+    }
+
+    /** 消息变更后调用：更新当前会话并持久化全部会话 */
+    private fun onMessagesChanged() {
+        saveActiveMessages()
+        persistAllSessions()
+    }
+
+    /** 生成会话 id */
+    private fun createSessionId(): String = "s" + System.currentTimeMillis()
+
+    /**
+     * 快捷提问：把"请帮我分析XXX"填入输入框并直接发送
+     */
+    internal fun sendQuickQuestion() {
+        if (quickQuestion.isEmpty()) return
+        inputText = quickQuestion
+        inputRef.view?.setText(quickQuestion)
+        sendMessage()
+    }
+
+    /** 加载快捷提问：动态取数据库第一条股票（换库自动更新） */
+    private fun loadQuickQuestion() {
+        lifecycleScope.launch {
+            var name: String? = null
+            try {
+                name = StockDb.listStocks(null, null, null, 1, 1).items.firstOrNull()?.name
+            } catch (e: Throwable) {
+                try { name = LocalDataService.loadStockList().firstOrNull()?.name } catch (e2: Throwable) {}
             }
-            m.suggestions?.let { sugs ->
-                val sa = JSONArray()
-                for (s in sugs) sa.put(s)
-                obj.put("suggestions", sa)
-            }
-            arr.put(obj)
+            delay(0)
+            quickQuestion = if (name.isNullOrBlank()) "请帮我分析一只股票" else "请帮我分析$name"
         }
+    }
+
+    /** 序列化全部会话到 SharedPreferences（多会话持久化，重启/清后台保留） */
+    private fun persistAllSessions() {
+        val root = JSONObject()
+        val arr = JSONArray()
+        for (s in sessions) {
+            val so = JSONObject()
+            so.put("id", s.id)
+            so.put("title", s.title)
+            so.put("updatedAt", s.updatedAt)
+            val ma = JSONArray()
+            for (m in s.messages) {
+                val obj = JSONObject()
+                obj.put("role", m.role)
+                obj.put("content", m.content)
+                obj.put("isUser", m.isUser)
+                m.cards?.let { cards ->
+                    val ca = JSONArray()
+                    for (c in cards) {
+                        val co = JSONObject()
+                        for ((k, v) in c) co.put(k, v)
+                        ca.put(co)
+                    }
+                    obj.put("cards", ca)
+                }
+                m.suggestions?.let { sugs ->
+                    val sa = JSONArray()
+                    for (sg in sugs) sa.put(sg)
+                    obj.put("suggestions", sa)
+                }
+                ma.put(obj)
+            }
+            so.put("messages", ma)
+            arr.put(so)
+        }
+        root.put("sessions", arr)
+        root.put("activeId", activeSessionId)
         try {
             acquireModule<SharedPreferencesModule>(SharedPreferencesModule.MODULE_NAME)
-                .setItem(CHAT_HISTORY_KEY, arr.toString())
+                .setItem(CHAT_HISTORY_KEY, root.toString())
         } catch (e: Throwable) {
-            // 持久化失败不影响当前会话
         }
     }
 
-    /** 从 SharedPreferences 恢复历史会话 */
-    private fun restoreMessages() {
+    /** 恢复全部会话（含当前激活会话） */
+    private fun restoreSessions() {
         val saved = try {
             acquireModule<SharedPreferencesModule>(SharedPreferencesModule.MODULE_NAME)
                 .getItem(CHAT_HISTORY_KEY)
         } catch (e: Throwable) {
             null
         }
-        if (saved.isNullOrEmpty()) return
+        if (saved.isNullOrEmpty()) {
+            createDefaultSession()
+            return
+        }
         try {
-            val arr = JSONArray(saved)
+            val root = JSONObject(saved)
+            val arr = root.optJSONArray("sessions") ?: JSONArray()
+            sessions.clear()
             for (i in 0 until arr.length()) {
-                val obj = arr.optJSONObject(i) ?: continue
-                val role = obj.optString("role", "assistant")
-                val content = obj.optString("content", "")
-                val isUser = obj.optBoolean("isUser", false)
-                val cards = obj.optJSONArray("cards")?.let { ca ->
-                    buildList {
-                        for (j in 0 until ca.length()) {
-                            val co = ca.optJSONObject(j) ?: continue
-                            val map = mutableMapOf<String, Any?>()
-                            for (k in co.keySet()) map[k] = co.opt(k)
-                            add(map)
+                val so = arr.optJSONObject(i) ?: continue
+                val id = so.optString("id", "")
+                val title = so.optString("title", "新对话")
+                val updatedAt = so.optLong("updatedAt", 0L)
+                val ma = so.optJSONArray("messages") ?: JSONArray()
+                val msgs = buildList {
+                    for (j in 0 until ma.length()) {
+                        val obj = ma.optJSONObject(j) ?: continue
+                        val role = obj.optString("role", "assistant")
+                        val content = obj.optString("content", "")
+                        val isUser = obj.optBoolean("isUser", false)
+                        val cards = obj.optJSONArray("cards")?.let { ca ->
+                            buildList {
+                                for (k in 0 until ca.length()) {
+                                    val co = ca.optJSONObject(k) ?: continue
+                                    val map = mutableMapOf<String, Any?>()
+                                    for (kk in co.keySet()) map[kk] = co.opt(kk)
+                                    add(map)
+                                }
+                            }
+                        }
+                        val suggestions = obj.optJSONArray("suggestions")?.let { sa ->
+                            buildList {
+                                for (k in 0 until sa.length()) {
+                                    sa.optString(k)?.let { add(it) }
+                                }
+                            }
+                        }
+                        if (content.isNotEmpty()) {
+                            add(ChatMessageItem(role, content, isUser, cards, suggestions))
                         }
                     }
                 }
-                val suggestions = obj.optJSONArray("suggestions")?.let { sa ->
-                    buildList {
-                        for (j in 0 until sa.length()) {
-                            sa.optString(j)?.let { add(it) }
-                        }
-                    }
-                }
-                if (content.isNotEmpty()) {
-                    messages.add(ChatMessageItem(role, content, isUser, cards, suggestions))
+                if (id.isNotEmpty()) {
+                    sessions.add(ChatSession(id, title, msgs, updatedAt))
                 }
             }
+            if (sessions.isEmpty()) {
+                createDefaultSession()
+            } else {
+                val activeId = root.optString("activeId", "")
+                val target = sessions.firstOrNull { it.id == activeId } ?: sessions.first()
+                activeSessionId = target.id
+                activeTitle = if (target.title.isBlank()) "AI 智能助手" else target.title
+                target.messages.forEach { messages.add(it) }
+            }
         } catch (e: Throwable) {
-            // 历史数据损坏则清空重来
-            messages.clear()
-            clearPersistedHistory()
+            sessions.clear()
+            createDefaultSession()
         }
     }
 
-    /** 清空持久化的会话记录 */
-    private fun clearPersistedHistory() {
-        try {
-            acquireModule<SharedPreferencesModule>(SharedPreferencesModule.MODULE_NAME)
-                .setItem(CHAT_HISTORY_KEY, "")
-        } catch (e: Throwable) {
-        }
+    /** 无历史时创建默认会话 */
+    private fun createDefaultSession() {
+        val id = createSessionId()
+        sessions.add(ChatSession(id = id, title = "新对话", messages = emptyList(), updatedAt = System.currentTimeMillis()))
+        activeSessionId = id
+        activeTitle = "AI 智能助手"
+        persistAllSessions()
     }
 
     /**
@@ -255,7 +369,7 @@ class ChatMainPage : Pager() {
 
         // 添加用户消息到列表（ObservableList.add 会自动触发 vfor 刷新）
         messages.add(ChatMessageItem(role = "user", content = text, isUser = true))
-        persistMessages()
+        onMessagesChanged()
 
         // 清空输入框（状态 + 原生控件）
         inputText = ""
@@ -280,7 +394,7 @@ class ChatMainPage : Pager() {
                         suggestions = reply.suggestions
                     )
                 )
-                persistMessages()
+                onMessagesChanged()
                 val notice = reply.errorNotice
                 if (notice != null && notice.isNotEmpty()) {
                     aiErrorNotice = notice
@@ -299,7 +413,7 @@ class ChatMainPage : Pager() {
                         isUser = false
                     )
                 )
-                persistMessages()
+                onMessagesChanged()
             } finally {
                 isThinking = false
             }
@@ -311,8 +425,8 @@ class ChatMainPage : Pager() {
      * 结果展示在后端可达性 / LLM 配置 / 数据源信息
      */
     internal fun runAiStatusCheck() {
-        // 关闭开发者面板，打开独立结果弹窗，避免内容拥挤
-        showDevPanel = false
+        // 关闭抽屉，打开独立结果弹窗，避免内容拥挤
+        showDrawer = false
         aiStatusLines.clear()
         aiStatusLines.add("正在检测…（最多 30 秒）")
         showStatusDialog = true
@@ -337,7 +451,7 @@ class ChatMainPage : Pager() {
 // ==================== 顶部扩展函数（top-level，避免成员扩展函数在 body 内无法调用的问题）====================
 
 /**
- * 顶部导航栏
+ * 顶部导航栏：左侧抽屉按钮 ☰，中间当前会话标题，右上角【大盘行情】
  */
 internal fun ViewContainer<*, *>.topBar(ctx: ChatMainPage) {
     View {
@@ -349,9 +463,36 @@ internal fun ViewContainer<*, *>.topBar(ctx: ChatMainPage) {
             paddingTop(ctx.pagerData.statusBarHeight)
         }
 
-        // 左侧：【大盘行情】按钮
+        // 左侧：抽屉按钮（展开/收起历史对话侧栏）
         View {
-            attr { padding(left = 16f, top = 12f, right = 16f, bottom = 12f) }
+            attr { padding(left = 16f, top = 12f, right = 12f, bottom = 12f) }
+            event {
+                click { ctx.showDrawer = !ctx.showDrawer }
+            }
+            Text {
+                attr {
+                    text("☰")
+                    fontSize(22f)
+                    color(0xFF333333)
+                }
+            }
+        }
+
+        // 中间：当前会话标题
+        View { attr { flex(1f) } }
+        Text {
+            attr {
+                text(ctx.activeTitle)
+                fontSize(17f)
+                fontWeightBold()
+                color(0xFF333333)
+            }
+        }
+        View { attr { flex(1f) } }
+
+        // 右上角：大盘行情入口
+        View {
+            attr { padding(left = 12f, top = 12f, right = 16f, bottom = 12f) }
             event {
                 click {
                     ctx.acquireModule<RouterModule>(RouterModule.MODULE_NAME)
@@ -364,58 +505,6 @@ internal fun ViewContainer<*, *>.topBar(ctx: ChatMainPage) {
                     fontSize(14f)
                     color(0xFF1976D2)
                     fontWeightBold()
-                }
-            }
-        }
-
-        // 中间：标题
-        View { attr { flex(1f) } }
-        Text {
-            attr {
-                text("AI 智能助手")
-                fontSize(18f)
-                fontWeightBold()
-                color(0xFF333333)
-            }
-        }
-        View { attr { flex(1f) } }
-
-        // 右侧：当前模式徽标 + 开发者选项入口
-        View {
-            attr {
-                padding(left = 6f, top = 2f, right = 6f, bottom = 2f)
-                backgroundColor(if (ctx.devModeOnline) 0xFFE8F5E9 else 0xFFEEEEEE)
-                borderRadius(8f)
-            }
-            Text {
-                attr {
-                    text(if (ctx.devModeOnline) "在线" else "离线")
-                    fontSize(11f)
-                    color(if (ctx.devModeOnline) 0xFF43A047 else 0xFF999999)
-                }
-            }
-        }
-        // 新建对话：清空当前会话（历史已持久化，随时可回来）
-        View {
-            attr { padding(left = 10f, top = 12f, right = 6f, bottom = 12f) }
-            event { click { ctx.newChat() } }
-            Text {
-                attr {
-                    text("新建对话")
-                    fontSize(13f)
-                    color(0xFF1976D2)
-                    fontWeightBold()
-                }
-            }
-        }
-        View {
-            attr { padding(left = 12f, top = 12f, right = 16f, bottom = 12f) }
-            event { click { ctx.showDevPanel = true } }
-            Text {
-                attr {
-                    text("开发者")
-                    fontSize(14f)
-                    color(0xFF666666)
                 }
             }
         }
@@ -865,200 +954,134 @@ internal fun ViewContainer<*, *>.welcomeFeature(text: String) {
 
 
 /**
- * 底部输入区域
+ * 底部输入区域：
+ * 第 1 行：左侧【＋新建对话】（固定）+ 右侧【快捷提问】chip（动态取数据库第一条股票）
+ * 第 2 行：输入框 + 发送按钮
  */
 internal fun ViewContainer<*, *>.inputArea(ctx: ChatMainPage) {
     View {
         attr {
-            flexDirectionRow()
-            alignItems(FlexAlign.CENTER)
-            padding(left = 12f, top = 8f, right = 12f, bottom = 8f)
+            flexDirectionColumn()
             backgroundColor(0xFFFFFFFF)
         }
 
-        // 输入框容器（圆角背景）
+        // 快捷操作行：新建对话 + 快捷提问
         View {
             attr {
-                flex(1f)
-                height(40f)
-                backgroundColor(0xFFF5F5F5)
-                borderRadius(20f)
                 flexDirectionRow()
                 alignItems(FlexAlign.CENTER)
-            }
-            // 真正的可编辑输入框
-            Input {
-                ref {
-                    ctx.inputRef = it
-                }
-                attr {
-                    flex(1f)
-                    height(36f)
-                    fontSize(14f)
-                    color(Color(0xFF333333))
-                    placeholder("输入问题...")
-                    placeholderColor(Color(0xFF999999))
-                    marginLeft(16f)
-                    marginRight(16f)
-                    // 明确可编辑，避免某些 Android 渲染层把输入框设成只读
-                    editable(true)
-                    // 取消横屏全屏输入，提升模拟器/小屏体验
-                    imeNoFullscreen(true)
-                    // 键盘右下角显示「发送」
-                    returnKeyTypeSend()
-                }
-                event {
-                    textDidChange {
-                        ctx.inputText = it.text
-                    }
-                    inputReturn {
-                        ctx.sendMessage()
-                    }
-                }
-            }
-        }
-
-        // 发送按钮
-        View {
-            attr {
-                width(60f)
-                height(36f)
-                backgroundColor(0xFF1976D2)
-                borderRadius(18f)
-                alignItems(FlexAlign.CENTER)
-                justifyContent(FlexJustifyContent.CENTER)
-                marginLeft(8f)
-            }
-            event {
-                click { ctx.sendMessage() }
-            }
-            Text {
-                attr {
-                    text("发送")
-                    fontSize(14f)
-                    color(0xFFFFFFFF)
-                    fontWeightBold()
-                }
-            }
-        }
-    }
-}
-
-/**
- * 开发者选项面板（覆盖层）
- */
-internal fun ViewContainer<*, *>.devPanel(ctx: ChatMainPage) {
-    View {
-        attr {
-            absolutePositionAllZero()
-            backgroundColor(0x99000000)
-            alignItems(FlexAlign.CENTER)
-            justifyContent(FlexJustifyContent.CENTER)
-        }
-        event { click { ctx.showDevPanel = false } }
-
-        // 面板卡片
-        View {
-            attr {
-                width(ctx.pagerData.pageViewWidth - 64f)
-                flexDirectionColumn()
-                backgroundColor(0xFFFFFFFF)
-                borderRadius(12f)
-                padding(left = 20f, top = 20f, right = 20f, bottom = 20f)
+                padding(left = 12f, top = 6f, right = 12f, bottom = 2f)
             }
 
-            Text {
-                attr {
-                    text("开发者选项")
-                    fontSize(17f)
-                    fontWeightBold()
-                    color(0xFF333333)
-                }
-            }
-
-            Text {
-                attr {
-                    text("选择数据来源（默认离线，免去同网依赖）")
-                    fontSize(12f)
-                    color(0xFF999999)
-                    marginTop(4f)
-                }
-            }
-
-            devModeOption(ctx, "离线模式", "内置数据 + 局域网真实 AI（需电脑后端在线）", online = false)
-            devModeOption(ctx, "在线模式", "后端 MySQL 数据 + 真实 AI（需同一网络）", online = true)
-
-            // 模式切换反馈（点击后显示，明确告知用户切换成功；用 || 分隔多行，逐个 Text 渲染避免 Android 重叠）
-            vif({ ctx.modeSwitchNotice.isNotEmpty() }) {
-                View {
-                    attr {
-                        marginTop(8f)
-                        padding(left = 10f, top = 8f, right = 10f, bottom = 8f)
-                        backgroundColor(0xFFE8F5E9)
-                        borderRadius(8f)
-                        flexDirectionColumn()
-                    }
-                    ctx.modeSwitchNotice.split("||").forEach { line ->
-                        if (line.isNotBlank()) {
-                            Text {
-                                attr {
-                                    text(line.trim())
-                                    fontSize(12f)
-                                    color(0xFF2E7D32)
-                                    marginTop(2f)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            vif({ ctx.devModeOnline }) {
-                Text {
-                    attr {
-                        text("后端地址：${ApiEndpoints.BASE_URL}")
-                        fontSize(12f)
-                        color(0xFF999999)
-                        marginTop(8f)
-                    }
-                }
-            }
-
-            // AI 服务连接检测
+            // 左侧固定：新建对话
             View {
                 attr {
-                    marginTop(12f)
-                    height(40f)
+                    padding(left = 10f, top = 5f, right = 10f, bottom = 5f)
                     backgroundColor(0xFFE3F2FD)
-                    borderRadius(20f)
-                    alignItems(FlexAlign.CENTER)
-                    justifyContent(FlexJustifyContent.CENTER)
+                    borderRadius(14f)
                 }
-                event { click { ctx.runAiStatusCheck() } }
+                event {
+                    click { ctx.newChat() }
+                }
                 Text {
                     attr {
-                        text("检测 AI 服务连接")
-                        fontSize(14f)
+                        text("＋ 新建对话")
+                        fontSize(12f)
                         color(0xFF1976D2)
                         fontWeightBold()
                     }
                 }
             }
 
-            // 完成按钮
+            // 右侧：快捷提问 chip（动态股票名）
             View {
                 attr {
-                    marginTop(16f)
-                    height(40f)
-                    backgroundColor(0xFF1976D2)
-                    borderRadius(20f)
-                    alignItems(FlexAlign.CENTER)
-                    justifyContent(FlexJustifyContent.CENTER)
+                    flex(1f)
+                    marginLeft(8f)
+                    padding(left = 10f, top = 5f, right = 10f, bottom = 5f)
+                    backgroundColor(0xFFF5F5F5)
+                    borderRadius(14f)
                 }
-                event { click { ctx.showDevPanel = false } }
+                event {
+                    click { ctx.sendQuickQuestion() }
+                }
                 Text {
                     attr {
-                        text("完成")
+                        text(ctx.quickQuestion)
+                        fontSize(12f)
+                        color(0xFF666666)
+                    }
+                }
+            }
+        }
+
+        // 输入行：输入框 + 发送
+        View {
+            attr {
+                flexDirectionRow()
+                alignItems(FlexAlign.CENTER)
+                padding(left = 12f, top = 4f, right = 12f, bottom = 8f)
+            }
+
+            // 输入框容器（圆角背景）
+            View {
+                attr {
+                    flex(1f)
+                    height(40f)
+                    backgroundColor(0xFFF5F5F5)
+                    borderRadius(20f)
+                    flexDirectionRow()
+                    alignItems(FlexAlign.CENTER)
+                }
+                // 真正的可编辑输入框
+                Input {
+                    ref {
+                        ctx.inputRef = it
+                    }
+                    attr {
+                        flex(1f)
+                        height(36f)
+                        fontSize(14f)
+                        color(Color(0xFF333333))
+                        placeholder("输入问题...")
+                        placeholderColor(Color(0xFF999999))
+                        marginLeft(16f)
+                        marginRight(16f)
+                        // 明确可编辑，避免某些 Android 渲染层把输入框设成只读
+                        editable(true)
+                        // 取消横屏全屏输入，提升模拟器/小屏体验
+                        imeNoFullscreen(true)
+                        // 键盘右下角显示「发送」
+                        returnKeyTypeSend()
+                    }
+                    event {
+                        textDidChange {
+                            ctx.inputText = it.text
+                        }
+                        inputReturn {
+                            ctx.sendMessage()
+                        }
+                    }
+                }
+            }
+
+            // 发送按钮
+            View {
+                attr {
+                    width(60f)
+                    height(36f)
+                    backgroundColor(0xFF1976D2)
+                    borderRadius(18f)
+                    alignItems(FlexAlign.CENTER)
+                    justifyContent(FlexJustifyContent.CENTER)
+                    marginLeft(8f)
+                }
+                event {
+                    click { ctx.sendMessage() }
+                }
+                Text {
+                    attr {
+                        text("发送")
                         fontSize(14f)
                         color(0xFFFFFFFF)
                         fontWeightBold()
@@ -1069,6 +1092,203 @@ internal fun ViewContainer<*, *>.devPanel(ctx: ChatMainPage) {
     }
 }
 
+/**
+ * 历史对话抽屉（左侧滑出侧栏）：
+ * - 会话列表：点击切回对应对话（多会话，退出 App 也保留）
+ * - 底部：模式切换（在线/离线）+ 检测 AI 服务 + 收起
+ * 【开发者/离线模式】模块已从顶栏移入本抽屉
+ */
+internal fun ViewContainer<*, *>.drawer(ctx: ChatMainPage) {
+    View {
+        attr {
+            absolutePositionAllZero()
+            backgroundColor(0x88000000)
+        }
+        // 遮罩点击收起
+        event { click { ctx.showDrawer = false } }
+
+        // 左侧面板
+        View {
+            attr {
+                absolutePosition(left = 0f, top = 0f, bottom = 0f)
+                width(ctx.pagerData.pageViewWidth * 0.78f)
+                backgroundColor(0xFFFFFFFF)
+                flexDirectionColumn()
+            }
+
+            // 顶部标题栏
+            View {
+                attr {
+                    flexDirectionRow()
+                    alignItems(FlexAlign.CENTER)
+                    paddingTop(ctx.pagerData.statusBarHeight)
+                    height(56f + ctx.pagerData.statusBarHeight)
+                    backgroundColor(0xFF1976D2)
+                }
+                Text {
+                    attr {
+                        text("历史对话")
+                        fontSize(17f)
+                        fontWeightBold()
+                        color(0xFFFFFFFF)
+                        marginLeft(16f)
+                    }
+                }
+            }
+
+            // 会话列表
+            Scroller {
+                attr {
+                    flex(1f)
+                    flexDirectionColumn()
+                    scrollEnable(true)
+                }
+                vfor({ ctx.sessions }) { s ->
+                    drawerSessionItem(ctx, s)
+                }
+                // 空态提示
+                vif({ ctx.sessions.isEmpty() }) {
+                    View {
+                        attr {
+                            padding(top = 40f, left = 16f, right = 16f)
+                            alignItems(FlexAlign.CENTER)
+                        }
+                        Text {
+                            attr {
+                                text("暂无历史对话\n点击下方「＋ 新建对话」开始提问")
+                                fontSize(13f)
+                                color(0xFF999999)
+                                textAlignCenter()
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 底部：模式切换 + 开发者 + 收起
+            View {
+                attr {
+                    flexDirectionColumn()
+                    padding(left = 12f, top = 10f, right = 12f, bottom = 12f)
+                    backgroundColor(0xFFF7F8FA)
+                }
+
+                Text {
+                    attr {
+                        text("数据来源（开发者选项）")
+                        fontSize(12f)
+                        fontWeightBold()
+                        color(0xFF333333)
+                    }
+                }
+
+                devModeOption(ctx, "离线模式", "内置数据 + 本地模板回答（不联网）", online = false)
+                devModeOption(ctx, "在线模式", "App 直连 DeepSeek（需联网，真实 AI）", online = true)
+
+                // 模式切换反馈
+                vif({ ctx.modeSwitchNotice.isNotEmpty() }) {
+                    View {
+                        attr {
+                            marginTop(6f)
+                            padding(left = 10f, top = 6f, right = 10f, bottom = 6f)
+                            backgroundColor(0xFFE8F5E9)
+                            borderRadius(8f)
+                            flexDirectionColumn()
+                        }
+                        ctx.modeSwitchNotice.split("||").forEach { line ->
+                            if (line.isNotBlank()) {
+                                Text {
+                                    attr {
+                                        text(line.trim())
+                                        fontSize(11f)
+                                        color(0xFF2E7D32)
+                                        marginTop(1f)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 检测 AI 服务连接
+                View {
+                    attr {
+                        marginTop(8f)
+                        height(38f)
+                        backgroundColor(0xFFE3F2FD)
+                        borderRadius(19f)
+                        alignItems(FlexAlign.CENTER)
+                        justifyContent(FlexJustifyContent.CENTER)
+                    }
+                    event { click { ctx.runAiStatusCheck() } }
+                    Text {
+                        attr {
+                            text("检测 AI 服务连接")
+                            fontSize(13f)
+                            color(0xFF1976D2)
+                            fontWeightBold()
+                        }
+                    }
+                }
+
+                // 收起按钮
+                View {
+                    attr {
+                        marginTop(6f)
+                        height(38f)
+                        backgroundColor(0xFF1976D2)
+                        borderRadius(19f)
+                        alignItems(FlexAlign.CENTER)
+                        justifyContent(FlexJustifyContent.CENTER)
+                    }
+                    event { click { ctx.showDrawer = false } }
+                    Text {
+                        attr {
+                            text("收起")
+                            fontSize(13f)
+                            color(0xFFFFFFFF)
+                            fontWeightBold()
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 抽屉里的单个会话条目（标题 + 消息数，当前会话高亮）
+ */
+internal fun ViewContainer<*, *>.drawerSessionItem(ctx: ChatMainPage, s: ChatSession) {
+    val active = ctx.activeSessionId == s.id
+    View {
+        attr {
+            flexDirectionColumn()
+            padding(left = 16f, top = 12f, right = 16f, bottom = 12f)
+            backgroundColor(if (active) 0xFFE3F2FD else 0xFFFFFFFF)
+            marginTop(1f)
+        }
+        event {
+            click { ctx.switchToSession(s.id) }
+        }
+        Text {
+            attr {
+                text(s.title)
+                fontSize(14f)
+                fontWeightBold()
+                color(0xFF333333)
+            }
+        }
+        Text {
+            attr {
+                text(if (active) "当前会话 · 共 " + s.messages.size + " 条消息" else "共 " + s.messages.size + " 条消息")
+                fontSize(11f)
+                color(0xFF999999)
+                marginTop(2f)
+            }
+        }
+    }
+}
 /**
  * AI 服务连接检测结果弹窗（独立弹窗，点击遮罩或关闭按钮消失）
  */
@@ -1412,4 +1632,18 @@ data class ChatMessageItem(
     val isUser: Boolean,
     val cards: List<Map<String, Any?>>? = null,
     val suggestions: List<String>? = null
+)
+
+/**
+ * 会话（多会话历史）：
+ * - id：唯一标识（时间戳生成）
+ * - title：会话标题（取首条用户消息）
+ * - messages：该会话的消息列表
+ * - updatedAt：最后更新时间
+ */
+data class ChatSession(
+    val id: String,
+    val title: String,
+    val messages: List<ChatMessageItem>,
+    val updatedAt: Long
 )
