@@ -1,4 +1,4 @@
-package com.kuikly.stock.network
+﻿package com.kuikly.stock.network
 
 import com.kuikly.stock.data.ChatResult
 import com.kuikly.stock.data.StockDb
@@ -35,7 +35,7 @@ object DeepSeekConfig {
     const val MODEL = "deepseek-chat"
     /** 发布前替换为你自己的 key（https://platform.deepseek.com/）
      * ⚠️ 真实 key 不入库（公共仓库会泄露）；本地构建前从 backend/.env 的 DEEPSEEK_API_KEY 复制进来再打包 */
-    const val API_KEY = "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    const val API_KEY = "sk-63d78e00e0db4a4ea39084affcde0d72"
     const val MAX_TOKENS = 4096
     const val TEMPERATURE = 0.7
     /** 未配置真实 key 时，AI 相关功能自动回退本地模板（避免无效网络请求） */

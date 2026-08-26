@@ -62,6 +62,12 @@ class StockDetailPage : Pager() {
     // 状态：加载失败的错误信息
     internal var loadErrorMessage by observable("")
 
+    // 状态：K线选中索引（长按/滑动 tooltip 用，-1 表示未选中）
+    internal var selectedKlineIndex by observable(-1)
+
+    // 状态：K线 Canvas 实际宽度（触摸坐标换算索引用，draw 时更新）
+    internal var klineCanvasWidth by observable(0f)
+
     override fun didInit() {
         super.didInit()
         // 从路由参数中获取股票代码
@@ -389,41 +395,22 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
             }
         }
 
-        // 价格和涨跌幅（大字显示）
+        // 最新价 / 涨跌额 / 涨跌幅（大字显示，带标签标注）
         View {
             attr {
                 flexDirectionRow()
-                alignItems(FlexAlign.FLEX_END)
                 marginBottom(8f)
             }
 
-            Text {
-                attr {
-                    text(realtime.price?.let { String.format("%.2f", it) } ?: "-")
-                    fontSize(28f)
-                    fontWeightBold()
-                    color(priceColor)
-                }
-            }
-
-            Text {
-                attr {
-                    text(realtime.changePercent?.let { String.format("%.2f%%", it) } ?: "-")
-                    fontSize(16f)
-                    fontWeightBold()
-                    color(priceColor)
-                    marginLeft(8f)
-                }
-            }
-
-            Text {
-                attr {
-                    text(realtime.change?.let { String.format("%.2f", it) } ?: "-")
-                    fontSize(14f)
-                    color(priceColor)
-                    marginLeft(4f)
-                }
-            }
+            quoteColumn(ctx, "最新价",
+                realtime.price?.let { String.format("%.2f", it) } ?: "-",
+                26f, priceColor)
+            quoteColumn(ctx, "涨跌额",
+                realtime.change?.let { String.format("%+.2f", it) } ?: "-",
+                15f, priceColor)
+            quoteColumn(ctx, "涨跌幅",
+                realtime.changePercent?.let { String.format("%+.2f%%", it) } ?: "-",
+                15f, priceColor)
         }
 
         // 详细行情数据网格
@@ -484,6 +471,42 @@ internal fun ViewContainer<*, *>.quoteItem(
                 fontSize(13f)
                 fontWeightBold()
                 color(0xFF333333)
+            }
+        }
+    }
+}
+
+/**
+ * 大字行情列：标签 + 数值（最新价 / 涨跌额 / 涨跌幅 用，带单位标注）
+ */
+internal fun ViewContainer<*, *>.quoteColumn(
+    ctx: StockDetailPage,
+    label: String,
+    value: String,
+    valueSize: Float,
+    color: Long
+) {
+    View {
+        attr {
+            flex(1f)
+            flexDirectionColumn()
+        }
+
+        Text {
+            attr {
+                text(label)
+                fontSize(11f)
+                color(0xFF999999)
+            }
+        }
+
+        Text {
+            attr {
+                text(value)
+                fontSize(valueSize)
+                fontWeightBold()
+                color(color)
+                marginTop(2f)
             }
         }
     }
@@ -690,14 +713,14 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
             klineLoadingView()
         }
         velseif({ klineData != null && klineData.isNotEmpty() }) {
-            // 真实 30 日 K 线蜡烛图（Canvas 绘制）
-            klineChartCanvas(klineData!!)
+            // 真实 30 日 K 线蜡烛图（Canvas 绘制：主图 + 成交量子图 + 长按 tooltip）
+            klineChartCanvas(ctx, klineData!!)
             // 最新几条K线数据摘要
             klineSummary(klineData)
         }
         velse {
-            // 错误/空数据兜底：不能永久停留在占位文案
-            klineErrorView()
+            // 错误/空数据兜底：不能永久停留在占位文案，提供重试
+            klineErrorView(ctx)
         }
     }
 }
@@ -727,20 +750,41 @@ internal fun ViewContainer<*, *>.klineLoadingView() {
 }
 
 /**
- * K线数据获取失败/为空 兜底（不永久停留在占位）
+ * K线数据获取失败/为空 兜底（不永久停留在占位，提供重试按钮）
  */
-internal fun ViewContainer<*, *>.klineErrorView() {
+internal fun ViewContainer<*, *>.klineErrorView(ctx: StockDetailPage) {
     View {
         attr {
             padding(top = 24f, left = 0f, bottom = 24f, right = 0f)
             alignItems(FlexAlign.CENTER)
+            flexDirectionColumn()
         }
         Text {
             attr {
-                text("K线数据获取失败，请重试")
+                text("K线数据获取失败或暂无数据")
                 fontSize(13f)
                 color(0xFF999999)
                 textAlignCenter()
+            }
+        }
+        // 重试按钮
+        View {
+            attr {
+                marginTop(12f)
+                padding(top = 8f, left = 20f, bottom = 8f, right = 20f)
+                backgroundColor(0xFFE3F2FD)
+                borderRadius(16f)
+            }
+            event {
+                click { ctx.loadStockDetail() }
+            }
+            Text {
+                attr {
+                    text("重试")
+                    fontSize(13f)
+                    fontWeightBold()
+                    color(0xFF1976D2)
+                }
             }
         }
     }
@@ -750,17 +794,40 @@ internal fun ViewContainer<*, *>.klineErrorView() {
  * 真实 30 日 K 线蜡烛图（Kuikly Canvas 绘制）
  * - 红涨绿跌（中国习惯）：close >= open 红色，close < open 绿色
  * - 蜡烛实体 = open~close，上下影线 = high~low
- * - 顶部/底部标注最高/最低价，底部标注首尾交易日
+ * - 主图上方 tooltip：长按/按压蜡烛显示当日 开/收/高/低/涨跌/成交量（Canvas 响应式重绘）
+ * - 主图下方成交量子图：红涨绿跌柱
+ * - 顶部/底部标注最高/最低价；底部日期首尾对齐（measureText 防截断）
  */
-internal fun ViewContainer<*, *>.klineChartCanvas(klineData: List<KLineDataItem>) {
+internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, klineData: List<KLineDataItem>) {
     Canvas({
         attr {
-            height(220f)
+            height(344f)
             marginTop(2f)
+        }
+        event {
+            // 长按/按压蜡烛显示当日详情 tooltip（state start/move/end 都更新索引，松手保留）
+            longPress { params ->
+                if (ctx.klineCanvasWidth <= 0f) return@longPress
+                val i = ((params.x / ctx.klineCanvasWidth) * klineData.size)
+                    .toInt().coerceIn(0, klineData.size - 1)
+                ctx.selectedKlineIndex = i
+            }
         }
     }) { context, width, height ->
         val n = klineData.size
         if (n == 0 || width <= 0f || height <= 0f) return@Canvas
+
+        // 记录 Canvas 实际宽度（值不变时不重复赋值，避免触发多余的响应式重绘）
+        if (ctx.klineCanvasWidth != width) {
+            ctx.klineCanvasWidth = width
+        }
+
+        // 布局：tooltip 区(0..26) / 价格主图 / 成交量子图（标签在其上方）/ 日期行（独占底部）
+        val tooltipH = 26f
+        val padT = 30f
+        val volTop = height - 62f
+        val volH = 40f
+        val dateY = height - 12f
 
         // 价格区间（含最高/最低价）
         val all = klineData.flatMap { listOf(it.high, it.low, it.open, it.close) }
@@ -768,15 +835,13 @@ internal fun ViewContainer<*, *>.klineChartCanvas(klineData: List<KLineDataItem>
         var maxP = all.maxOrNull() ?: 1.0
         if (maxP <= minP) maxP = minP + 1.0
 
-        val padT = 12f
-        val padB = 20f
-        val chartH = height - padT - padB
+        val chartH = volTop - padT - 6f
         fun py(p: Double): Float = padT + chartH * ((maxP - p) / (maxP - minP)).toFloat()
 
         val step = width / n
         val cw = (step * 0.55f).coerceAtLeast(1.5f)
 
-        // 背景横向网格
+        // 背景横向网格（价格区）
         context.strokeStyle(Color(0xFFEDEDED))
         context.lineWidth(1f)
         for (i in 0..4) {
@@ -787,7 +852,7 @@ internal fun ViewContainer<*, *>.klineChartCanvas(klineData: List<KLineDataItem>
             context.stroke()
         }
 
-        // 蜡烛
+        // 蜡烛（主图）
         klineData.forEachIndexed { i, k ->
             val cx = step * i + step / 2f
             val up = k.close >= k.open
@@ -814,16 +879,94 @@ internal fun ViewContainer<*, *>.klineChartCanvas(klineData: List<KLineDataItem>
             context.fill()
         }
 
+        // 成交量子图（主图下方，红涨绿跌柱）
+        val maxVol = klineData.maxOf { it.volume }.toFloat().coerceAtLeast(1f)
+        // 分隔线
+        context.strokeStyle(Color(0xFFE0E0E0))
+        context.lineWidth(1f)
+        context.beginPath()
+        context.moveTo(0f, volTop - 5f)
+        context.lineTo(width, volTop - 5f)
+        context.stroke()
+        klineData.forEachIndexed { i, k ->
+            val cx = step * i + step / 2f
+            val up = k.close >= k.open
+            val color = if (up) Color(0xFFE53935) else Color(0xFF43A047)
+            val vh = (volH * (k.volume.toFloat() / maxVol)).coerceAtLeast(1.2f)
+            context.fillStyle(color)
+            context.beginPath()
+            context.moveTo(cx - cw / 2f, volTop + (volH - vh))
+            context.lineTo(cx + cw / 2f, volTop + (volH - vh))
+            context.lineTo(cx + cw / 2f, volTop + volH)
+            context.lineTo(cx - cw / 2f, volTop + volH)
+            context.closePath()
+            context.fill()
+        }
+        // 成交量标签（放在成交量区上方，避免与底部日期行重叠）
+        context.fillStyle(Color(0xFF999999))
+        context.font(9f)
+        context.textAlign(TextAlign.RIGHT)
+        context.fillText("成交量(手)", width - 2f, volTop - 8f)
+
         // 价格刻度（最高/最低）
         context.fillStyle(Color(0xFF999999))
         context.font(10f)
         context.textAlign(TextAlign.LEFT)
         context.fillText(String.format("%.2f", maxP), 4f, padT + 9f)
-        context.fillText(String.format("%.2f", minP), 4f, height - padB + 9f)
-        // 日期刻度（首尾交易日）
-        context.textAlign(TextAlign.CENTER)
-        context.fillText(klineData.first().tradeDate, step / 2f, height - 3f)
-        context.fillText(klineData.last().tradeDate, width - step / 2f, height - 3f)
+        context.fillText(String.format("%.2f", minP), 4f, volTop - 6f)
+
+        // 日期刻度（首尾对齐，measureText 防截断：首日左对齐、末日右对齐）
+        val firstDate = klineData.first().tradeDate
+        val lastDate = klineData.last().tradeDate
+        context.font(9f)
+        context.textAlign(TextAlign.LEFT)
+        context.fillText(firstDate, 2f, dateY)
+        context.textAlign(TextAlign.RIGHT)
+        context.fillText(lastDate, width - 2f, dateY)
+
+        // 选中蜡烛 tooltip（长按后显示，绘制在 Canvas 顶部；selectedKlineIndex 变化触发自动重绘）
+        val sel = ctx.selectedKlineIndex
+        if (sel >= 0 && sel < n) {
+            val k = klineData[sel]
+            val cx = step * sel + step / 2f
+            // 选中蜡烛高亮框
+            context.strokeStyle(Color(0xFF333333))
+            context.lineWidth(1.5f)
+            context.beginPath()
+            context.moveTo(cx - cw / 2f - 1f, py(k.high) - 1f)
+            context.lineTo(cx + cw / 2f + 1f, py(k.high) - 1f)
+            context.lineTo(cx + cw / 2f + 1f, py(k.low) + 1f)
+            context.lineTo(cx - cw / 2f - 1f, py(k.low) + 1f)
+            context.closePath()
+            context.stroke()
+
+            // tooltip 背景条
+            context.fillStyle(Color(0xE6333333))
+            context.beginPath()
+            context.moveTo(0f, 2f)
+            context.lineTo(width, 2f)
+            context.lineTo(width, tooltipH)
+            context.lineTo(0f, tooltipH)
+            context.closePath()
+            context.fill()
+
+            val up = k.close >= k.open
+            val pct = if (k.open != 0.0) (k.close - k.open) / k.open * 100.0 else 0.0
+            val tooltipColor = if (up) Color(0xFFFF8A80) else Color(0xFFA5D6A7)
+            context.font(8f)
+            context.textAlign(TextAlign.LEFT)
+            context.fillStyle(Color(0xFFFFFFFF))
+            context.fillText(
+                "${k.tradeDate}  开 ${String.format("%.2f", k.open)}  收 ${String.format("%.2f", k.close)}" +
+                    "  高 ${String.format("%.2f", k.high)}  低 ${String.format("%.2f", k.low)}",
+                4f, 10f
+            )
+            context.fillStyle(tooltipColor)
+            context.fillText(
+                "涨跌 ${String.format("%+.2f%%", pct)}   量 ${k.volume.toInt()} 手",
+                4f, 20f
+            )
+        }
     }
 }
 

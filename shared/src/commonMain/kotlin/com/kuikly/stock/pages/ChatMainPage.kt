@@ -88,6 +88,10 @@ class ChatMainPage : Pager() {
     internal var renameInputText by observable("")
     internal var renameInputRef: com.tencent.kuikly.core.views.InputView? = null
 
+    // 状态：软键盘高度（dp，keyboardHeightChange 换算；键盘弹出时页面底部留白，
+    // 保证输入框一定在键盘上方可见——Kuikly 页面不依赖 adjustResize）
+    internal var keyboardHeight by observable(0f)
+
     // 输入框引用，用于主动清空/聚焦
     lateinit var inputRef: ViewRef<InputView>
 
@@ -104,6 +108,9 @@ class ChatMainPage : Pager() {
                     flex(1f)
                     flexDirectionColumn()
                     backgroundColor(0xFFF5F5F5)
+                    // 键盘弹出时底部留白（keyboardHeight 由 Input.keyboardHeightChange 更新，
+                    // attr 读 observable 响应式生效），输入框因此保持在键盘上方
+                    paddingBottom(ctx.keyboardHeight)
                 }
                 // 顶部导航栏
                 topBar(ctx)
@@ -482,6 +489,8 @@ class ChatMainPage : Pager() {
         // 清空输入框（状态 + 原生控件）
         inputText = ""
         inputRef.view?.setText("")
+        // 发送后自动收起键盘（保证下次输入时输入框一定在键盘上方可见）
+        inputRef.view?.blur()
 
         // 调用 AI 问答（真实 AI 优先，后端不可达自动回退模板）
         isThinking = true
@@ -1135,40 +1144,43 @@ internal fun ViewContainer<*, *>.inputArea(ctx: ChatMainPage) {
             View {
                 attr {
                     flex(1f)
-                    height(40f)
+                    height(64f)
                     backgroundColor(0xFFF5F5F5)
                     borderRadius(20f)
                     flexDirectionRow()
                     alignItems(FlexAlign.CENTER)
                 }
-                // 真正的可编辑输入框
+                // 真正的可编辑输入框（多行：回车换行，发送走右侧按钮）
                 Input {
                     ref {
                         ctx.inputRef = it
                     }
                     attr {
                         flex(1f)
-                        height(36f)
+                        height(56f)
                         fontSize(14f)
                         color(Color(0xFF333333))
                         placeholder("输入问题...")
                         placeholderColor(Color(0xFF999999))
                         marginLeft(16f)
                         marginRight(16f)
+                        // 多行输入：回车=换行（不再触发发送）
+                        lines(3)
                         // 明确可编辑，避免某些 Android 渲染层把输入框设成只读
                         editable(true)
                         // 取消横屏全屏输入，提升模拟器/小屏体验
                         imeNoFullscreen(true)
-                        // 键盘右下角显示「发送」
-                        returnKeyTypeSend()
                     }
                     event {
                         textDidChange {
                             ctx.inputText = it.text
                         }
-                        inputReturn {
-                            ctx.sendMessage()
+                        // 键盘高度变化：height 已是 dp（原生层换算），直接作为页面底部 padding 顶起输入框
+                        keyboardHeightChange { params ->
+                            println("[KB] height=" + params.height + " duration=" + params.duration)
+                            ctx.keyboardHeight = params.height
                         }
+                        // 多行模式下回车为换行，不在此发送
                     }
                 }
             }
