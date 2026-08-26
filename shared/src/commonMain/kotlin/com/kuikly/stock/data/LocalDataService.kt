@@ -49,8 +49,13 @@ object LocalDataService {
             StockListItem(
                 code = obj["code"]!!.jsonPrimitive.content,
                 name = obj["name"]?.jsonPrimitive?.content,
-                price = obj["_mock_price"]?.jsonPrimitive?.doubleOrNull,
-                changePercent = obj["_mock_change_percent"]?.jsonPrimitive?.doubleOrNull
+                price = obj["price"]?.jsonPrimitive?.doubleOrNull
+                    ?: obj["_mock_price"]?.jsonPrimitive?.doubleOrNull,
+                changePercent = obj["change_percent"]?.jsonPrimitive?.doubleOrNull
+                    ?: obj["_mock_change_percent"]?.jsonPrimitive?.doubleOrNull,
+                change = obj["change"]?.jsonPrimitive?.doubleOrNull
+                    ?: obj["_mock_change"]?.jsonPrimitive?.doubleOrNull,
+                volume = obj["volume"]?.jsonPrimitive?.doubleOrNull
             )
         }
         cachedStockList = list

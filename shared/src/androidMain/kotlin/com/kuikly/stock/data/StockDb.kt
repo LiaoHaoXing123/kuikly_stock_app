@@ -118,7 +118,12 @@ actual object StockDb {
             else -> "s.code"
         }
         val dir = if (order.equals("asc", true)) "ASC" else "DESC"
-        val orderClause = if (sort == null) "ORDER BY s.code ASC" else "ORDER BY $sortCol $dir"
+        // 排序时把 NULL 值排到最后（LEFT JOIN 无实时数据的股票），避免涨幅/成交量排序时 NULL 顶到最前
+        val orderClause = when {
+            sort == null -> "ORDER BY s.code ASC"
+            sort == "name" -> "ORDER BY $sortCol $dir"
+            else -> "ORDER BY ($sortCol IS NULL) ASC, $sortCol $dir"
+        }
 
         // 总数
         val total = db.rawQuery(
@@ -128,7 +133,7 @@ actual object StockDb {
 
         val offset = (page - 1) * size
         val sql = """
-            SELECT s.code, s.name, s.industry, s.plate, r.price, r.change_percent
+            SELECT s.code, s.name, s.industry, s.plate, r.price, r.change, r.change_percent, r.volume
             FROM stock_info s LEFT JOIN stock_realtime r ON s.code = r.code
             $where $orderClause LIMIT ? OFFSET ?
         """.trimIndent()
@@ -141,6 +146,8 @@ actual object StockDb {
                         name = c.getStringOrNull("name"),
                         price = c.getDoubleOrNull("price"),
                         changePercent = c.getDoubleOrNull("change_percent"),
+                        change = c.getDoubleOrNull("change"),
+                        volume = c.getDoubleOrNull("volume"),
                     ))
                 }
             }

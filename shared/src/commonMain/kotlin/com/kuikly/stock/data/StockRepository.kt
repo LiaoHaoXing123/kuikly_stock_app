@@ -29,15 +29,57 @@ import com.kuikly.stock.pages.StockListItem
  */
 object StockRepository {
 
-    /** 股票列表（含关键词搜索，客户端分页用全量匹配集） */
-    suspend fun loadStockList(keyword: String?): List<StockListItem> {
+    /**
+     * 股票列表（含关键词搜索与排序，客户端分页用全量匹配集）
+     * @param sort 排序列（change_percent / volume / name），null 为默认按代码
+     * @param order asc / desc，null 默认 desc
+     */
+    suspend fun loadStockList(
+        keyword: String?,
+        sort: String? = null,
+        order: String? = null
+    ): List<StockListItem> {
         return try {
-            StockDb.listStocks(keyword, null, null, 1, 5000).items
+            StockDb.listStocks(keyword, sort, order, 1, 5000).items
         } catch (e: Throwable) {
-            // SQLite 不可用时回退旧离线 JSON（assets 内的真实数据）
+            // SQLite 不可用时回退旧离线 JSON（assets 内的真实数据），并按排序参数在客户端排序
             val k = keyword ?: ""
-            if (k.isBlank()) LocalDataService.loadStockList()
+            val base = if (k.isBlank()) LocalDataService.loadStockList()
             else LocalDataService.searchStocks(k)
+            sortLocal(base, sort, order)
+        }
+    }
+
+    /**
+     * 股票列表 + 匹配总数（页面标题显示"共 N 只"用，一次查询拿全）
+     * @return Pair(total, items)
+     */
+    suspend fun loadStockListWithTotal(
+        keyword: String?,
+        sort: String? = null,
+        order: String? = null
+    ): Pair<Int, List<StockListItem>> {
+        return try {
+            val page = StockDb.listStocks(keyword, sort, order, 1, 5000)
+            page.total to page.items
+        } catch (e: Throwable) {
+            val k = keyword ?: ""
+            val base = if (k.isBlank()) LocalDataService.loadStockList()
+            else LocalDataService.searchStocks(k)
+            base.size to sortLocal(base, sort, order)
+        }
+    }
+
+    /** 回退分支的客户端排序（null 值永远排最后，与 SQL 层 ORDER BY (col IS NULL) 一致） */
+    private fun sortLocal(list: List<StockListItem>, sort: String?, order: String?): List<StockListItem> {
+        if (sort == null) return list
+        val asc = order?.equals("asc", true) == true
+        return when (sort) {
+            "change_percent" -> if (asc) list.sortedBy { it.changePercent ?: Double.MAX_VALUE }
+            else list.sortedByDescending { it.changePercent ?: Double.MIN_VALUE }
+            "volume" -> if (asc) list.sortedBy { it.volume ?: Double.MAX_VALUE }
+            else list.sortedByDescending { it.volume ?: Double.MIN_VALUE }
+            else -> list
         }
     }
 

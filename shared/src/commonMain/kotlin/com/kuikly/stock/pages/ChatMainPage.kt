@@ -78,6 +78,16 @@ class ChatMainPage : Pager() {
     // 状态：模式切换反馈（开发者面板内显示，3 秒后自动消失）
     internal var modeSwitchNotice by observable("")
 
+    // 会话操作（删除/置顶/重命名）：目标会话 id 与操作菜单显隐（ActionSheet）
+    internal var sessionOpsTargetId by observable("")
+    internal var showSessionOps by observable(false)
+
+    // 重命名对话框状态
+    internal var showRenameDialog by observable(false)
+    internal var renameTargetId by observable("")
+    internal var renameInputText by observable("")
+    internal var renameInputRef: com.tencent.kuikly.core.views.InputView? = null
+
     // 输入框引用，用于主动清空/聚焦
     lateinit var inputRef: ViewRef<InputView>
 
@@ -120,6 +130,30 @@ class ChatMainPage : Pager() {
                 // AI 服务错误提示条（独立悬浮，不挤聊天区，点击或 5 秒后消失）
                 vif({ ctx.aiErrorNotice.isNotEmpty() }) {
                     aiErrorToast(ctx)
+                }
+
+                // 会话操作菜单（置顶/重命名/删除，ActionSheet）
+                ActionSheet {
+                    attr {
+                        showActionSheet(ctx.showSessionOps)
+                        descriptionOfActions("会话操作")
+                        actionButtons("取消", "置顶", "重命名", "删除")
+                    }
+                    event {
+                        clickActionButton { index ->
+                            ctx.showSessionOps = false
+                            when (index) {
+                                1 -> ctx.togglePinSession()
+                                2 -> ctx.openRenameDialog()
+                                3 -> ctx.deleteSession()
+                            }
+                        }
+                    }
+                }
+
+                // 重命名会话对话框（Modal 内 Input + 确定/取消）
+                vif({ ctx.showRenameDialog }) {
+                    renameDialog(ctx)
                 }
             }
         }
@@ -222,6 +256,7 @@ class ChatMainPage : Pager() {
             so.put("id", s.id)
             so.put("title", s.title)
             so.put("updatedAt", s.updatedAt)
+            so.put("pinned", s.pinned)
             val ma = JSONArray()
             for (m in s.messages) {
                 val obj = JSONObject()
@@ -277,6 +312,7 @@ class ChatMainPage : Pager() {
                 val id = so.optString("id", "")
                 val title = so.optString("title", "新对话")
                 val updatedAt = so.optLong("updatedAt", 0L)
+                val pinned = so.optBoolean("pinned", false)
                 val ma = so.optJSONArray("messages") ?: JSONArray()
                 val msgs = buildList {
                     for (j in 0 until ma.length()) {
@@ -307,7 +343,7 @@ class ChatMainPage : Pager() {
                     }
                 }
                 if (id.isNotEmpty()) {
-                    sessions.add(ChatSession(id, title, msgs, updatedAt))
+                    sessions.add(ChatSession(id, title, msgs, updatedAt, pinned))
                 }
             }
             if (sessions.isEmpty()) {
@@ -346,16 +382,88 @@ class ChatMainPage : Pager() {
         DataSourceManager.setMode(
             if (online) DataSourceManager.Mode.ONLINE else DataSourceManager.Mode.OFFLINE
         )
-        // 面板内部反馈立即更新（触发覆盖层内部刷新，用户能看到绿色提示）
-        modeSwitchNotice = if (online)
-            "✅ 已切换到在线模式||请确保手机与电脑同一 WiFi，然后点「检测 AI 服务连接」"
-        else
-            "✅ 已切换到离线模式||将使用内置模拟数据，不调用真实 AI"
+        // 面板内部反馈立即更新：只保留一句话，3 秒后自动消失
+        val notice = if (online) "✅ 已切换到在线模式" else "✅ 已切换到离线模式"
+        modeSwitchNotice = notice
+        lifecycleScope.launch {
+            delay(3000)
+            if (modeSwitchNotice == notice) modeSwitchNotice = ""
+        }
         // 顶栏徽标状态 + 持久化放到下一个事件循环，确保触发全局 UI 刷新
         lifecycleScope.launch {
             devModeOnline = online
             acquireModule<SharedPreferencesModule>(SharedPreferencesModule.MODULE_NAME)
                 .setItem(DataSourceManager.PREFS_KEY, if (online) "ONLINE" else "OFFLINE")
+        }
+    }
+
+    // ==================== 会话操作（删除 / 置顶 / 重命名） ====================
+
+    /** 打开会话操作菜单（ActionSheet） */
+    internal fun openSessionOps(sessionId: String) {
+        sessionOpsTargetId = sessionId
+        showSessionOps = true
+    }
+
+    /** 置顶/取消置顶目标会话，置顶会话排在最前 */
+    internal fun togglePinSession() {
+        val idx = sessions.indexOfFirst { it.id == sessionOpsTargetId }
+        if (idx < 0) return
+        val s = sessions[idx]
+        sessions[idx] = s.copy(pinned = !s.pinned)
+        reorderSessions()
+        persistAllSessions()
+        aiErrorNotice = if (s.pinned) "已取消置顶" else "已置顶「${s.title}」"
+    }
+
+    /** 删除目标会话；若删除的是当前会话则切换到剩余会话（无会话时新建默认会话） */
+    internal fun deleteSession() {
+        val idx = sessions.indexOfFirst { it.id == sessionOpsTargetId }
+        if (idx < 0) return
+        val removed = sessions[idx]
+        sessions.removeAt(idx)
+        if (activeSessionId == sessionOpsTargetId) {
+            if (sessions.isEmpty()) {
+                createDefaultSession()
+            } else {
+                switchToSession(sessions.first().id)
+            }
+        } else {
+            persistAllSessions()
+        }
+        aiErrorNotice = "已删除会话「${removed.title}」"
+    }
+
+    /** 打开重命名对话框（预填当前标题） */
+    internal fun openRenameDialog() {
+        val target = sessions.firstOrNull { it.id == sessionOpsTargetId } ?: return
+        renameTargetId = sessionOpsTargetId
+        renameInputText = target.title
+        showRenameDialog = true
+    }
+
+    /** 保存重命名结果 */
+    internal fun renameSession() {
+        val title = renameInputText.trim()
+        val idx = sessions.indexOfFirst { it.id == renameTargetId }
+        if (idx < 0 || title.isEmpty()) {
+            showRenameDialog = false
+            return
+        }
+        val s = sessions[idx]
+        sessions[idx] = s.copy(title = title)
+        if (activeSessionId == renameTargetId) activeTitle = title
+        showRenameDialog = false
+        persistAllSessions()
+        aiErrorNotice = "已重命名为「$title」"
+    }
+
+    /** 置顶会话排最前（稳定排序，其余保持原相对顺序） */
+    private fun reorderSessions() {
+        val sorted = sessions.sortedWith(compareByDescending<ChatSession> { it.pinned })
+        if (sorted.map { it.id } != sessions.map { it.id }) {
+            sessions.clear()
+            sorted.forEach { sessions.add(it) }
         }
     }
 
@@ -1185,7 +1293,7 @@ internal fun ViewContainer<*, *>.drawer(ctx: ChatMainPage) {
                 devModeOption(ctx, "离线模式", "内置数据 + 本地模板回答（不联网）", online = false)
                 devModeOption(ctx, "在线模式", "App 直连 DeepSeek（需联网，真实 AI）", online = true)
 
-                // 模式切换反馈
+                // 模式切换反馈（单行绿字提示，3 秒自动消失；vif 条件直接读 observable）
                 vif({ ctx.modeSwitchNotice.isNotEmpty() }) {
                     View {
                         attr {
@@ -1193,18 +1301,12 @@ internal fun ViewContainer<*, *>.drawer(ctx: ChatMainPage) {
                             padding(left = 10f, top = 6f, right = 10f, bottom = 6f)
                             backgroundColor(0xFFE8F5E9)
                             borderRadius(8f)
-                            flexDirectionColumn()
                         }
-                        ctx.modeSwitchNotice.split("||").forEach { line ->
-                            if (line.isNotBlank()) {
-                                Text {
-                                    attr {
-                                        text(line.trim())
-                                        fontSize(11f)
-                                        color(0xFF2E7D32)
-                                        marginTop(1f)
-                                    }
-                                }
+                        Text {
+                            attr {
+                                text(ctx.modeSwitchNotice)
+                                fontSize(11f)
+                                color(0xFF2E7D32)
                             }
                         }
                     }
@@ -1257,34 +1359,171 @@ internal fun ViewContainer<*, *>.drawer(ctx: ChatMainPage) {
 }
 
 /**
- * 抽屉里的单个会话条目（标题 + 消息数，当前会话高亮）
+ * 抽屉里的单个会话条目（标题 + 消息数 + 置顶标记 + 操作按钮，当前会话高亮）
  */
 internal fun ViewContainer<*, *>.drawerSessionItem(ctx: ChatMainPage, s: ChatSession) {
     val active = ctx.activeSessionId == s.id
     View {
         attr {
-            flexDirectionColumn()
-            padding(left = 16f, top = 12f, right = 16f, bottom = 12f)
+            flexDirectionRow()
+            alignItems(FlexAlign.CENTER)
+            padding(left = 16f, top = 12f, right = 8f, bottom = 12f)
             backgroundColor(if (active) 0xFFE3F2FD else 0xFFFFFFFF)
             marginTop(1f)
         }
         event {
             click { ctx.switchToSession(s.id) }
         }
-        Text {
+
+        // 左侧：标题 + 消息数
+        View {
             attr {
-                text(s.title)
-                fontSize(14f)
-                fontWeightBold()
-                color(0xFF333333)
+                flex(1f)
+                flexDirectionColumn()
+            }
+            Text {
+                attr {
+                    text(if (s.pinned) "📌 " + s.title else s.title)
+                    fontSize(14f)
+                    fontWeightBold()
+                    color(0xFF333333)
+                }
+            }
+            Text {
+                attr {
+                    text(if (active) "当前会话 · 共 " + s.messages.size + " 条消息" else "共 " + s.messages.size + " 条消息")
+                    fontSize(11f)
+                    color(0xFF999999)
+                    marginTop(2f)
+                }
             }
         }
-        Text {
+
+        // 右侧：操作按钮（⋮）—— 置顶 / 重命名 / 删除
+        View {
             attr {
-                text(if (active) "当前会话 · 共 " + s.messages.size + " 条消息" else "共 " + s.messages.size + " 条消息")
-                fontSize(11f)
-                color(0xFF999999)
-                marginTop(2f)
+                padding(left = 10f, top = 8f, right = 10f, bottom = 8f)
+            }
+            event {
+                click { ctx.openSessionOps(s.id) }
+            }
+            Text {
+                attr {
+                    text("⋮")
+                    fontSize(20f)
+                    color(0xFF999999)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 重命名会话对话框（Modal 弹层：Input + 确定/取消）
+ */
+internal fun ViewContainer<*, *>.renameDialog(ctx: ChatMainPage) {
+    View {
+        attr {
+            absolutePositionAllZero()
+            backgroundColor(0x88000000)
+            alignItems(FlexAlign.CENTER)
+            justifyContent(FlexJustifyContent.CENTER)
+        }
+        // 遮罩点击关闭
+        event { click { ctx.showRenameDialog = false } }
+
+        View {
+            attr {
+                width(ctx.pagerData.pageViewWidth - 64f)
+                flexDirectionColumn()
+                backgroundColor(0xFFFFFFFF)
+                borderRadius(12f)
+                padding(left = 20f, top = 20f, right = 20f, bottom = 20f)
+            }
+
+            Text {
+                attr {
+                    text("重命名会话")
+                    fontSize(17f)
+                    fontWeightBold()
+                    color(0xFF333333)
+                }
+            }
+
+            // 输入框（叶子组件不支持 padding，用 margin 留白；autofocus 立即弹键盘）
+            Input {
+                ref {
+                    ctx.renameInputRef = it.view
+                }
+                attr {
+                    height(40f)
+                    margin(top = 12f)
+                    fontSize(14f)
+                    color(Color(0xFF333333))
+                    editable(true)
+                    autofocus(true)
+                    text(ctx.renameInputText)
+                    backgroundColor(0xFFF5F5F5)
+                    borderRadius(8f)
+                }
+                event {
+                    textDidChange(isSyncEdit = true) { params ->
+                        ctx.renameInputText = params.text
+                    }
+                    inputReturn { params ->
+                        ctx.renameInputText = params.text
+                        ctx.renameSession()
+                    }
+                }
+            }
+
+            View {
+                attr {
+                    flexDirectionRow()
+                    marginTop(16f)
+                }
+
+                // 取消
+                View {
+                    attr {
+                        flex(1f)
+                        height(40f)
+                        backgroundColor(0xFFF5F5F5)
+                        borderRadius(20f)
+                        alignItems(FlexAlign.CENTER)
+                        justifyContent(FlexJustifyContent.CENTER)
+                    }
+                    event { click { ctx.showRenameDialog = false } }
+                    Text {
+                        attr {
+                            text("取消")
+                            fontSize(14f)
+                            color(0xFF666666)
+                        }
+                    }
+                }
+
+                // 确定
+                View {
+                    attr {
+                        flex(1f)
+                        height(40f)
+                        backgroundColor(0xFF1976D2)
+                        borderRadius(20f)
+                        alignItems(FlexAlign.CENTER)
+                        justifyContent(FlexJustifyContent.CENTER)
+                        marginLeft(12f)
+                    }
+                    event { click { ctx.renameSession() } }
+                    Text {
+                        attr {
+                            text("确定")
+                            fontSize(14f)
+                            fontWeightBold()
+                            color(0xFFFFFFFF)
+                        }
+                    }
+                }
             }
         }
     }
@@ -1362,6 +1601,9 @@ internal fun ViewContainer<*, *>.statusDialog(ctx: ChatMainPage) {
 
 /**
  * 开发者面板中的单选行
+ * 注意：选中态必须用双 vif（条件直接读 observable）渲染——单视图内 Text 的 text() 是
+ * 构建期快照，点击 selectMode 后 devModeOnline 变化不会刷新"已选"文字与高亮背景，
+ * 用户必须收起再打开抽屉才能确认；双 vif 在条件变化时重建视图，点击后立即反馈。
  */
 internal fun ViewContainer<*, *>.devModeOption(
     ctx: ChatMainPage,
@@ -1369,7 +1611,21 @@ internal fun ViewContainer<*, *>.devModeOption(
     desc: String,
     online: Boolean
 ) {
-    val selected = ctx.devModeOnline == online
+    vif({ ctx.devModeOnline == online }) {
+        devModeOptionView(ctx, label, desc, online, selected = true)
+    }
+    vif({ ctx.devModeOnline != online }) {
+        devModeOptionView(ctx, label, desc, online, selected = false)
+    }
+}
+
+internal fun ViewContainer<*, *>.devModeOptionView(
+    ctx: ChatMainPage,
+    label: String,
+    desc: String,
+    online: Boolean,
+    selected: Boolean
+) {
     View {
         attr {
             flexDirectionRow()
@@ -1640,10 +1896,12 @@ data class ChatMessageItem(
  * - title：会话标题（取首条用户消息）
  * - messages：该会话的消息列表
  * - updatedAt：最后更新时间
+ * - pinned：是否置顶（置顶会话排在历史列表最前）
  */
 data class ChatSession(
     val id: String,
     val title: String,
     val messages: List<ChatMessageItem>,
-    val updatedAt: Long
+    val updatedAt: Long,
+    val pinned: Boolean = false
 )

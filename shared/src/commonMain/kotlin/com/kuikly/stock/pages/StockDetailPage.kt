@@ -361,8 +361,13 @@ internal fun ViewContainer<*, *>.infoItem(label: String, value: String) {
  */
 internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
     val realtime = ctx.stockDetail?.realtime ?: return
-    val isPositive = (realtime.changePercent ?: 0.0) >= 0
-    val priceColor = if (isPositive) 0xFFE53935 else 0xFF43A047
+    // 颜色约定：上涨红色、下跌绿色、平盘/无数据灰色
+    val pct = realtime.changePercent
+    val priceColor = when {
+        pct == null || pct == 0.0 -> 0xFF999999
+        pct > 0 -> 0xFFE53935
+        else -> 0xFF43A047
+    }
 
     View {
         attr {
