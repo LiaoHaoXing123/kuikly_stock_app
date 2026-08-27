@@ -62,6 +62,9 @@ class StockDetailPage : Pager() {
     // 状态：加载失败的错误信息
     internal var loadErrorMessage by observable("")
 
+    // 状态：数据来源标注（行情/K线/分时/盘口/指标 分别来自哪）
+    internal var dataSourceText by observable("")
+
     // 状态：K线选中索引（长按/滑动 tooltip 用，-1 表示未选中）
     internal var selectedKlineIndex by observable(-1)
 
@@ -77,6 +80,7 @@ class StockDetailPage : Pager() {
         if (stockCode.isNotEmpty()) {
             loadStockDetail()
             loadExtraQuote()
+            loadDataSource()
         }
     }
 
@@ -128,6 +132,11 @@ class StockDetailPage : Pager() {
 
                         // AI 解读卡片区域
                         aiAnalysisCards(ctx)
+
+                        // 数据来源标注（行情/K线/分时/盘口/指标 各来自哪）
+                        vif({ ctx.dataSourceText.isNotEmpty() }) {
+                            dataSourceFooter(ctx)
+                        }
                     }
                 }
             }
@@ -162,6 +171,33 @@ class StockDetailPage : Pager() {
                 loadErrorMessage = e.message ?: "数据加载失败"
             } finally {
                 isLoading = false
+            }
+        }
+    }
+
+    /**
+     * 加载数据来源标注：读 data_source 表（table_name -> source），映射成一行可读文本。
+     * 老库无 data_source 表时返回空字符串，页脚自动隐藏。
+     */
+    internal fun loadDataSource() {
+        lifecycleScope.launch {
+            try {
+                val list = StockRepository.dataSources()
+                delay(0)
+                val labels = linkedMapOf(
+                    "stock_realtime" to "行情",
+                    "stock_daily_kline" to "K线",
+                    "stock_minute" to "分时",
+                    "stock_order_book" to "盘口",
+                    "stock_indicator" to "指标",
+                )
+                val kv = list.toMap()
+                dataSourceText = labels.entries.mapNotNull { (k, label) ->
+                    kv[k]?.let { "$label：$it" }
+                }.joinToString(" · ")
+            } catch (e: Throwable) {
+                delay(0)
+                dataSourceText = ""
             }
         }
     }
@@ -507,6 +543,38 @@ internal fun ViewContainer<*, *>.quoteColumn(
                 fontWeightBold()
                 color(color)
                 marginTop(2f)
+            }
+        }
+    }
+}
+
+/**
+ * 数据来源标注页脚（可读一行）：行情/K线/分时/盘口/指标 各来自哪
+ */
+internal fun ViewContainer<*, *>.dataSourceFooter(ctx: StockDetailPage) {
+    View {
+        attr {
+            flexDirectionColumn()
+            margin(4f, 12f, 4f, 12f)
+            padding(top = 10f, left = 16f, bottom = 10f, right = 16f)
+            backgroundColor(0xFFFAFAFA)
+            borderRadius(8f)
+        }
+
+        Text {
+            attr {
+                text("数据来源")
+                fontSize(11f)
+                color(0xFF999999)
+                marginBottom(4f)
+            }
+        }
+
+        Text {
+            attr {
+                text(ctx.dataSourceText)
+                fontSize(11f)
+                color(0xFF888888)
             }
         }
     }

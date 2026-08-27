@@ -1,0 +1,55 @@
+name: Daily stock data build (AkShare -> SQLite stock.db)
+
+# 每天 07:30 UTC（= 北京 15:30，A股收盘后）的周一~周五运行，构建最新行情库并发布到
+# GitHub Release 滚动 tag "data-latest"。非交易日拉到的 latest_trade_date 仍是上一交易日，
+# App 据此判断无更新而跳过，自愈。
+on:
+  schedule:
+    - cron: '30 7 * * 1-5'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stock-data-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r data-pipeline/requirements.txt
+
+      - name: Build stock.db + version.json
+        run: python data-pipeline/build_stock_db.py
+
+      - name: Publish to GitHub Release (data-latest)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          cd data-pipeline
+          if gh release view data-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release data-latest 已存在 -> 用 --clobber 覆盖 assets"
+            gh release upload data-latest stock.db version.json --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            echo "创建 Release data-latest"
+            gh release create data-latest --repo "$GITHUB_REPOSITORY" \
+              --title "行情数据" \
+              --notes "App 自动更新的行情 SQLite 库（stock.db + version.json）" \
+              stock.db version.json
+          fi

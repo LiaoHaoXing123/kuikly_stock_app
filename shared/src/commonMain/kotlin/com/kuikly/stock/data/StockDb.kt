@@ -44,6 +44,16 @@ expect object StockDb {
 
     /** 数据库是否就绪（assets 内 stock.db 已拷贝并可打开） */
     fun isAvailable(): Boolean
+
+    /**
+     * 用新下载的 SQLite（sourcePath）原子替换本地库并重新打开。
+     * DataUpdateWorker 在后台把 GitHub Release 拉下来的 stock.db.tmp 交给此方法热切换。
+     * 返回是否成功。
+     */
+    fun refreshFromFile(sourcePath: String): Boolean
+
+    /** 数据来源标注（data_source 表：tableName -> source，如 stock_realtime -> 东方财富） */
+    fun dataSources(): List<Pair<String, String>>
 }
 
 /** 列表分页结果 */

@@ -393,6 +393,56 @@ actual object StockDb {
         return found.take(3)
     }
 
+    // ==================== 数据更新（WorkManager 热切换） ====================
+
+    /**
+     * 用新下载的 SQLite 文件原子替换本地库并重新打开只读连接。
+     * 流程：关旧连接 -> 拷贝到 filesDir/stock.db.new -> 删除旧库 -> 重命名 -> 重新打开校验。
+     * 直接打开 dest（不经过 ensureDb 的 assets 拷贝，避免把刚下载的新数据又覆盖回旧资源）。
+     */
+    actual fun refreshFromFile(sourcePath: String): Boolean {
+        val ctx = appContext ?: return false
+        return try {
+            dbInstance?.close()
+            dbInstance = null
+            val dest = File(ctx.filesDir, CACHED_NAME)
+            val tmp = File(ctx.filesDir, "$CACHED_NAME.new")
+            File(sourcePath).copyTo(tmp, overwrite = true)
+            if (dest.exists()) dest.delete()
+            if (!tmp.renameTo(dest)) {
+                tmp.copyTo(dest, overwrite = true)
+                tmp.delete()
+            }
+            cachedPath = dest.absolutePath
+            val newConn = SQLiteDatabase.openDatabase(dest.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
+            newConn.rawQuery("SELECT 1", null).use { c -> c.moveToFirst() }
+            dbInstance = newConn
+            dbAvailable = true
+            Log.i(TAG, "refreshFromFile OK size=" + dest.length())
+            true
+        } catch (e: Exception) {
+            dbAvailable = false
+            Log.e(TAG, "refreshFromFile failed: " + (e.message ?: e.toString()), e)
+            false
+        }
+    }
+
+    /** 数据来源标注：data_source 表 table_name -> source（老库无此表时返回空） */
+    actual fun dataSources(): List<Pair<String, String>> {
+        val db = openDb() ?: return emptyList()
+        return try {
+            db.rawQuery("SELECT table_name, source FROM data_source ORDER BY table_name", null).use { c ->
+                buildList {
+                    while (c.moveToNext()) {
+                        add(c.getStringOrEmpty("table_name") to (c.getStringOrNull("source") ?: ""))
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
     // ==================== Cursor 取值工具 ====================
 
     private fun Cursor.getStringOrNull(col: String): String? {

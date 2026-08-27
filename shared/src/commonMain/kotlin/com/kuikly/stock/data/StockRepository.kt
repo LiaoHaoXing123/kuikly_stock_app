@@ -168,6 +168,11 @@ object StockRepository {
         return try { StockDb.orderBook(code) } catch (e: Throwable) { null }
     }
 
+    /** 数据来源标注（data_source 表：tableName -> source），老库无此表时返回空列表 */
+    suspend fun dataSources(): List<Pair<String, String>> {
+        return try { StockDb.dataSources() } catch (e: Throwable) { emptyList() }
+    }
+
     // ==================== 离线分支 ====================
 
     private fun offlineList(keyword: String?): List<StockListItem> {

@@ -40,3 +40,7 @@ Kotlin-js-store
 
 # Build metadata (Kotlin/KMP)
 .kotlin/
+
+# data-pipeline 生成的库/版本文件（由 GitHub Actions 构建，不提交）
+data-pipeline/*.db
+data-pipeline/version.json
