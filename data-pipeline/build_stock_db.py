@@ -34,6 +34,12 @@ import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
 
+# Windows 控制台默认 GBK，打印 ✓ 等 Unicode 会抛 UnicodeEncodeError；强制 UTF-8 输出
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 # ---------------------------------------------------------------------------
 # 网络补丁：1) 强制直连（无视系统/注册表代理） 2) push2 -> push2delay 主机改写
 # ---------------------------------------------------------------------------
@@ -856,10 +862,14 @@ def build(dry_run=False):
         write_data_source(conn)
 
         latest = verify(conn)
-        print(f"\n✅ 全部完成: {n1} info, {n2} realtime, {n3} kline, {n4} minute, {n5} orderbook, {n6} indicator")
+        # 剪枝后重新统计，保证 version.json 的 counts 是"实际保留量"而非写入量
+        cur = conn.cursor()
+        counts = {t: cur.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in _tables()}
+        print(f"\n✅ 全部完成: {counts['stock_info']} info, {counts['stock_realtime']} realtime, "
+              f"{counts['stock_daily_kline']} kline, {counts['stock_minute']} minute, "
+              f"{counts['stock_order_book']} orderbook, {counts['stock_indicator']} indicator")
         return {"latest_trade_date": latest, "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "counts": {"info": n1, "realtime": n2, "kline": n3, "minute": n4,
-                           "order_book": n5, "indicator": n6}}
+                "counts": counts}
     finally:
         conn.close()
 
