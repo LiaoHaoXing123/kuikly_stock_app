@@ -6,6 +6,8 @@ name: Daily stock data build (AkShare -> SQLite stock.db)
 on:
   schedule:
     - cron: '30 7 * * 1-5'
+  push:
+    branches: [main]
   workflow_dispatch: {}
 
 permissions:
@@ -53,3 +55,22 @@ jobs:
               --notes "App 自动更新的行情 SQLite 库（stock.db + version.json）" \
               stock.db version.json
           fi
+
+      - name: Publish to cdn branch (Render 静态站点兜底)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -e
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          mkdir -p /tmp/publish
+          cp data-pipeline/stock.db data-pipeline/version.json /tmp/publish/
+          # 孤立分支 cdn：仅含最新 stock.db + version.json（force push，避免历史膨胀）
+          git checkout --orphan cdn
+          git rm -rf --cached . >/dev/null 2>&1 || true
+          find . -maxdepth 1 -mindepth 1 -not -name ".git" -exec rm -rf {} +
+          cp /tmp/publish/stock.db /tmp/publish/version.json .
+          git add -f stock.db version.json
+          git commit -m "data update $(date -u +%FT%TZ)" || echo "no change"
+          git push --force origin cdn
