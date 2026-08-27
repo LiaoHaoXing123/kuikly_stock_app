@@ -406,12 +406,17 @@ actual object StockDb {
             dbInstance?.close()
             dbInstance = null
             val dest = File(ctx.filesDir, CACHED_NAME)
-            val tmp = File(ctx.filesDir, "$CACHED_NAME.new")
-            File(sourcePath).copyTo(tmp, overwrite = true)
+            val src = File(sourcePath)
+            if (!src.exists()) {
+                Log.w(TAG, "refreshFromFile: source missing " + sourcePath)
+                return false
+            }
             if (dest.exists()) dest.delete()
-            if (!tmp.renameTo(dest)) {
-                tmp.copyTo(dest, overwrite = true)
-                tmp.delete()
+            // 把下载的源文件直接移动/拷贝到目标库（同目录 rename 是原子的）
+            val moved = src.renameTo(dest)
+            if (!moved) {
+                src.copyTo(dest, overwrite = true)
+                src.delete()
             }
             cachedPath = dest.absolutePath
             val newConn = SQLiteDatabase.openDatabase(dest.absolutePath, null, SQLiteDatabase.OPEN_READONLY)

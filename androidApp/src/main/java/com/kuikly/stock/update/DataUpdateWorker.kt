@@ -115,6 +115,11 @@ class DataUpdateWorker(appContext: Context, params: WorkerParameters) :
                 conn.inputStream.use { input ->
                     dest.outputStream().use { out -> input.copyTo(out) }
                 }
+                if (dest.length() < MIN_DB_BYTES) {
+                    Log.w(TAG, "downloadTo 文件过小(" + dest.length() + "B)，视为下载失败")
+                    dest.delete()
+                    return false
+                }
                 true
             } else {
                 Log.w(TAG, "downloadTo HTTP " + code + ": " + url)
@@ -133,9 +138,12 @@ class DataUpdateWorker(appContext: Context, params: WorkerParameters) :
         const val PREFS = "stock_data_update"
         const val KEY_UPDATED = "lastDataUpdatedAt"
         const val KEY_BUILD = "lastDataBuild"
-        const val STOCK_DB_TMP = "stock.db.new"
+        const val STOCK_DB_TMP = "stock.db.download"
+        // 下载后至少应达到的大小（低于视为失败/部分下载，忽略以免覆盖损坏库）
+        private const val MIN_DB_BYTES = 1_000_000L
 
-        const val RELEASE_URL = "https://github.com/LiaoHaoXing123/kuikly_stock_app/releases/download/data-latest"
+        // Render 静态站点（公开 onrender.com，手机可匿名下载；仓库私有故不用 GitHub Release）
+        const val RELEASE_URL = "https://kuikly-stock-app.onrender.com"
 
         private const val ONE_OFF = "stock_data_one_off"
         private const val PERIODIC = "stock_data_periodic"
