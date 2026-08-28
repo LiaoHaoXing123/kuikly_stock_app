@@ -39,9 +39,15 @@ class DataUpdateWorker(appContext: Context, params: WorkerParameters) :
                 return Result.success()
             }
             val remoteUpdated = remote.optString("updated_at", "")
-            val remoteBuild = remote.optInt("build", 0)
+            val remoteBuild = remote.optLong("build", 0L)
             val localUpdated = prefs.getString(KEY_UPDATED, "") ?: ""
-            val localBuild = prefs.getInt(KEY_BUILD, 0)
+            // 旧版本可能把 build 存成了 Int（32位溢出），此处强转 Long，避免 getLong 抛 ClassCastException
+            val localBuild = when (val v = prefs.all[KEY_BUILD]) {
+                is Long -> v
+                is Int -> v.toLong()
+                is Double -> v.toLong()
+                else -> 0L
+            }
 
             val newer = remoteUpdated.isNotBlank() &&
                 (remoteUpdated > localUpdated || remoteBuild > localBuild)
@@ -51,7 +57,7 @@ class DataUpdateWorker(appContext: Context, params: WorkerParameters) :
             } else {
                 val ok = downloadSync(ctx)
                 if (ok) {
-                    prefs.edit().putString(KEY_UPDATED, remoteUpdated).putInt(KEY_BUILD, remoteBuild).apply()
+                    prefs.edit().putString(KEY_UPDATED, remoteUpdated).putLong(KEY_BUILD, remoteBuild).apply()
                     Log.i(TAG, "数据已更新 -> " + remoteUpdated)
                     Result.success()
                 } else {

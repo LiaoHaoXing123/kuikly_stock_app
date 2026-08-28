@@ -21,6 +21,7 @@ import com.kuikly.stock.adapter.KRRouterAdapter
 import com.kuikly.stock.adapter.KRThreadAdapter
 import com.kuikly.stock.adapter.KRUncaughtExceptionHandlerAdapter
 import com.kuikly.stock.module.KRBridgeModule
+import com.kuikly.stock.update.DataUpdateWorker
 import com.kuikly.stock.module.KRShareModule
 import org.json.JSONObject
 
@@ -66,6 +67,8 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
     override fun onResume() {
         super.onResume()
         kuiklyRenderViewDelegator.onResume()
+        // App 切到前台时也触发一次数据更新检查（不只冷启动），保证"打开就有新行情"
+        try { DataUpdateWorker.schedule(this) } catch (_: Throwable) { }
     }
 
     override fun registerExternalModule(kuiklyRenderExport: IKuiklyRenderExport) {
