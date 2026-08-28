@@ -21,6 +21,7 @@ import com.kuikly.stock.data.DataSourceManager
 import com.kuikly.stock.data.LocalDataService
 import com.kuikly.stock.data.StockDb
 import com.kuikly.stock.data.StockRepository
+import com.kuikly.stock.data.DataUpdater
 import com.kuikly.stock.network.ApiEndpoints
 import com.tencent.kuikly.core.coroutines.delay
 import com.tencent.kuikly.core.coroutines.launch
@@ -77,6 +78,12 @@ class ChatMainPage : Pager() {
 
     // 状态：模式切换反馈（开发者面板内显示，3 秒后自动消失）
     internal var modeSwitchNotice by observable("")
+
+    // 状态：手动刷新数据（抽屉按钮）是否进行中
+    internal var isRefreshing by observable(false)
+
+    // 状态：手动刷新提示（3 秒后自动消失）
+    internal var refreshNotice by observable("")
 
     // 会话操作（删除/置顶/重命名）：目标会话 id 与操作菜单显隐（ActionSheet）
     internal var sessionOpsTargetId by observable("")
@@ -251,6 +258,31 @@ class ChatMainPage : Pager() {
             }
             delay(0)
             quickQuestion = if (name.isNullOrBlank()) "请帮我分析一只股票" else "请帮我分析$name"
+        }
+    }
+
+    /** 手动刷新数据：从 Render 拉最新 stock.db 并替换本地库；成功后重载快捷提问（证明 UI 数据也更新） */
+    internal fun manualRefresh() {
+        if (isRefreshing) return
+        isRefreshing = true
+        refreshNotice = ""
+        lifecycleScope.launch {
+            try {
+                val updated = DataUpdater.refreshNow()
+                delay(0)
+                isRefreshing = false
+                // 换库后重载 UI 相关数据源（快捷提问取库第一条股票）
+                loadQuickQuestion()
+                refreshNotice = if (updated) "✅ 数据已刷新到最新" else "已是最近数据"
+            } catch (e: Throwable) {
+                delay(0)
+                isRefreshing = false
+                refreshNotice = "刷新失败，请重试"
+            }
+            lifecycleScope.launch {
+                delay(3000)
+                refreshNotice = ""
+            }
         }
     }
 
@@ -1341,6 +1373,46 @@ internal fun ViewContainer<*, *>.drawer(ctx: ChatMainPage) {
                             fontSize(13f)
                             color(0xFF1976D2)
                             fontWeightBold()
+                        }
+                    }
+                }
+
+                // 手动刷新数据（从 Render 拉最新 stock.db 并替换，打开大盘行情/详情即加载最新数据重绘）
+                View {
+                    attr {
+                        marginTop(8f)
+                        height(38f)
+                        backgroundColor(0xFFE8F5E9)
+                        borderRadius(19f)
+                        alignItems(FlexAlign.CENTER)
+                        justifyContent(FlexJustifyContent.CENTER)
+                    }
+                    event { click { ctx.manualRefresh() } }
+                    Text {
+                        attr {
+                            text("手动刷新数据")
+                            fontSize(13f)
+                            color(0xFF2E7D32)
+                            fontWeightBold()
+                        }
+                    }
+                }
+
+                // 刷新提示（vif 非空才渲染，一次性设置后出现，3 秒自动清除）
+                vif({ ctx.refreshNotice.isNotEmpty() }) {
+                    View {
+                        attr {
+                            marginTop(6f)
+                            padding(left = 10f, top = 6f, right = 10f, bottom = 6f)
+                            backgroundColor(0xFFE8F5E9)
+                            borderRadius(8f)
+                        }
+                        Text {
+                            attr {
+                                text(ctx.refreshNotice)
+                                fontSize(11f)
+                                color(0xFF2E7D32)
+                            }
                         }
                     }
                 }

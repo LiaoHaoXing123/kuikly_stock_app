@@ -37,6 +37,9 @@ fun initStockDb(context: Context) {
     ensureDb()
 }
 
+/** 获取全局 Context（由 initStockDb 注入），供 DataUpdater 等 Android 侧使用 */
+internal fun stockDbContext(): Context? = appContext
+
 private fun ensureDb() {
     val ctx = appContext ?: return
     if (cachedPath != null) return

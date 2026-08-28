@@ -5,7 +5,8 @@ name: Daily stock data build (AkShare -> SQLite stock.db)
 # App 据此判断无更新而跳过，自愈。
 on:
   schedule:
-    - cron: '30 7 * * 1-5'
+    # 每天 08:30 UTC = 北京 16:30（收盘后留足数据回落时间，确保取到当日收盘）
+    - cron: '30 8 * * 1-5'
   push:
     branches: [main]
   workflow_dispatch: {}
