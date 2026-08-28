@@ -43,5 +43,6 @@ Kotlin-js-store
 
 # data-pipeline 生成的库/版本文件（由 GitHub Actions 构建，不提交）
 data-pipeline/*.db
+data-pipeline/*.log
 data-pipeline/version.json
 data-pipeline/venv
