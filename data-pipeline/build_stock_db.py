@@ -106,6 +106,7 @@ import pandas as pd  # noqa: E402
 BASE_DIR = Path(__file__).resolve().parent
 OUT_DB = Path(os.environ.get("STOCK_DB", str(BASE_DIR / "stock.db")))
 OUT_VERSION = Path(os.environ.get("VERSION_JSON", str(BASE_DIR / "version.json")))
+OUT_SQL = Path(os.environ.get("SQL_FILE", str(BASE_DIR / "stock.sql")))
 
 REQUEST_INTERVAL = float(os.environ.get("REQUEST_INTERVAL", "0.4"))
 KLINE_DAYS_BACK = int(os.environ.get("KLINE_DAYS_BACK", "60"))   # 抓回多少天用于算指标（需 > 20）
@@ -923,6 +924,20 @@ def build(dry_run=False):
         conn.close()
 
 
+def export_sql(db_path: Path, sql_path: Path) -> int:
+    """把 SQLite 导出为可读 SQL（CREATE + INSERT），便于在 NP17 等工具里直接查看数据。"""
+    conn = sqlite3.connect(db_path)
+    try:
+        with open(sql_path, "w", encoding="utf-8") as f:
+            for line in conn.iterdump():
+                f.write(line + "\n")
+    finally:
+        conn.close()
+    sz = sql_path.stat().st_size
+    print(f"  [✓] 已导出 SQL: {sql_path.name}  ({sz / 1024 / 1024:.2f} MB)")
+    return sz
+
+
 def write_version(meta: dict):
     version = {
         "schema_version": "1",
@@ -949,6 +964,7 @@ def main():
     if meta and not args.dry_run:
         write_version(meta)
         print(f"  库文件 {OUT_DB.stat().st_size / 1024 / 1024:.2f} MB")
+        export_sql(OUT_DB, OUT_SQL)
 
 
 if __name__ == "__main__":
