@@ -24,9 +24,8 @@ Log "=== 每日数据更新开始 ==="
 Log "[1/2] 构建 stock.db (AKShare 取数) ..."
 $py = Join-Path $repoDir "venv\Scripts\python.exe"
 if (-not (Test-Path $py)) { $py = "python" }
-# 关掉 akshare 进度条日志，避免刷屏
+# 关掉 akshare 进度条，避免刷屏
 $env:TQDM_DISABLE = "1"
-# 只保留关键输出到日志；完整原始输出另存 build_stock_db.log
 $buildOut = & $py (Join-Path $repoDir "build_stock_db.py") 2>&1 | Out-String
 Add-Content -Path $buildLog -Value $buildOut -Encoding UTF8
 if ($LASTEXITCODE -ne 0) {
@@ -42,24 +41,35 @@ if (-not $proxy) { $proxy = "127.0.0.1:52850"; Log "   注意：未设置 PROXY_
 $env:HTTP_PROXY  = "http://" + $proxy
 $env:HTTPS_PROXY = "http://" + $proxy
 
-$tmp = Join-Path $env:TEMP ("cdn_" + [guid]::NewGuid().ToString("N"))
-New-Item -ItemType Directory -Path $tmp | Out-Null
-try {
-    git -C $tmp init 2>&1 | Out-Null
-    git -C $tmp remote add origin $gitUrl 2>&1 | Out-Null
-    # 若远端已有 cdn，则基于它；否则孤儿分支
-    git -C $tmp fetch origin cdn 2>&1 | Out-Null
-    if ($LASTEXITCODE -eq 0) { git -C $tmp checkout -B cdn origin/cdn 2>&1 | Out-Null }
-    else { git -C $tmp checkout --orphan cdn 2>&1 | Out-Null }
-    Copy-Item (Join-Path $repoDir "stock.db") -Destination $tmp -Force
-    Copy-Item (Join-Path $repoDir "version.json") -Destination $tmp -Force
-    git -C $tmp add -f stock.db version.json 2>&1 | Out-Null
-    git -C $tmp -c user.name="kuikly-stock" -c user.email="bot@example.com" commit -m ("data update " + (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")) 2>&1 | Out-Null
-    git -C $tmp push --force origin cdn 2>&1 | ForEach-Object { Log ("   " + $_) }
-    if ($LASTEXITCODE -ne 0) { Log "!! push cdn 失败 (exit $LASTEXITCODE)"; Exit 1 }
-    Log "[2/2] 已推送到 cdn 分支，Render 将自动部署到手机端。"
-} finally {
-    if ($tmp -and (Test-Path $tmp)) { Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue }
+$pushed = $false
+for ($attempt = 1; $attempt -le 3; $attempt++) {
+    $tmp = Join-Path $env:TEMP ("cdn_" + [guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Path $tmp | Out-Null
+    try {
+        git -C $tmp init 2>&1 | Out-Null
+        git -C $tmp remote add origin $gitUrl 2>&1 | Out-Null
+        git -C $tmp fetch origin cdn 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) { git -C $tmp checkout -B cdn 2>&1 | Out-Null; git -C $tmp reset --hard origin/cdn 2>&1 | Out-Null }
+        else { git -C $tmp checkout --orphan cdn 2>&1 | Out-Null }
+        Copy-Item (Join-Path $repoDir "stock.db") -Destination $tmp -Force
+        Copy-Item (Join-Path $repoDir "version.json") -Destination $tmp -Force
+        git -C $tmp add -f stock.db version.json 2>&1 | Out-Null
+        git -C $tmp -c user.name="kuikly-stock" -c user.email="bot@example.com" commit -m ("data update " + (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")) 2>&1 | Out-Null
+        git -C $tmp push --force origin cdn 2>&1 | ForEach-Object { Log ("   " + $_) }
+        if ($LASTEXITCODE -eq 0) { $pushed = $true; break }
+        else { Log ("   第 $attempt 次推送失败，重试...") }
+    } catch {
+        Log ("   第 $attempt 次推送异常: " + $_.Exception.Message)
+    } finally {
+        if ($tmp -and (Test-Path $tmp)) { Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue }
+    }
 }
 
+if (-not $pushed) {
+    Log "!! 推送 cdn 失败：无法连接 github.com（请确认 Clash 代理 github.com 节点可用 / 未把 github.com 直连导致被墙）。"
+    Log "   stock.db 与 version.json 已在 data-pipeline 生成，可稍后重跑 run_daily.bat 或手动推到 cdn 分支。"
+    Exit 1
+}
+Log "[2/2] 已推送到 cdn 分支，Render 将自动部署到手机端。"
 Log "=== 完成。所有日志见 run_daily.log / build_stock_db.log ==="
+
