@@ -2,7 +2,7 @@
 # 1) 本机 venv 跑 build_stock_db.py -> stock.db + version.json + stock.sql
 # 2) 推 stock.db/version.json/stock.sql 到 cdn 分支(github) -> Render 自动部署 -> 手机拉取
 # 3) 可选：推送到 Gitee（设 $env:GITEE_REPO，如 https://gitee.com/<user>/<repo>.git，且 GITEE_BRANCH 默认 master）
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
@@ -40,6 +40,7 @@ function Push-ToRepo($originUrl, $branchName) {
     git -C $tmp add -f $files 2>&1 | Out-Null
     git -C $tmp -c user.name="kuikly-stock" -c user.email="bot@example.com" commit -m ("data update " + (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")) 2>&1 | Out-Null
     git -C $tmp push --force origin $branchName 2>&1 | ForEach-Object { Log ("   " + $_) }
+    if ($LASTEXITCODE -ne 0) { throw "git push 失败(exit $LASTEXITCODE): $originUrl $branchName" }
     Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
 }
 
