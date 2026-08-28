@@ -148,8 +148,8 @@ class DataUpdateWorker(appContext: Context, params: WorkerParameters) :
         // 下载后至少应达到的大小（低于视为失败/部分下载，忽略以免覆盖损坏库）
         private const val MIN_DB_BYTES = 1_000_000L
 
-        // Render 静态站点（公开 onrender.com，手机可匿名下载；仓库私有故不用 GitHub Release）
-        const val RELEASE_URL = "https://kuikly-stock-app.onrender.com"
+        // Gitee 公开仓库 raw（国内直连，手机可匿名下载；仓库私有故不用 GitHub Release）
+        const val RELEASE_URL = "https://gitee.com/LiaoHaoXing123/kuikly-stock-data/raw/master"
 
         private const val ONE_OFF = "stock_data_one_off"
         private const val PERIODIC = "stock_data_periodic"

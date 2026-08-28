@@ -1,7 +1,7 @@
 package com.kuikly.stock.data
 
-/** 行情数据更新源：Render 静态站点（公开 onrender.com，手机可匿名下载；仓库私有故不用 GitHub Release） */
-const val STOCK_DATA_BASE = "https://kuikly-stock-app.onrender.com"
+/** 行情数据更新源：Gitee 公开仓库 raw（国内直连，手机可匿名下载；仓库私有故不用 GitHub Release） */
+const val STOCK_DATA_BASE = "https://gitee.com/LiaoHaoXing123/kuikly-stock-data/raw/master"
 
 /**
  * 行情数据更新器（手动刷新用）。
