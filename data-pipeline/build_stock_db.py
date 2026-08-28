@@ -293,28 +293,74 @@ def retry(fn, times=3, wait=1.5, label=""):
 # 表 1：stock_info
 # ---------------------------------------------------------------------------
 def fetch_stock_info():
-    frames = []
-    df_sz = ak.stock_info_sz_name_code(symbol="A股列表")
-    df_sz = df_sz.rename(columns={
-        "A股代码": "code", "A股简称": "name", "所属行业": "industry",
-        "板块": "plate", "A股上市日期": "list_date"})
-    frames.append(df_sz[["code", "name", "industry", "plate", "list_date"]])
-    print(f"  [✓] 深交所A股 {len(df_sz)} 只")
+    """股票基础信息。
+    说明：code+name 主取东财全市场快照（push2delay，全球可达），覆盖沪深/创业板/科创板/北交所，
+    避免依赖上交所 query.sse.com.cn（其境外常不可达，GitHub Actions runner 会连不上导致构建失败）。
+    行业取东财板块（可达）；上市日期尽力而为（深交所可达，上交所境外常失败则留空）。
+    """
+    # 1) 主源：东财全市场快照 -> code + name（全市场，可达）
+    try:
+        spot = ak.stock_zh_a_spot_em()
+        df = pd.DataFrame({
+            "code": spot["代码"].astype(str).str.zfill(6),
+            "name": spot["名称"].astype(str),
+        })
+        print(f"  [✓] 全市场快照取 code+name  {len(df)} 只")
+    except Exception as e:
+        print(f"  [警告] 全市场快照失败({type(e).__name__}:{str(e)[:60]})，回退深交所列表")
+        df_sz = ak.stock_info_sz_name_code(symbol="A股列表")
+        df = pd.DataFrame({
+            "code": df_sz["A股代码"].astype(str).str.zfill(6),
+            "name": df_sz["A股简称"].astype(str),
+        })
 
-    for symbol, plate in (("主板A股", "沪市"), ("科创板", "科创板")):
-        df_sh = ak.stock_info_sh_name_code(symbol=symbol)
-        df_sh = df_sh.rename(columns={
-            "证券代码": "code", "证券简称": "name", "上市日期": "list_date"})
-        df_sh["industry"] = None
-        df_sh["plate"] = plate
-        frames.append(df_sh[["code", "name", "industry", "plate", "list_date"]])
-        print(f"  [✓] 上交所{symbol} {len(df_sh)} 只")
+    def plate_of(code):
+        c = str(code)
+        if c.startswith("30"):
+            return "创业板"
+        if c.startswith("68"):
+            return "科创板"
+        if c.startswith(("4", "8", "92")):
+            return "北交所"
+        if c.startswith(("6", "9")):
+            return "沪市"
+        return "深市"
 
-    df = pd.concat(frames, ignore_index=True)
-    df["code"] = df["code"].astype(str).str.extract(r"(\d{6})")[0]
-    df = df.dropna(subset=["code"]).drop_duplicates(subset=["code"], keep="first")
+    df["plate"] = df["code"].map(plate_of)
+    df["industry"] = None
+    df["list_date"] = None
 
-    # 用东财行业板块补齐沪市等缺失行业（约 1-3 分钟，失败则跳过）
+    # 2) 上市日期尽力而为：深交所接口（可达）；上交所 query.sse.com.cn 境外常不可达 -> 留空（不崩溃）
+    try:
+        df_sz = ak.stock_info_sz_name_code(symbol="A股列表")
+        ld = {}
+        for _, r in df_sz.iterrows():
+            c = str(r["A股代码"]).zfill(6)
+            v = r.get("A股上市日期")
+            if pd.notna(v):
+                ld[c] = str(v)
+        df["list_date"] = df["code"].map(ld)
+        print(f"  [✓] 深交所上市日期覆盖 {df['list_date'].notna().sum()} 只")
+    except Exception as e:
+        print(f"  [警告] 深交所上市日期获取失败: {type(e).__name__}: {str(e)[:60]}")
+
+    try:
+        total_sh = 0
+        for symbol, plate in (("主板A股", "沪市"), ("科创板", "科创板")):
+            df_sh = ak.stock_info_sh_name_code(symbol=symbol)
+            ld = {}
+            for _, r in df_sh.iterrows():
+                c = str(r["证券代码"]).zfill(6)
+                v = r.get("上市日期")
+                if pd.notna(v):
+                    ld[c] = str(v)
+            df["list_date"] = df["code"].map(ld).fillna(df["list_date"])
+            total_sh += len(df_sh)
+        print(f"  [✓] 上交所上市日期覆盖 {total_sh} 只")
+    except Exception as e:
+        print(f"  [警告] 上交所上市日期获取失败(境外可能不可达, 留空): {type(e).__name__}: {str(e)[:60]}")
+
+    # 3) 行业补齐（东财板块，可达；失败跳过）
     try:
         print("  [..] 拉取东财行业板块补齐行业字段...")
         ind_map = {}
@@ -331,10 +377,13 @@ def fetch_stock_info():
                 print(f"      板块进度 {i}/{len(names)}")
             time.sleep(0.15)
         if ind_map:
-            df["industry"] = df["code"].map(ind_map).fillna(df["industry"])
+            df["industry"] = df["code"].map(ind_map)
             print(f"  [✓] 行业覆盖 {df['industry'].notna().sum()} 只")
     except Exception as e:
         print(f"  [警告] 行业板块补齐失败（跳过）: {type(e).__name__}: {str(e)[:60]}")
+
+    df["code"] = df["code"].astype(str)
+    df = df.dropna(subset=["code"]).drop_duplicates(subset=["code"], keep="first")
 
     src = SRC["stock_info"]
     rows = []
