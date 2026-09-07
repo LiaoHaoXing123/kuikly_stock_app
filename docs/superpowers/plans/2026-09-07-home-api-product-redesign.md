@@ -127,7 +127,7 @@ git commit -m "feat(ai): define provider profile rules"
 - Create: `shared/src/commonMain/kotlin/com/kuikly/stock/ai/config/AiProfileStore.kt`
 - Create: `shared/src/commonTest/kotlin/com/kuikly/stock/ai/config/AiProfileCodecTest.kt`
 
-- [ ] **Step 1: Write failing codec and selection tests**
+- [x] **Step 1: Write failing codec and selection tests**
 
 ```kotlin
 class AiProfileCodecTest {
@@ -150,11 +150,11 @@ class AiProfileCodecTest {
 }
 ```
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run the test class and confirm unresolved codec/store symbols.
 
-- [ ] **Step 3: Implement codec, presets, and store**
+- [x] **Step 3: Implement codec, presets, and store**
 
 Use Kuikly `JSONObject`/`JSONArray` to encode only the fields in `AiProviderProfile`; never add an API-key field. `AiProfileStore.ensureSeeded()` writes AgentRouter and DeepSeek presets when storage is empty. `saveProfile`, `deleteProfile`, and `setActive` validate IDs and always keep an active remaining profile.
 
@@ -176,7 +176,7 @@ internal object AiProfileStore {
 }
 ```
 
-- [ ] **Step 4: Run GREEN and full shared tests**
+- [x] **Step 4: Run GREEN and full shared tests**
 
 ```powershell
 .\gradlew.bat :shared:testDebugUnitTest --console=plain
@@ -184,7 +184,7 @@ internal object AiProfileStore {
 
 Expected: all tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add shared/src/commonMain/kotlin/com/kuikly/stock/ai/config shared/src/commonTest/kotlin/com/kuikly/stock/ai/config
