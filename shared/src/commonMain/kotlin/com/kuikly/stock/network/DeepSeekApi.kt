@@ -3,6 +3,13 @@
 package com.kuikly.stock.network
 
 import com.kuikly.stock.ai.config.DeepSeekConfig
+import com.kuikly.stock.ai.config.AiConnectionResult
+import com.kuikly.stock.ai.config.AiProviderException
+import com.kuikly.stock.ai.config.AiProviderProfile
+import com.kuikly.stock.ai.config.AiRequestConfig
+import com.kuikly.stock.ai.config.AiRuntimeConfig
+import com.kuikly.stock.ai.config.providerErrorMessage
+import com.kuikly.stock.ai.config.resolveAiRequestConfig
 import com.kuikly.stock.ai.prompt.ChatPromptContext
 import com.kuikly.stock.ai.tool.StockTools
 import com.kuikly.stock.base.normalizeBreaks
@@ -34,18 +41,24 @@ private const val TAG_JSON = "```json"
 object DeepSeekApi {
 
     suspend fun chat(messages: List<Pair<String, String>>): String {
-        return extractContent(postChat(chatBody(messages, null)))
+        val config = AiRuntimeConfig.current()
+        return extractContent(postChat(config, chatBody(config, messages, null)))
             ?: throw Exception("AI 响应缺少 content")
     }
 
     suspend fun chatWithTools(messages: List<Pair<String, String>>): String {
-        val msg = postChat(chatBody(messages, StockTools.definitions))
+        val config = AiRuntimeConfig.current()
+        if (!config.toolsEnabled) {
+            return extractContent(postChat(config, chatBody(config, messages, null)))
+                ?: throw Exception("AI 响应缺少 content")
+        }
+        val msg = postChat(config, chatBody(config, messages, StockTools.definitions))
         val toolCalls = (msg["tool_calls"] as? JsonArray).orEmpty()
         if (toolCalls.isEmpty()) {
             return extractContent(msg) ?: throw Exception("AI 响应缺少 content")
         }
         val body = buildJsonObject {
-            put("model", DeepSeekConfig.MODEL)
+            put("model", config.model)
             put("temperature", DeepSeekConfig.TEMPERATURE)
             put("max_tokens", DeepSeekConfig.MAX_TOKENS)
             put("messages", buildJsonArray {
@@ -69,14 +82,19 @@ object DeepSeekApi {
                 }
             })
         }
-        return extractContent(postChat(body))
+        return extractContent(postChat(config, body))
             ?: throw Exception("AI 响应缺少 content")
     }
 
-    private fun chatBody(messages: List<Pair<String, String>>, tools: JsonArray?): JsonObject = buildJsonObject {
-        put("model", DeepSeekConfig.MODEL)
+    private fun chatBody(
+        config: AiRequestConfig,
+        messages: List<Pair<String, String>>,
+        tools: JsonArray?,
+        maxTokens: Int = DeepSeekConfig.MAX_TOKENS,
+    ): JsonObject = buildJsonObject {
+        put("model", config.model)
         put("temperature", DeepSeekConfig.TEMPERATURE)
-        put("max_tokens", DeepSeekConfig.MAX_TOKENS)
+        put("max_tokens", maxTokens)
         put("messages", buildJsonArray {
             for ((role, content) in messages) {
                 add(buildJsonObject { put("role", role); put("content", content) })
@@ -85,19 +103,20 @@ object DeepSeekApi {
         if (tools != null) put("tools", tools)
     }
 
-    private suspend fun postChat(body: JsonObject): JsonObject {
-        println("[DeepSeek] POST " + DeepSeekConfig.BASE_URL + "/chat/completions model=" + DeepSeekConfig.MODEL)
-        val resp = ApiClient.client.post("${DeepSeekConfig.BASE_URL}/chat/completions") {
+    private suspend fun postChat(config: AiRequestConfig, body: JsonObject): JsonObject {
+        val startedAt = System.currentTimeMillis()
+        val resp = ApiClient.client.post(config.endpoint) {
             contentType(ContentType.Application.Json)
-            header("Authorization", "Bearer ${DeepSeekConfig.API_KEY}")
+            header("Authorization", "Bearer ${config.apiKey}")
             setBody(body.toString())
         }
         val text = resp.bodyAsText(Charsets.UTF_8)
+        val elapsedMs = System.currentTimeMillis() - startedAt
         if (resp.status.value !in 200..299) {
-            println("[DeepSeek] HTTP ERROR " + resp.status.value + ": " + text.take(160))
-            throw Exception("AI 接口返回 HTTP " + resp.status.value + "（" + text.take(120) + "）")
+            println("[AI] provider=${config.providerName} model=${config.model} status=${resp.status.value} elapsedMs=$elapsedMs")
+            throw AiProviderException(resp.status.value, providerErrorMessage(resp.status.value))
         }
-        println("[DeepSeek] response received: " + text.take(200))
+        println("[AI] provider=${config.providerName} model=${config.model} status=${resp.status.value} elapsedMs=$elapsedMs")
         val root = ApiClient.json.parseToJsonElement(text).jsonObject
         val choices = root["choices"] as? JsonArray
             ?: throw Exception("AI 响应缺少 choices")
@@ -106,6 +125,38 @@ object DeepSeekApi {
     }
 
     private fun extractContent(m: JsonObject): String? = m["content"]?.jsonPrimitive?.content
+
+    internal suspend fun testConnection(profile: AiProviderProfile, apiKey: String): AiConnectionResult {
+        val startedAt = System.currentTimeMillis()
+        return try {
+            val config = resolveAiRequestConfig(profile, apiKey)
+            val body = chatBody(
+                config = config,
+                messages = listOf("user" to "只回复 OK"),
+                tools = null,
+                maxTokens = 8,
+            )
+            val message = postChat(config, body)
+            if (extractContent(message).isNullOrBlank()) {
+                throw IllegalStateException("服务响应格式不兼容")
+            }
+            AiConnectionResult(
+                success = true,
+                providerName = profile.name,
+                model = profile.model,
+                elapsedMs = System.currentTimeMillis() - startedAt,
+                message = "连接成功",
+            )
+        } catch (error: Throwable) {
+            AiConnectionResult(
+                success = false,
+                providerName = profile.name,
+                model = profile.model,
+                elapsedMs = System.currentTimeMillis() - startedAt,
+                message = error.message ?: "无法连接 AI 服务",
+            )
+        }
+    }
 
     suspend fun analyzeStock(detail: StockDetailData): AIAnalysisData {
         val messages = buildAnalysisPrompt(detail)

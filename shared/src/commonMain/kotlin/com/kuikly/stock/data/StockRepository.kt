@@ -4,7 +4,7 @@ package com.kuikly.stock.data
 
 import com.kuikly.stock.network.ApiClient
 import com.kuikly.stock.network.DeepSeekApi
-import com.kuikly.stock.ai.config.DeepSeekConfig
+import com.kuikly.stock.ai.config.AiRuntimeConfig
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import com.kuikly.stock.pages.AIAnalysisData
@@ -86,11 +86,11 @@ object StockRepository {
                 errorNotice = "AI 已关闭：回答基于本地数据"
             )
         }
-        if (!DeepSeekConfig.enabled) {
+        if (!AiRuntimeConfig.isConfigured()) {
             val mock = LocalDataService.mockChat(message)
             return mock.copy(
-                text = " 未配置 DeepSeek API Key（见 ai/config/DeepSeekConfig.kt），以下为本地模板回答：\n\n" + mock.text,
-                errorNotice = "未配置 DeepSeek API Key"
+                text = "未配置 AI 服务，请在“我的 → API 配置”中填写密钥。\n\n以下为本地模板回答：\n\n" + mock.text,
+                errorNotice = "请先配置 API Key"
             )
         }
         return try {
@@ -118,7 +118,7 @@ object StockRepository {
     }
 
     suspend fun analyzeStock(code: String): AIAnalysisData? {
-        if (!DataSourceManager.isOnline || !DeepSeekConfig.enabled) {
+        if (!DataSourceManager.isOnline || !AiRuntimeConfig.isConfigured()) {
             println("[Repo] analyzeStock OFFLINE fallback for " + code)
             return LocalDataService.mockAnalysis(code)
         }
@@ -172,9 +172,10 @@ object StockRepository {
     suspend fun checkAiService(): String {
         val dbOk = try { StockDb.isAvailable() } catch (e: Throwable) { false }
         val dataLine = if (dbOk) " 本地 SQLite：已就绪" else " 本地 SQLite：未就绪（检查 assets/stock.db）"
-        val aiLine = if (!DataSourceManager.isOnline) "AI：已关闭（开发者选项处于离线）"
-        else if (!DeepSeekConfig.enabled) " DeepSeek：未配置 API Key（见 ai/config/DeepSeekConfig.kt）"
-        else " DeepSeek：${DeepSeekConfig.MODEL}（key 已配置）"
-        return "$dataLine\n$aiLine\n数据本地 SQLite，AI 直连 DeepSeek"
+        val active = AiRuntimeConfig.activeProfile()
+        val aiLine = if (!DataSourceManager.isOnline) "AI：已关闭（当前为离线模式）"
+        else if (!AiRuntimeConfig.isConfigured()) "AI：${active.name} / ${active.model}（未配置密钥）"
+        else "AI：${active.name} / ${active.model}（密钥已配置）"
+        return "$dataLine\n$aiLine\n行情来自本地 SQLite，AI 使用用户选择的服务商"
     }
 }

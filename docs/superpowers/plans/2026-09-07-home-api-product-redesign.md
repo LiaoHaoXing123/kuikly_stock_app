@@ -260,7 +260,7 @@ git commit -m "feat(ai): encrypt user API keys on Android"
 - Modify: `shared/src/commonMain/kotlin/com/kuikly/stock/network/DeepSeekApi.kt`
 - Create: `shared/src/commonTest/kotlin/com/kuikly/stock/ai/config/AiRuntimeConfigTest.kt`
 
-- [ ] **Step 1: Write failing runtime-resolution tests**
+- [x] **Step 1: Write failing runtime-resolution tests**
 
 ```kotlin
 class AiRuntimeConfigTest {
@@ -279,19 +279,19 @@ class AiRuntimeConfigTest {
 }
 ```
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Expected: unresolved runtime types.
 
-- [ ] **Step 3: Implement resolver and dynamic client**
+- [x] **Step 3: Implement resolver and dynamic client**
 
 `AiRuntimeConfig.current()` combines `AiProfileStore.active()` with `SecureSecretStore.get(id)`. In `DeepSeekApi`, resolve once at the start of each public request and pass the immutable `AiRequestConfig` through body creation and HTTP posting. Replace all `DeepSeekConfig.MODEL/BASE_URL/API_KEY` reads.
 
-- [ ] **Step 4: Make logs privacy-safe and map errors**
+- [x] **Step 4: Make logs privacy-safe and map errors**
 
 Log only provider name, model, status, and elapsed milliseconds. Do not log request JSON, Authorization, user content, response body, or server error text. For non-2xx responses throw `AiProviderException(status, providerErrorMessage(status))`.
 
-- [ ] **Step 5: Add minimal connection test**
+- [x] **Step 5: Add minimal connection test**
 
 ```kotlin
 suspend fun testConnection(profile: AiProviderProfile, apiKey: String): AiConnectionResult
@@ -299,7 +299,7 @@ suspend fun testConnection(profile: AiProviderProfile, apiKey: String): AiConnec
 
 Send a system/user request that asks for `OK`, with `max_tokens = 8`, no tools, and return elapsed time plus a sanitized status.
 
-- [ ] **Step 6: Run GREEN and full tests, then commit**
+- [x] **Step 6: Run GREEN and full tests, then commit**
 
 ```powershell
 .\gradlew.bat :shared:testDebugUnitTest --console=plain
