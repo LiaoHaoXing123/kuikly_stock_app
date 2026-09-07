@@ -402,7 +402,7 @@ git commit -m "feat(alerts): create alerts from AI conclusions"
 - Modify: `shared/src/commonMain/kotlin/com/kuikly/stock/pages/StockListPage.kt`
 - Modify: `shared/src/commonMain/kotlin/com/kuikly/stock/pages/WatchlistPage.kt`
 
-- [ ] **Step 1: Create shared navigation constants**
+- [x] **Step 1: Create shared navigation constants**
 
 ```kotlin
 internal object AppRoutes {
@@ -418,19 +418,19 @@ internal object AppRoutes {
 
 Implement a reusable five-item bottom navigation. Each item has a 44dp minimum target, visible selected state, and an accessibility label.
 
-- [ ] **Step 2: Implement `HomeDashboardPage`**
+- [x] **Step 2: Implement `HomeDashboardPage`**
 
 Use Kuikly `View`, `Text`, `Scroller`, `vif`, and `vfor` only. Match the approved mockup: white top bar, navy brief card, 2×2 research modules, today-focus list, and bottom navigation. Load `HomeDashboardService.snapshot()` in `viewDidLoad` and refresh on foreground entry.
 
-- [ ] **Step 3: Change the Android launch page**
+- [x] **Step 3: Change the Android launch page**
 
 Change the no-intent fallback from `chat_main` to `home_dashboard`. Preserve explicit page intents for tests and deep links.
 
-- [ ] **Step 4: Align existing market and watchlist navigation**
+- [x] **Step 4: Align existing market and watchlist navigation**
 
 Add bottom navigation or consistent back behavior without embedding chat controls into those pages.
 
-- [ ] **Step 5: Compile and commit**
+- [x] **Step 5: Compile and commit**
 
 ```powershell
 .\gradlew.bat :shared:compileDebugKotlinAndroid --console=plain

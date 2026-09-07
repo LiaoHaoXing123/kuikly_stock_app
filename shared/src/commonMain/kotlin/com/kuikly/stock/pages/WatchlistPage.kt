@@ -77,6 +77,7 @@ class WatchlistPage : Pager() {
                         View { attr { height(10f) } }
                     }
                 }
+                appBottomNav(ctx, AppRoutes.WATCHLIST)
                 vif({ ctx.showEdit }) {
                     watchEditDialog(ctx)
                 }

@@ -75,6 +75,8 @@ class StockListPage : Pager() {
                     noMoreButton()
                 }
 
+                appBottomNav(ctx, AppRoutes.MARKET)
+
                 vif({ ctx.hint.isNotEmpty() }) {
                     hintPopup(ctx)
                 }

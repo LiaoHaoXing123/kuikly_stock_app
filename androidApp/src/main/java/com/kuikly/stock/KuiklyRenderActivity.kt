@@ -45,7 +45,7 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
         return if (pn.isNotEmpty()) {
             return pn
             } else {
-            "chat_main"
+            "home_dashboard"
             }
         }
 
