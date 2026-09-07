@@ -200,7 +200,7 @@ git commit -m "feat(ai): persist multiple provider profiles"
 - Create: `shared/src/jsMain/kotlin/com/kuikly/stock/ai/config/SecureSecretStore.js.kt`
 - Modify: `shared/build.gradle.kts`
 
-- [ ] **Step 1: Add the common contract and confirm compilation is RED**
+- [x] **Step 1: Add the common contract and confirm compilation is RED**
 
 ```kotlin
 internal expect object SecureSecretStore {
@@ -213,7 +213,7 @@ internal expect object SecureSecretStore {
 
 Run `:shared:compileDebugKotlinAndroid`; expected: missing Android actual implementation.
 
-- [ ] **Step 2: Implement Android Keystore AES/GCM storage**
+- [x] **Step 2: Implement Android Keystore AES/GCM storage**
 
 Use alias `kuikly_stock_ai_profile_key_v1`, `KeyGenParameterSpec` with encrypt/decrypt purposes, GCM mode, no padding, and a fresh 12-byte IV. Store `Base64(iv):Base64(ciphertext)` in private SharedPreferences `secure_ai_profiles_v1`. Derive preference keys from a SHA-256 hash of `profileId`, not raw profile names.
 
@@ -229,15 +229,15 @@ private fun encrypt(value: String): String {
 
 Decrypt failures return `null` and delete only the unreadable entry. `put(profileId, "")` delegates to `remove`.
 
-- [ ] **Step 3: Add explicit platform fallbacks**
+- [x] **Step 3: Add explicit platform fallbacks**
 
 iOS and JS actual implementations return `false` from `isSecureStorageAvailable`; `get` returns null; `put` throws an actionable `IllegalStateException`; `remove` is idempotent. This prevents insecure plaintext fallback.
 
-- [ ] **Step 4: Remove build-time key injection**
+- [x] **Step 4: Remove build-time key injection**
 
 Delete `dshReadEnv`, `dshEscapeKotlinString`, `aiSecretsDir`, `generateAiSecrets`, and the generated source directory from `shared/build.gradle.kts`. Replace `DeepSeekConfig` constants with non-secret preset defaults only.
 
-- [ ] **Step 5: Compile and inspect APK strings**
+- [x] **Step 5: Compile and inspect APK strings**
 
 ```powershell
 .\gradlew.bat :shared:compileDebugKotlinAndroid --console=plain
@@ -246,7 +246,7 @@ rg -a -l "sk-[A-Za-z0-9_-]{12,}" androidApp/build shared/build
 
 Expected: compilation succeeds and the secret scan prints no files.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add shared/build.gradle.kts shared/src/commonMain/kotlin/com/kuikly/stock/ai/config shared/src/androidMain/kotlin/com/kuikly/stock/ai/config shared/src/iosMain/kotlin/com/kuikly/stock/ai/config shared/src/jsMain/kotlin/com/kuikly/stock/ai/config

@@ -13,53 +13,6 @@ plugins {
 
 val KEY_PAGE_NAME = "pageName"
 
-// ---- 构建期安全注入：从项目根 .env 读取 AI 密钥并生成源码，避免密钥硬编码进源码/入库 ----
-// 说明：.env 已 gitignore 不入库；生成文件写入 build/generated，不参与版本控制。
-// 这只是"密钥不入库/不进源码"，并不能防止 APK 被反编译——正式分发仍建议走自建后端代理。
-fun dshReadEnv(name: String, default: String = ""): String {
-    val f = rootProject.file(".env")
-    if (!f.exists()) return default
-    return f.readLines()
-        .map { it.trim() }
-        .firstOrNull {
-            it.isNotEmpty() && !it.startsWith("#") && '=' in it &&
-                it.substring(0, it.indexOf('=')).trim() == name
-        }
-        ?.let { it.substring(it.indexOf('=') + 1).trim() }
-        ?: default
-}
-
-fun dshEscapeKotlinString(raw: String): String =
-    raw.replace("\\", "\\\\").replace("\"", "\\\"")
-
-val aiSecretsDir = layout.buildDirectory.dir("generated/aiSecrets")
-val generateAiSecrets = tasks.register("generateAiSecrets") {
-    val apiKey = dshReadEnv("DEEPSEEK_API_KEY")
-    val baseUrl = dshReadEnv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
-    val model = dshReadEnv("DEEPSEEK_MODEL", "deepseek-v4-flash")
-    inputs.property("apiKey", apiKey)
-    inputs.property("baseUrl", baseUrl)
-    inputs.property("model", model)
-    outputs.dir(aiSecretsDir)
-    doLast {
-        val out = aiSecretsDir.get().asFile
-        val f = out.resolve("com/kuikly/stock/ai/config/AiSecretsGenerated.kt")
-        f.parentFile.mkdirs()
-        f.writeText(
-            """
-            |package com.kuikly.stock.ai.config
-            |
-            |// 自动生成：由 shared/build.gradle.kts 从 .env 注入，勿手动编辑（.env 不入库）。
-            |internal object AiSecretsGenerated {
-            |    const val API_KEY: String = "${dshEscapeKotlinString(apiKey)}"
-            |    const val BASE_URL: String = "${dshEscapeKotlinString(baseUrl)}"
-            |    const val MODEL: String = "${dshEscapeKotlinString(model)}"
-            |}
-            """.trimMargin() + "\n"
-        )
-    }
-}
-
 kotlin {
     androidTarget {
         compilations.all {
@@ -117,8 +70,6 @@ kotlin {
                 implementation("com.tencent.kuikly-open:core-annotations:${Version.getKuiklyVersion()}")
 
             }
-            // 加入构建期由 .env 生成的密钥源码目录
-            kotlin.srcDir(generateAiSecrets.map { aiSecretsDir.get().asFile })
         }
         val commonTest by getting {
             dependencies {
