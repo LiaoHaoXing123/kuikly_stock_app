@@ -294,7 +294,7 @@ $indicatorText
                 "summary" to it.toString(), "color" to "#DDA0DD"))
         }
         cards.add(mapOf("type" to "summary_card", "title" to "数据来源",
-            "summary" to "技术指标来自本地 SQLite（真实计算值），AI 由 DeepSeek 直连生成。",
+            "summary" to "技术指标来自本地 SQLite（真实计算值），AI 内容由当前启用的服务生成。",
             "color" to "#90A4AE"))
         return cards
     }
@@ -317,7 +317,7 @@ $indicatorText
                 val raw = try {
             chatWithTools(messages)
         } catch (e: Throwable) {
-        println("[DeepSeek] 工具调用失败，回退预注入路径: " + (e.message ?: e.toString()))
+        println("[AI] tools path unavailable; using context fallback")
         chat(messages)
         }
         return parseChatReply(raw, mentioned)

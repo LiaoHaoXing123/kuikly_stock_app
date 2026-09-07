@@ -321,9 +321,8 @@ internal fun ViewContainer<*, *>.searchBar(ctx: StockListPage) {
                     maxTextLength(20)
                 }
                 event {
-                    inputFocus { println("[Input] inputFocus fired") }
+                    inputFocus { }
                     textDidChange(isSyncEdit = true) { params ->
-                        println("[Input] textDidChange text=" + params.text)
                         ctx.searchKeyword = params.text
                     }
                     inputReturn { params ->
@@ -343,8 +342,7 @@ internal fun ViewContainer<*, *>.searchBar(ctx: StockListPage) {
                     }
                     event {
                         click {
-                            println("[Input] overlay click -> focus()")
-                            ctx.searchInput?.focus() ?: println("[Input] searchInput is NULL")
+                            ctx.searchInput?.focus()
                         }
                     }
                 }

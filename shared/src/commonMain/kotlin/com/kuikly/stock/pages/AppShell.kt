@@ -3,6 +3,7 @@ package com.kuikly.stock.pages
 import com.tencent.kuikly.core.base.Color
 import com.tencent.kuikly.core.base.Border
 import com.tencent.kuikly.core.base.BorderStyle
+import com.tencent.kuikly.core.base.attr.AccessibilityRole
 import com.tencent.kuikly.core.base.ViewContainer
 import com.tencent.kuikly.core.layout.FlexAlign
 import com.tencent.kuikly.core.module.RouterModule
@@ -48,6 +49,9 @@ internal fun ViewContainer<*, *>.appBottomNav(ctx: Pager, activeRoute: String) {
                     height(56f)
                     alignItems(FlexAlign.CENTER)
                     justifyContent(com.tencent.kuikly.core.layout.FlexJustifyContent.CENTER)
+                    accessibility("${item.label}导航${if (selected) "，当前页面" else ""}")
+                    accessibilityRole(AccessibilityRole.BUTTON)
+                    accessibilityInfo(clickable = !selected, longClickable = false)
                 }
                 event {
                     click {
@@ -94,7 +98,7 @@ internal fun ViewContainer<*, *>.pageTitleBar(
             backgroundColor(Color.WHITE)
         }
         View {
-            attr { size(44f, 44f); allCenter() }
+            attr { size(44f, 44f); allCenter(); accessibility("返回"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }
             event { click { ctx.acquireModule<RouterModule>(RouterModule.MODULE_NAME).closePage() } }
             Text { attr { text("‹"); fontSize(32f); color(0xFF243A55) } }
         }
@@ -105,7 +109,7 @@ internal fun ViewContainer<*, *>.pageTitleBar(
         }
         if (trailingAction != null) {
             View {
-                attr { minWidth(44f); height(44f); allCenter() }
+                attr { minWidth(44f); height(44f); allCenter(); accessibility("刷新$title"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }
                 event { click { trailingAction() } }
                 Text { attr { text("刷新"); fontSize(12f); fontWeightBold(); color(0xFF0E67D1) } }
             }

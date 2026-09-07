@@ -6,6 +6,7 @@ import com.tencent.kuikly.core.annotations.Page
 import com.tencent.kuikly.core.base.Color
 import com.tencent.kuikly.core.base.ViewBuilder
 import com.tencent.kuikly.core.base.ViewContainer
+import com.tencent.kuikly.core.base.attr.AccessibilityRole
 import com.tencent.kuikly.core.directives.vfor
 import com.tencent.kuikly.core.layout.FlexAlign
 import com.tencent.kuikly.core.layout.FlexJustifyContent
@@ -127,6 +128,9 @@ private fun ViewContainer<*, *>.homeTopBar(ctx: HomeDashboardPage) {
                 allCenter()
                 backgroundColor(0xFFF0F5FC)
                 borderRadius(22f)
+                accessibility("刷新首页行情摘要")
+                accessibilityRole(AccessibilityRole.BUTTON)
+                accessibilityInfo(true, false)
             }
             event { click { ctx.reload(force = true) } }
             Text { attr { text("刷新"); fontSize(12f); color(0xFF0E67D1); fontWeightBold() } }
@@ -223,6 +227,9 @@ private fun ViewContainer<*, *>.researchModule(
             padding(14f)
             borderRadius(15f)
             backgroundColor(Color.WHITE)
+            accessibility("打开$title，$subtitle")
+            accessibilityRole(AccessibilityRole.BUTTON)
+            accessibilityInfo(true, false)
         }
         event { click { ctx.open(route) } }
         View {

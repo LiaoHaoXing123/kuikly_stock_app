@@ -1125,7 +1125,7 @@ internal fun ViewContainer<*, *>.analyzingView(ctx: StockDetailPage) {
 
         Text {
             attr {
-                text("请稍候，DeepSeek 正在为您生成专业分析报告")
+                text("请稍候，当前 AI 服务正在生成分析报告")
                 fontSize(12f)
                 color(0xFF999999)
                 marginTop(6f)

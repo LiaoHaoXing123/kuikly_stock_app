@@ -4,6 +4,7 @@ package com.kuikly.stock.pages
 
 import com.tencent.kuikly.core.annotations.Page
 import com.tencent.kuikly.core.base.*
+import com.tencent.kuikly.core.base.attr.AccessibilityRole
 import com.tencent.kuikly.core.directives.vfor
 import com.tencent.kuikly.core.directives.vif
 import com.tencent.kuikly.core.directives.velse
@@ -634,7 +635,7 @@ internal fun ViewContainer<*, *>.topBar(ctx: ChatMainPage) {
         }
 
         View {
-            attr { size(44f, 44f); allCenter(); marginLeft(4f) }
+            attr { size(44f, 44f); allCenter(); marginLeft(4f); accessibility("返回"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }
             event {
                 click { ctx.acquireModule<RouterModule>(RouterModule.MODULE_NAME).closePage() }
             }
@@ -673,6 +674,9 @@ internal fun ViewContainer<*, *>.topBar(ctx: ChatMainPage) {
                 height(44f)
                 allCenter()
                 marginRight(6f)
+                accessibility("打开历史对话")
+                accessibilityRole(AccessibilityRole.BUTTON)
+                accessibilityInfo(true, false)
             }
             event { click { ctx.showDrawer = !ctx.showDrawer } }
             Text {
@@ -1064,7 +1068,7 @@ internal fun ViewContainer<*, *>.conclusionCard(
 
         if (signals.isNotEmpty()) {
             View {
-                attr { minHeight(44f); flexDirectionRow(); alignItems(FlexAlign.CENTER); marginTop(8f) }
+                attr { minHeight(44f); flexDirectionRow(); alignItems(FlexAlign.CENTER); marginTop(8f); accessibility(if (evidenceExpanded) "收起技术依据" else "展开技术依据"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }
                 event { click { ctx.toggleEvidence(evidenceKey) } }
                 Text { attr { text(if (evidenceExpanded) "收起技术依据" else "展开技术依据（${signals.size}）"); fontSize(12f); fontWeightBold(); color(0xFF0E67D1); flex(1f) } }
                 Text { attr { text(if (evidenceExpanded) "⌃" else "⌄"); fontSize(17f); color(0xFF0E67D1) } }
@@ -1125,7 +1129,7 @@ private fun fmtCardNumber(value: Double): String = String.format("%.2f", value)
 
 internal fun ViewContainer<*, *>.conclusionAction(label: String, action: () -> Unit) {
     View {
-        attr { flex(1f); minHeight(42f); allCenter(); borderRadius(9f); backgroundColor(0xFFE8F2FF) }
+        attr { flex(1f); minHeight(44f); allCenter(); borderRadius(9f); backgroundColor(0xFFE8F2FF); accessibility(label); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }
         event { click { action() } }
         Text { attr { text(label); fontSize(11f); fontWeightBold(); color(0xFF0E67D1) } }
     }
@@ -1144,9 +1148,9 @@ internal fun ViewContainer<*, *>.alertConfirmDialog(ctx: ChatMainPage) {
             }
             Text { attr { text("提醒在行情数据刷新时检查，可能存在延迟。"); fontSize(11f); color(0xFF8A94A1); marginTop(10f) } }
             View { attr { flexDirectionRow(); marginTop(16f) }
-                View { attr { flex(1f); height(44f); allCenter(); borderRadius(12f); backgroundColor(0xFFF0F2F5) }; event { click { ctx.showAlertConfirm = false } }; Text { attr { text("取消"); fontSize(13f); color(0xFF697586) } } }
+                View { attr { flex(1f); height(44f); allCenter(); borderRadius(12f); backgroundColor(0xFFF0F2F5); accessibility("取消创建提醒"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }; event { click { ctx.showAlertConfirm = false } }; Text { attr { text("取消"); fontSize(13f); color(0xFF697586) } } }
                 View { attr { width(10f) } }
-                View { attr { flex(1f); height(44f); allCenter(); borderRadius(12f); backgroundColor(0xFF0E67D1) }; event { click { ctx.confirmAlert() } }; Text { attr { text("确认创建"); fontSize(13f); fontWeightBold(); color(Color.WHITE) } } }
+                View { attr { flex(1f); height(44f); allCenter(); borderRadius(12f); backgroundColor(0xFF0E67D1); accessibility("确认创建价格提醒"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }; event { click { ctx.confirmAlert() } }; Text { attr { text("确认创建"); fontSize(13f); fontWeightBold(); color(Color.WHITE) } } }
             }
         }
     }
@@ -1578,7 +1582,6 @@ internal fun ViewContainer<*, *>.inputArea(ctx: ChatMainPage) {
                             ctx.inputText = it.text
                         }
                         keyboardHeightChange { params ->
-                            println("[KB] height=" + params.height + " duration=" + params.duration)
                             ctx.keyboardHeight = params.height
                         }
                     }
@@ -1594,6 +1597,9 @@ internal fun ViewContainer<*, *>.inputArea(ctx: ChatMainPage) {
                     alignItems(FlexAlign.CENTER)
                     justifyContent(FlexJustifyContent.CENTER)
                     marginLeft(8f)
+                    accessibility("发送问题")
+                    accessibilityRole(AccessibilityRole.BUTTON)
+                    accessibilityInfo(true, false)
                 }
                 event {
                     click { ctx.sendMessage() }
@@ -1690,7 +1696,7 @@ internal fun ViewContainer<*, *>.drawer(ctx: ChatMainPage) {
                 }
 
                 devModeOption(ctx, "离线模式", "内置数据 + 本地模板回答（不联网）", online = false)
-                devModeOption(ctx, "在线模式", "App 直连 DeepSeek（需联网，真实 AI）", online = true)
+                devModeOption(ctx, "在线模式", "使用当前 API 配置（需联网）", online = true)
 
                 vif({ ctx.modeSwitchNotice.isNotEmpty() }) {
                     View {

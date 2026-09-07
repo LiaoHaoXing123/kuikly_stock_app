@@ -9,6 +9,7 @@ import com.tencent.kuikly.core.annotations.Page
 import com.tencent.kuikly.core.base.Color
 import com.tencent.kuikly.core.base.ViewBuilder
 import com.tencent.kuikly.core.base.ViewContainer
+import com.tencent.kuikly.core.base.attr.AccessibilityRole
 import com.tencent.kuikly.core.coroutines.launch
 import com.tencent.kuikly.core.layout.FlexAlign
 import com.tencent.kuikly.core.module.RouterModule
@@ -98,7 +99,7 @@ private fun ViewContainer<*, *>.profileSection(title: String) { Text { attr { te
 
 private fun ViewContainer<*, *>.profileRow(title: String, value: String, clickable: Boolean, action: () -> Unit) {
     View {
-        attr { minHeight(56f); padding(left = 15f, right = 15f); marginBottom(1f); backgroundColor(Color.WHITE); flexDirectionRow(); alignItems(FlexAlign.CENTER) }
+        attr { minHeight(56f); padding(left = 15f, right = 15f); marginBottom(1f); backgroundColor(Color.WHITE); flexDirectionRow(); alignItems(FlexAlign.CENTER); accessibility("$title，$value"); if (clickable) { accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) } }
         if (clickable) event { click { action() } }
         Text { attr { text(title); fontSize(14f); color(0xFF1D3048); flex(1f) } }
         Text { attr { text(value); fontSize(11f); color(0xFF7E8998); marginLeft(10f) } }

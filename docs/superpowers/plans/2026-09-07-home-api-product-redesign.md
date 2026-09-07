@@ -511,19 +511,19 @@ git commit -m "feat(ui): refine AI research room"
 - Modify: `shared/src/commonMain/kotlin/com/kuikly/stock/network/DeepSeekApi.kt`
 - Modify: Kuikly page files created in Tasks 7–9
 
-- [ ] **Step 1: Remove misleading build-secret instructions**
+- [x] **Step 1: Remove misleading build-secret instructions**
 
 Change `.env.example` to document optional developer endpoint defaults without an API key, or remove it if no task consumes it. Confirm `.env` remains ignored.
 
-- [ ] **Step 2: Add accessibility semantics supported by Kuikly**
+- [x] **Step 2: Add accessibility semantics supported by Kuikly**
 
 For every navigation, send, add, edit, delete, test, enable, alert, and disclosure target, set the Kuikly accessibility label/role/state available in the pinned framework version. Where the framework cannot expose semantics, ensure visible text and 44dp targets and record the limitation in the verification report.
 
-- [ ] **Step 3: Verify upgrade migration**
+- [x] **Step 3: Verify upgrade migration**
 
 Existing chat history, `WatchStore` holdings, alerts, data-source mode, and stock DB keys remain unchanged. New profile keys use the `ai_profiles_v1` namespace and do not overwrite previous preferences.
 
-- [ ] **Step 4: Scan for secrets and unsafe logs**
+- [x] **Step 4: Scan for secrets and unsafe logs**
 
 ```powershell
 rg -l --hidden --glob '!.git/**' --glob '!.env' --glob '!**/build/**' -S 'sk-[A-Za-z0-9_-]{12,}' .
@@ -532,7 +532,7 @@ rg -n 'Authorization|response received|bodyAsText.*println|API_KEY' shared/src a
 
 Expected: no committed key; Authorization appears only in request-header construction; no request/response body logging.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add .env.example .gitignore shared/src/commonMain androidApp/src/main

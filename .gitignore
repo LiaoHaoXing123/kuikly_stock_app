@@ -48,7 +48,7 @@ data-pipeline/*.sql
 data-pipeline/version.json
 data-pipeline/venv
 
-# 本地机密（AI 密钥），严禁提交
+# 兼容旧开发环境的本地机密文件；正式 API Key 仅由 App 安全配置页保存
 .env
 .env.*
 !.env.example

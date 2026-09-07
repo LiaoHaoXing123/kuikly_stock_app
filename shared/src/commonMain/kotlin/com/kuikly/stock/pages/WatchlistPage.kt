@@ -2,6 +2,7 @@ package com.kuikly.stock.pages
 
 import com.tencent.kuikly.core.annotations.Page
 import com.tencent.kuikly.core.base.*
+import com.tencent.kuikly.core.base.attr.AccessibilityRole
 import com.tencent.kuikly.core.directives.vfor
 import com.tencent.kuikly.core.directives.vif
 import com.tencent.kuikly.core.layout.FlexAlign
@@ -517,9 +518,13 @@ internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowD
             }
             View {
                 attr {
+                    minHeight(44f)
                     padding(top = 5f, left = 10f, bottom = 5f, right = 10f)
                     backgroundColor(0xFFE3F2FD)
                     borderRadius(14f)
+                    accessibility("设置${row.name}的持仓或提醒")
+                    accessibilityRole(AccessibilityRole.BUTTON)
+                    accessibilityInfo(true, false)
                 }
                 event { click { ctx.openEdit(row) } }
                 Text {
@@ -533,7 +538,11 @@ internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowD
             View { attr { flex(1f) } }
             View {
                 attr {
+                    minHeight(44f)
                     padding(left = 10f, top = 5f, right = 4f, bottom = 5f)
+                    accessibility("将${row.name}移出自选")
+                    accessibilityRole(AccessibilityRole.BUTTON)
+                    accessibilityInfo(true, false)
                 }
                 event { click { ctx.removeItem(row.code) } }
                 Text {
@@ -681,11 +690,14 @@ internal fun ViewContainer<*, *>.watchEditDialog(ctx: WatchlistPage) {
                 View {
                     attr {
                         flex(1f)
-                        height(38f)
+                        height(44f)
                         backgroundColor(0xFFF5F5F5)
                         borderRadius(19f)
                         alignItems(FlexAlign.CENTER)
                         justifyContent(FlexJustifyContent.CENTER)
+                        accessibility("取消编辑")
+                        accessibilityRole(AccessibilityRole.BUTTON)
+                        accessibilityInfo(true, false)
                     }
                     event { click { ctx.showEdit = false } }
                     Text {
@@ -699,12 +711,15 @@ internal fun ViewContainer<*, *>.watchEditDialog(ctx: WatchlistPage) {
                 View {
                     attr {
                         flex(1f)
-                        height(38f)
+                        height(44f)
                         backgroundColor(0xFF1976D2)
                         borderRadius(19f)
                         alignItems(FlexAlign.CENTER)
                         justifyContent(FlexJustifyContent.CENTER)
                         marginLeft(12f)
+                        accessibility("保存持仓与提醒")
+                        accessibilityRole(AccessibilityRole.BUTTON)
+                        accessibilityInfo(true, false)
                     }
                     event { click { ctx.saveEdit() } }
                     Text {
@@ -727,9 +742,13 @@ internal fun ViewContainer<*, *>.watchAlertChip(ctx: WatchlistPage, type: Int, l
         attr {
             marginRight(6f)
             marginBottom(6f)
+            minHeight(44f)
             padding(left = 10f, top = 4f, right = 10f, bottom = 4f)
             backgroundColor(if (selected) 0xFF1976D2 else 0xFFE3F2FD)
             borderRadius(13f)
+            accessibility("提醒类型$label${if (selected) "，已选择" else ""}")
+            accessibilityRole(AccessibilityRole.CHECKBOX)
+            accessibilityInfo(true, false)
         }
         event {
             click { ctx.editAlertType = type }

@@ -10,6 +10,7 @@ import com.tencent.kuikly.core.annotations.Page
 import com.tencent.kuikly.core.base.Color
 import com.tencent.kuikly.core.base.ViewBuilder
 import com.tencent.kuikly.core.base.ViewContainer
+import com.tencent.kuikly.core.base.attr.AccessibilityRole
 import com.tencent.kuikly.core.coroutines.launch
 import com.tencent.kuikly.core.directives.vfor
 import com.tencent.kuikly.core.directives.vif
@@ -148,7 +149,7 @@ class ApiConfigPage : Pager() {
                     }
                     vfor({ ctx.rows }) { row -> apiProfileCard(ctx, row) }
                     View {
-                        attr { minHeight(48f); allCenter(); margin(top = 5f, bottom = 20f); borderRadius(14f); backgroundColor(0xFF0E67D1) }
+                        attr { minHeight(48f); allCenter(); margin(top = 5f, bottom = 20f); borderRadius(14f); backgroundColor(0xFF0E67D1); accessibility("添加自定义 API 服务"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }
                         event { click { ctx.edit(null) } }
                         Text { attr { text("＋ 添加自定义服务"); fontSize(14f); fontWeightBold(); color(Color.WHITE) } }
                     }
@@ -191,7 +192,7 @@ private fun ViewContainer<*, *>.apiProfileCard(ctx: ApiConfigPage, row: AiProfil
 
 private fun ViewContainer<*, *>.apiSmallButton(label: String, disabled: Boolean, danger: Boolean = false, action: () -> Unit) {
     View {
-        attr { minWidth(54f); height(38f); padding(left = 8f, right = 8f); marginRight(7f); borderRadius(10f); allCenter(); backgroundColor(if (danger) 0xFFFFEEEE else if (disabled) 0xFFF0F2F5 else 0xFFE8F2FF) }
+        attr { minWidth(54f); height(44f); padding(left = 8f, right = 8f); marginRight(7f); borderRadius(10f); allCenter(); backgroundColor(if (danger) 0xFFFFEEEE else if (disabled) 0xFFF0F2F5 else 0xFFE8F2FF); accessibility(label); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(!disabled, false) }
         event { click { if (!disabled) action() } }
         Text { attr { text(label); fontSize(11f); fontWeightBold(); color(if (danger) 0xFFC34C4C else if (disabled) 0xFF929BA8 else 0xFF0E67D1) } }
     }
@@ -204,7 +205,7 @@ private fun ViewContainer<*, *>.apiEditor(ctx: ApiConfigPage) {
             attr { maxHeight(ctx.pagerData.pageViewHeight * 0.86f); padding(18f); backgroundColor(Color.WHITE); borderRadius(22f) }
             View { attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
                 Text { attr { text("编辑 API 配置"); fontSize(19f); fontWeightBold(); color(0xFF142941); flex(1f) } }
-                View { attr { size(44f, 44f); allCenter() }; event { click { ctx.editKey = ""; ctx.showEditor = false } }; Text { attr { text("×"); fontSize(25f); color(0xFF758193) } } }
+                View { attr { size(44f, 44f); allCenter(); accessibility("关闭编辑器"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }; event { click { ctx.editKey = ""; ctx.showEditor = false } }; Text { attr { text("×"); fontSize(25f); color(0xFF758193) } } }
             }
             Scroller {
                 attr { flexDirectionColumn(); scrollEnable(true) }
@@ -213,18 +214,18 @@ private fun ViewContainer<*, *>.apiEditor(ctx: ApiConfigPage) {
                 apiInput("模型 ID", ctx.editModel, "例如：deepseek-v4-flash") { ctx.editModel = it }
                 Text { attr { text("API Key（留空保留原密钥）"); fontSize(12f); color(0xFF536276); margin(top = 12f, bottom = 5f) } }
                 Input {
-                    attr { height(44f); borderRadius(10f); backgroundColor(0xFFF3F5F8); fontSize(13f); color(Color(0xFF1B2D44)); placeholder("仅保存在本机加密区"); keyboardTypePassword(); text(ctx.editKey) }
+                    attr { height(44f); borderRadius(10f); backgroundColor(0xFFF3F5F8); fontSize(13f); color(Color(0xFF1B2D44)); placeholder("仅保存在本机加密区"); keyboardTypePassword(); text(ctx.editKey); accessibility("API Key 密码输入框") }
                     event { textDidChange(isSyncEdit = true) { ctx.editKey = it.text } }
                 }
                 View {
-                    attr { minHeight(48f); flexDirectionRow(); alignItems(FlexAlign.CENTER); marginTop(10f) }
+                    attr { minHeight(48f); flexDirectionRow(); alignItems(FlexAlign.CENTER); marginTop(10f); accessibility("工具调用，${if (ctx.editTools) "已开启" else "已关闭"}"); accessibilityRole(AccessibilityRole.CHECKBOX); accessibilityInfo(true, false) }
                     event { click { ctx.editTools = !ctx.editTools } }
                     Text { attr { text("工具调用"); fontSize(13f); color(0xFF263A51); flex(1f) } }
                     Text { attr { text(if (ctx.editTools) "开启" else "关闭"); fontSize(12f); fontWeightBold(); color(if (ctx.editTools) 0xFF0E67D1 else 0xFF7F8998) } }
                 }
                 vif({ ctx.editorError.isNotEmpty() }) { Text { attr { text(ctx.editorError); fontSize(12f); color(0xFFD34C4C); marginTop(8f) } } }
                 View {
-                    attr { height(48f); allCenter(); borderRadius(14f); margin(top = 14f, bottom = 12f); backgroundColor(0xFF0E67D1) }
+                    attr { height(48f); allCenter(); borderRadius(14f); margin(top = 14f, bottom = 12f); backgroundColor(0xFF0E67D1); accessibility("安全保存 API 配置"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }
                     event { click { ctx.saveEditor() } }
                     Text { attr { text("安全保存"); fontSize(14f); fontWeightBold(); color(Color.WHITE) } }
                 }
@@ -236,7 +237,7 @@ private fun ViewContainer<*, *>.apiEditor(ctx: ApiConfigPage) {
 private fun ViewContainer<*, *>.apiInput(label: String, value: String, placeholder: String, onChange: (String) -> Unit) {
     Text { attr { text(label); fontSize(12f); color(0xFF536276); margin(top = 12f, bottom = 5f) } }
     Input {
-        attr { height(44f); borderRadius(10f); backgroundColor(0xFFF3F5F8); fontSize(13f); color(Color(0xFF1B2D44)); placeholder(placeholder); text(value) }
+        attr { height(44f); borderRadius(10f); backgroundColor(0xFFF3F5F8); fontSize(13f); color(Color(0xFF1B2D44)); placeholder(placeholder); text(value); accessibility("$label 输入框") }
         event { textDidChange(isSyncEdit = true) { onChange(it.text) } }
     }
 }
