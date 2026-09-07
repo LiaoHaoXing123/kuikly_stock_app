@@ -37,7 +37,7 @@
 - Create: `shared/src/commonMain/kotlin/com/kuikly/stock/ai/config/AiProviderProfile.kt`
 - Create: `shared/src/commonTest/kotlin/com/kuikly/stock/ai/config/AiProviderProfileTest.kt`
 
-- [ ] **Step 1: Write the failing profile test**
+- [x] **Step 1: Write the failing profile test**
 
 ```kotlin
 class AiProviderProfileTest {
@@ -65,7 +65,7 @@ class AiProviderProfileTest {
 }
 ```
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run:
 
@@ -75,7 +75,7 @@ Run:
 
 Expected: compilation fails because `AiProviderProfile` and helper functions do not exist.
 
-- [ ] **Step 3: Implement the minimal profile rules**
+- [x] **Step 3: Implement the minimal profile rules**
 
 ```kotlin
 internal data class AiProviderProfile(
@@ -109,11 +109,11 @@ internal fun providerErrorMessage(status: Int): String = when (status) {
 }
 ```
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 Run the Task 1 test command. Expected: all four tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add shared/src/commonMain/kotlin/com/kuikly/stock/ai/config/AiProviderProfile.kt shared/src/commonTest/kotlin/com/kuikly/stock/ai/config/AiProviderProfileTest.kt
