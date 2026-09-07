@@ -8,9 +8,9 @@ if %errorlevel% neq 0 (
     exit /b
 )
 
-set "PSP=%~dp0run_daily.ps1"
+set "TASKBAT=%~dp0run_daily_task.bat"
 echo Registering daily task "KuiklyStockDataUpdate" at 16:35 ...
-schtasks /Create /TN "KuiklyStockDataUpdate" /TR "powershell -NoProfile -ExecutionPolicy Bypass -File %PSP%" /SC DAILY /ST 16:35 /F
+schtasks /Create /TN "KuiklyStockDataUpdate" /TR "\"%TASKBAT%\"" /SC DAILY /ST 16:35 /F
 echo.
 echo Done. Task details:
 schtasks /Query /TN "KuiklyStockDataUpdate"

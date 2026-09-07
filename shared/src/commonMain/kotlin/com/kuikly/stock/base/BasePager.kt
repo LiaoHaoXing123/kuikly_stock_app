@@ -1,3 +1,5 @@
+// 页面基类，封装页面生命周期的通用处理。
+
 package com.kuikly.stock.base
 
 import com.tencent.kuikly.core.pager.Pager
@@ -24,7 +26,6 @@ internal abstract class BasePager : Pager() {
         nightModel = data.optBoolean(IS_NIGHT_MODE_KEY)
     }
 
-    // 是否为夜间模式
     override fun isNightMode(): Boolean {
         if (nightModel == null) {
             nightModel = pageData.params.optBoolean(IS_NIGHT_MODE_KEY)
@@ -32,7 +33,6 @@ internal abstract class BasePager : Pager() {
         return nightModel!!
     }
 
-    // 不开启调试UI模式
     override fun debugUIInspector(): Boolean {
         return false
     }

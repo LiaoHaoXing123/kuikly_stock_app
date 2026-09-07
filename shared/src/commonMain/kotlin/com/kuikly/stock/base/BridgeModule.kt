@@ -1,3 +1,5 @@
+// 通用桥接模块，向 JS 层暴露页面导航等基础能力。
+
 package com.kuikly.stock.base
 
 import com.tencent.kuikly.core.base.toInt
@@ -58,7 +60,6 @@ internal class BridgeModule : Module() {
         }
     }
 
-    // 拨打电话
     fun callPhone(phoneNumber: String) {
         val methodArgs = JSONObject()
         methodArgs.put("phoneNumber", phoneNumber)
@@ -116,16 +117,13 @@ internal class BridgeModule : Module() {
         callNativeMethod(QQ_LIVE_SSO_REQUEST, methodArgs, responseCallbackFn)
     }
 
-    // 灯塔上报
     fun reportDT(eventCode: String, data: JSONObject) {
         val methodArgs = JSONObject()
         methodArgs.put("eventCode", eventCode)
         methodArgs.put("data", data)
-        // methodArgs.put("realtime", 1)
         callNativeMethod(REPORT_DT, methodArgs, null)
     }
 
-    // 实时上报
     fun reportRealTime(eventCode: String, data: JSONObject) {
         val methodArgs = JSONObject()
         methodArgs.put("eventCode", eventCode)
@@ -133,17 +131,14 @@ internal class BridgeModule : Module() {
         callNativeMethod(REPORT_REALTIME, methodArgs, null)
     }
 
-    // 页面首屏（有内容，来自缓存）耗时上报
     fun reportPageCostTimeForCache() {
         callNativeMethod(REPORT_PAGE_COST_TIME_FOR_CACHE, null, null)
     }
 
-    // 页面首屏（有内容，来自后台）耗时上报
     fun reportPageCostTimeForSuccess() {
         callNativeMethod(REPORT_PAGE_COST_TIME_FOR_SUCCESS, null, null)
     }
 
-    // 页面首屏耗时上报 - 加载失败
     fun reportPageCostTimeForError() {
         callNativeMethod(REPORT_PAGE_COST_TIME_FOR_ERROR, null, null)
     }
@@ -177,12 +172,10 @@ internal class BridgeModule : Module() {
         callNativeMethod("openApplySampleSuccessPage", methodArgs, null)
     }
 
-    // 异步获取本地服务器时间戳
     fun localServeTime(cb: CallbackFn) {
         callNativeMethod(LOCAL_SERVE_TIME, null, cb)
     }
 
-    //同步获取本地服务器时间戳
     suspend fun localServeTime(): JSONObject? {
         return suspendCoroutine<JSONObject?> { continuation ->
             localServeTime() {
@@ -191,8 +184,6 @@ internal class BridgeModule : Module() {
         }
     }
 
-    // 同步获取时间戳（毫秒）
-    // 注：一般不用于业务，仅为本地性能耗时测试
     fun currentTimeStamp(): Long {
         val timestamp = syncCallNativeMethod(CURRENT_TIMESTAMP, null, null)
         if (timestamp.isNotEmpty()) {
@@ -202,7 +193,6 @@ internal class BridgeModule : Module() {
         }
     }
 
-    // 同步获取日期格式化
     fun dateFormatter(timeStamp: Long, format: String): String {
         val params = JSONObject()
         params.put("timeStamp", timeStamp)
@@ -210,9 +200,6 @@ internal class BridgeModule : Module() {
         return syncCallNativeMethod(DATE_FORMATTER, params, null)
     }
 
-    /**
-     * 根据 [key] 获取本地缓存的数据, 异步返回
-     */
     fun fetchCachedFromNative(key: String, callbackFn: CallbackFn) {
         val param = JSONObject().apply {
             put("key", key)
@@ -222,9 +209,6 @@ internal class BridgeModule : Module() {
         }
     }
 
-    /**
-     * 根据 [key] 获取本地缓存的数据, 同步返回
-     */
     fun getCachedFromNative(key: String): String {
         val param = JSONObject().apply {
             put("key", key)
@@ -232,9 +216,6 @@ internal class BridgeModule : Module() {
         return syncCallNativeMethod("getCachedFromNative", param, null)
     }
 
-    /**
-     * 向 native 写入 [key] 对应的缓存
-     */
     fun setCachedToNative(key: String, value: String, callbackFn: CallbackFn? = null) {
         val param = JSONObject().apply {
             put("key", key)
@@ -245,9 +226,6 @@ internal class BridgeModule : Module() {
         }
     }
 
-    /**
-     * 预下载图片、PAG、APNG资源
-     * */
     fun preDownloadImage(url: String, callbackFn: CallbackFn? = null) {
         val params = JSONObject().apply {
             put("url", url)
@@ -273,7 +251,6 @@ internal class BridgeModule : Module() {
         callNativeMethod("preDownloadAPNGResource", params, null)
     }
 
-    // 更新离线包
     fun updateOfflineIfNeed(bid: String) {
         val params = JSONObject().apply {
             put("bid", bid)
@@ -315,7 +292,6 @@ internal class BridgeModule : Module() {
         )
     }
 
-    // --------- 同步调用Native方法 -------
     private fun syncCallNativeMethod(
         methodName: String,
         data: JSONObject?,

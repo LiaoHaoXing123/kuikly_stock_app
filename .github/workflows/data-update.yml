@@ -40,6 +40,9 @@ jobs:
       - name: Build stock.db + version.json
         run: python data-pipeline/build_stock_db.py
 
+      - name: Run data quality gate tests
+        run: python data-pipeline/test_quality_gate.py
+
       - name: Publish to GitHub Release (data-latest)
         env:
           GH_TOKEN: ${{ github.token }}

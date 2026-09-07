@@ -1,3 +1,5 @@
+// 图片适配器基准测试页，对比不同加载方式的耗时，并逐项展示检查结果。
+
 package com.kuikly.stock
 
 import com.kuikly.stock.base.BasePager
@@ -98,7 +100,6 @@ internal class ImageAdapterStandardTest : BasePager() {
                     flex(1f)
                     padding(10f)
                 }
-                // 1. base64
                 Text {
                     attr { text("1. base64"); fontSize(16f); fontWeightBold() }
                 }
@@ -156,7 +157,6 @@ internal class ImageAdapterStandardTest : BasePager() {
                 Check("capInset测试，查看蓝色方块是否与图片中心黑色区域重合")
                 Check("drawImage测试，查看红色方块是否与图片重合")
 
-                // 2. assets
                 View { attr { height(20f) } }
                 Text {
                     attr { text("2. assets"); fontSize(16f); fontWeightBold() }
@@ -215,7 +215,6 @@ internal class ImageAdapterStandardTest : BasePager() {
                 Check("capInset测试，查看蓝色方块是否与图片中心黑色区域重合")
                 Check("drawImage测试，查看红色方块是否与图片重合")
 
-                // 3. http/https
                 View { attr { height(20f) } }
                 Text {
                     attr { text("3. http/https"); fontSize(16f); fontWeightBold() }
@@ -274,7 +273,6 @@ internal class ImageAdapterStandardTest : BasePager() {
                 Check("capInset测试，查看蓝色方块是否与图片中心黑色区域重合")
                 Check("drawImage测试，查看红色方块是否与图片重合")
 
-                // 4. gif
                 View { attr { height(20f) } }
                 Text {
                     attr { text("4. gif"); fontSize(16f); fontWeightBold() }

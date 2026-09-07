@@ -29,6 +29,7 @@ import os
 import sys
 import time
 import json
+import hashlib
 import argparse
 import sqlite3
 from datetime import datetime, timedelta
@@ -938,6 +939,83 @@ def export_sql(db_path: Path, sql_path: Path) -> int:
     return sz
 
 
+def sha256_of(path: Path) -> str:
+    """计算文件 SHA-256（用于 App 下载后校验，防止部分抓取/损坏的库覆盖正常版本）。"""
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+# 数据质量门槛：不达标即视为"部分抓取成功"，阻止发布，避免坏库覆盖正常版本。
+# 实际全市场约 5000+；这里取宽松下限，只拦截明显失败/空库的情况。
+QUALITY_MIN_STOCK_INFO = 1000
+QUALITY_MIN_STOCK_REALTIME = 1000
+QUALITY_MIN_KLINE = 20
+QUALITY_MIN_INDICATOR = 10
+QUALITY_MAX_LATEST_AGE_DAYS = 15
+
+
+def collect_quality_issues(counts: dict, latest_trade_date) -> list:
+    """返回未达标的描述列表；空列表表示通过。纯函数，便于单测。"""
+    problems = []
+    info = counts.get("stock_info", 0)
+    realtime = counts.get("stock_realtime", 0)
+    kline = counts.get("stock_daily_kline", 0)
+    indicator = counts.get("stock_indicator", 0)
+
+    if info < QUALITY_MIN_STOCK_INFO:
+        problems.append(f"stock_info 仅 {info} 行（<{QUALITY_MIN_STOCK_INFO}）")
+    if realtime < QUALITY_MIN_STOCK_REALTIME:
+        problems.append(f"stock_realtime 仅 {realtime} 行（<{QUALITY_MIN_STOCK_REALTIME}）")
+    if kline < QUALITY_MIN_KLINE:
+        problems.append(f"stock_daily_kline 仅 {kline} 行（<{QUALITY_MIN_KLINE}）")
+    if indicator < QUALITY_MIN_INDICATOR:
+        problems.append(f"stock_indicator 仅 {indicator} 行（<{QUALITY_MIN_INDICATOR}）")
+
+    if not latest_trade_date:
+        problems.append("latest_trade_date 为空")
+    else:
+        try:
+            day = datetime.strptime(str(latest_trade_date)[:10], "%Y-%m-%d")
+            age = (datetime.now() - day).days
+            if age > QUALITY_MAX_LATEST_AGE_DAYS:
+                problems.append(f"最新K线交易日 {latest_trade_date} 距今 {age} 天（>{QUALITY_MAX_LATEST_AGE_DAYS}）")
+        except ValueError:
+            problems.append(f"latest_trade_date 格式异常: {latest_trade_date}")
+
+    return problems
+
+
+def validate_quality(counts: dict, latest_trade_date) -> None:
+    """校验构建产物的可信度门槛，不达标则 exit(1) 阻止发布。"""
+    problems = collect_quality_issues(counts, latest_trade_date)
+    if problems:
+        print("\n❌ [质量门槛未通过] 本次构建视为部分抓取成功，阻止发布：")
+        for p in problems:
+            print("   - " + p)
+        sys.exit(1)
+    print("\n✅ [质量门槛通过] 全市场/行情/K线覆盖达标，可发布。")
+
+
+def _check_integrity(path: Path):
+    """SQLite 完整性校验，未通过则 exit(1) 阻止发布。"""
+    try:
+        conn = sqlite3.connect(path)
+        try:
+            res = conn.execute("PRAGMA integrity_check").fetchone()
+            if not res or res[0] != "ok":
+                print(f"❌ integrity_check 未通过: {res}")
+                sys.exit(1)
+            print("✅ integrity_check 通过")
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"❌ integrity_check 异常: {e}")
+        sys.exit(1)
+
+
 def write_version(meta: dict):
     version = {
         "schema_version": "1",
@@ -949,22 +1027,28 @@ def write_version(meta: dict):
         "kline_days_back": KLINE_DAYS_BACK,
         "sources": SRC,
         "db_bytes": OUT_DB.stat().st_size if OUT_DB.exists() else 0,
+        "sha256": sha256_of(OUT_DB) if OUT_DB.exists() else "",
         "counts": meta.get("counts", {}),
     }
     OUT_VERSION.write_text(json.dumps(version, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"  已写出 {OUT_VERSION.name}")
+    print(f"  已写出 {OUT_VERSION.name}（sha256={version['sha256'][:12]}… bytes={version['db_bytes']}）")
 
 
 def main():
     parser = argparse.ArgumentParser(description="AKShare -> SQLite stock.db 构建")
     parser.add_argument("--dry-run", action="store_true", help="不拉网络，只用样例数据自检 schema/剪枝")
+    parser.add_argument("--export-sql", action="store_true", help="额外导出可读 SQL（仅调试用，默认关闭）")
     args = parser.parse_args()
 
     meta = build(dry_run=args.dry_run)
     if meta and not args.dry_run:
+        # 构建产物可信度校验：SQLite 完整性 + 数据质量门槛，不达标则阻止发布。
+        _check_integrity(OUT_DB)
+        validate_quality(meta.get("counts", {}), meta.get("latest_trade_date"))
         write_version(meta)
         print(f"  库文件 {OUT_DB.stat().st_size / 1024 / 1024:.2f} MB")
-        export_sql(OUT_DB, OUT_SQL)
+        if args.export_sql:
+            export_sql(OUT_DB, OUT_SQL)
 
 
 if __name__ == "__main__":

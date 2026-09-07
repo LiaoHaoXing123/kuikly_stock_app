@@ -1,3 +1,5 @@
+// 换肤配置读取器，解析 ini 格式的皮肤配置文件。
+
 package com.kuikly.stock
 
 import android.content.Context
@@ -8,10 +10,6 @@ import java.util.regex.Pattern
 
 typealias OnLoadFinishListener = SkinIniFile.(Boolean) -> Unit
 
-/**
- * ini 文件解析类，解析 .ini 文件的内容，将文件的结点读取到一个 [Section] Map 中，
- * 外部可通过 [load] 方法加载文件，通过 [get] 方法获取指定的结点
- */
 class SkinIniFile(private val context: Context) {
 
     private val sections: MutableMap<String, Section> = mutableMapOf()
@@ -21,10 +19,6 @@ class SkinIniFile(private val context: Context) {
     @Volatile
     private var hasLoaded = false
 
-    /**
-     * 加载 [assetsPath] 对应的 ini 文件到内存，这是个 IO 操作, 内部切换到了子线程处理
-     * 加载完成后，会调用 [onLoadFinishListener] 回调; 如果已经加载过不会重复加载
-     */
     fun load(assetsPath: String, onLoadFinishListener: OnLoadFinishListener? = null) {
         execOnSubThread {
             loadInternal(assetsPath, onLoadFinishListener)
@@ -64,18 +58,11 @@ class SkinIniFile(private val context: Context) {
         }
     }
 
-    /**
-     * 同步获取 [sectionName] 对应的结点中的 [sectionKey] 对应的值, 如果没有找到，返回 [defaultValue]
-     * 注意: 在 [load] 方法未完成之前，这个方法也会返回 [defaultValue], 可以在 [load] 方法完成后，再调用此方法，见 [OnLoadFinishListener]
-     */
     fun get(sectionName: String, sectionKey: String, defaultValue: String? = null): String? {
         val section = sections[sectionName] ?: return defaultValue
         return section.values[sectionKey] ?: defaultValue
     }
 
-    /**
-     * 同步获取 [sectionName] 对应的结点中的所有的 key 列表, 如果没有找到，返回空列表
-     */
     fun getAllSectionsKey(sectionName: String): List<String> {
         return sections[sectionName]?.values?.keys?.toList() ?: emptyList()
     }

@@ -1,3 +1,5 @@
+// 路由适配器，处理 Kuikly 页面之间的跳转请求。
+
 package com.kuikly.stock.adapter
 
 import android.app.Activity

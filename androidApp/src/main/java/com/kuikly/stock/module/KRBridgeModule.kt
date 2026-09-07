@@ -1,3 +1,5 @@
+// 原生桥接模块，注册供 JS 层调用的原生能力。
+
 package com.kuikly.stock.module
 
 import android.content.ClipData

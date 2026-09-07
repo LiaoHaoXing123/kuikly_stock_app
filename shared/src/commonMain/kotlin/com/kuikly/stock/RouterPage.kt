@@ -1,3 +1,5 @@
+// 路由演示主页，提供入口按钮，点击后通过路由跳转到对应页面。
+
 package com.kuikly.stock
 
 import com.tencent.kuikly.core.annotations.Page
@@ -25,7 +27,6 @@ internal class RouterPage : BasePager() {
             attr {
                 backgroundColor(Color.WHITE)
             }
-            // 背景图
             RouterNavBar {
                 attr {
                     title = TITLE
@@ -131,7 +132,7 @@ internal class RouterPage : BasePager() {
                             if (ctx.inputText.isEmpty()) {
                                 ctx.bridgeModule.toast("请输入PageName")
                             } else {
-                                ctx.inputRef.view?.blur() // 失焦
+                                ctx.inputRef.view?.blur()
                                 getPager().acquireModule<SharedPreferencesModule>(
                                     SharedPreferencesModule.MODULE_NAME
                                 ).setItem(
@@ -247,7 +248,6 @@ internal class RouterNavigationBar : ComposeView<RouterNavigationBarAttr, Compos
                     paddingTop(ctx.pagerData.statusBarHeight)
                     backgroundColor(Color.WHITE)
                 }
-                // nav bar
                 View {
                     attr {
                         height(44f)

@@ -1,8 +1,22 @@
+// 通用工具集合。
+
 package com.kuikly.stock.base
 
 import com.tencent.kuikly.core.base.BaseObject
 import com.tencent.kuikly.core.manager.BridgeManager
 import com.tencent.kuikly.core.manager.PagerManager
+
+internal fun normalizeBreaks(s: String): String {
+    if (s.isEmpty()) return s
+    var t = s.replace("<br/>", "\n").replace("<br>", "\n")
+    t = t.replace("\r\n", "\n")
+    t = t.replace('\r', '\n')
+    return t.replace("\\n", "\n")
+}
+
+internal fun splitBreaks(s: String): List<String> {
+    return normalizeBreaks(s).split("\n").map { it.trim() }.filter { it.isNotEmpty() }
+}
 
 internal object Utils : BaseObject() {
 
@@ -11,7 +25,6 @@ internal object Utils : BaseObject() {
     }
 
     fun logToNative(pagerId: String, content: String) {
-        // logToNaive
         bridgeModule(pagerId).log(content)
     }
 

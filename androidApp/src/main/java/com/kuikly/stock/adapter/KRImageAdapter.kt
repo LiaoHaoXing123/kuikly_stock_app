@@ -1,3 +1,5 @@
+// 图片加载适配器，处理 Kuikly 框架的图片请求，支持本地资源与网络图片。
+
 package com.kuikly.stock.adapter
 
 import com.kuikly.stock.KRApplication
@@ -28,7 +30,6 @@ class KRImageAdapter(val context: Context) : IKRImageAdapter {
         if (imageLoadOption.isBase64()) {
             loadFromBase64(imageLoadOption, callback)
         } else if (imageLoadOption.isWebUrl() || imageLoadOption.isAssets() || imageLoadOption.isFile()) {
-            // http/assets/file 图片使用 glide 加载
             requestImage(imageLoadOption, callback)
         }
     }
@@ -79,20 +80,20 @@ class KRImageAdapter(val context: Context) : IKRImageAdapter {
         requestBuilder
             .into(object : CustomTarget<Drawable>() {
 
-                override fun onLoadCleared(placeholder: Drawable?) {
-                    callback.invoke(null)
+            override fun onLoadCleared(placeholder: Drawable?) {
+                callback.invoke(null)
                 }
 
-                override fun onLoadFailed(errorDrawable: Drawable?) {
-                    super.onLoadFailed(errorDrawable)
-                    callback.invoke(null)
+            override fun onLoadFailed(errorDrawable: Drawable?) {
+                super.onLoadFailed(errorDrawable)
+                callback.invoke(null)
                 }
 
-                override fun onResourceReady(
+            override fun onResourceReady(
                     resource: Drawable,
                     transition: Transition<in Drawable>?,
                 ) {
-                    callback.invoke(resource)
+                callback.invoke(resource)
                 }
             })
     }
@@ -115,7 +116,7 @@ class KRImageAdapter(val context: Context) : IKRImageAdapter {
                         imageLoadOption.requestWidth,
                         imageLoadOption.requestHeight
                     )
-                } catch (e: ArithmeticException) { // 偶现报除以0，可能是inSampleSize超过int的范围溢出了。这里catch兜底使用原始inSampleSize
+                } catch (e: ArithmeticException) {
                     Log.d("ECHRImageAdapter", "loadFromBase64: $e")
                 }
                 val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)

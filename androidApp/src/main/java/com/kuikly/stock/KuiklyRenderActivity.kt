@@ -1,8 +1,14 @@
+// 页面容器 Activity，承载 Kuikly 渲染视图，并把生命周期事件转发给渲染引擎。
+
 package com.kuikly.stock
 
+import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
@@ -34,12 +40,12 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
     private val kuiklyRenderViewDelegator = KuiklyRenderViewBaseDelegator(this)
 
     private val pageName: String
-        get() {
-            val pn = intent.getStringExtra(KEY_PAGE_NAME) ?: ""
-            return if (pn.isNotEmpty()) {
-                return pn
+    get() {
+        val pn = intent.getStringExtra(KEY_PAGE_NAME) ?: ""
+        return if (pn.isNotEmpty()) {
+            return pn
             } else {
-                "chat_main"
+            "chat_main"
             }
         }
 
@@ -48,6 +54,7 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
 
         setContentView(R.layout.activity_hr)
         setupImmersiveMode()
+        requestNotificationPermission()
         hrContainerView = findViewById(R.id.hr_container)
         loadingView = findViewById(R.id.hr_loading)
         errorView = findViewById(R.id.hr_error)
@@ -67,7 +74,6 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
     override fun onResume() {
         super.onResume()
         kuiklyRenderViewDelegator.onResume()
-        // App 切到前台时也触发一次数据更新检查（不只冷启动），保证"打开就有新行情"
         try { DataUpdateWorker.schedule(this) } catch (_: Throwable) { }
     }
 
@@ -90,6 +96,14 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
         }
     }
 
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
+            }
+        }
+    }
+
     private fun createPageData(): Map<String, Any> {
         val param = argsToMap()
         param["appId"] = 1
@@ -102,14 +116,13 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
     }
 
     @Suppress("DEPRECATION")
-    private fun setupImmersiveMode() {
-        window?.apply {
+    private fun setupImmersiveMode() {        window?.apply {
             addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
             window?.statusBarColor = Color.TRANSPARENT
             window?.decorView?.systemUiVisibility =
                 View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
             decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
         }
 
     }

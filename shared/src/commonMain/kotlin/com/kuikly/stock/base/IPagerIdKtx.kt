@@ -1,3 +1,5 @@
+// 延时执行回调，返回定时任务 id。
+
 @file:Suppress("DEPRECATION")
 
 package com.kuikly.stock.base
@@ -5,17 +7,6 @@ package com.kuikly.stock.base
 import com.tencent.kuikly.core.base.IPagerId
 import com.tencent.kuikly.core.base.pagerId
 
-/**
- * 老的方式:，需要显式传递 pagerId
- * ```kotlin
- * Utils.bridgeModule(pagerId).reportPageCostTimeForError()
- * ```
- *
- * 新方式：无需显式传递 pagerId
- * ```kotlin
- * bridgeModule.reportPageCostTimeForError()
- * ```
- */
 internal val IPagerId.bridgeModule: BridgeModule by pagerId {
     Utils.bridgeModule(it)
 }

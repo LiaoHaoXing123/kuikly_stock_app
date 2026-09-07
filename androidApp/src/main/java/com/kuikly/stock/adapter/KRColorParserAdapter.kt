@@ -1,3 +1,5 @@
+// 颜色解析适配器，把 Kuikly 框架传入的颜色描述转换为 Android 颜色值。
+
 package com.kuikly.stock.adapter
 
 import android.content.Context

@@ -1,3 +1,5 @@
+// 个股详情页：基础信息、实时行情、技术指标、分时与五档盘口，以及 AI 分析入口。
+
 package com.kuikly.stock.pages
 
 import com.tencent.kuikly.core.annotations.Page
@@ -17,71 +19,57 @@ import com.tencent.kuikly.core.reactive.handler.observableList
 import com.tencent.kuikly.core.views.*
 import com.tencent.kuikly.core.views.TextAlign
 import com.kuikly.stock.data.StockRepository
+import com.kuikly.stock.data.WatchStore
 import com.tencent.kuikly.core.coroutines.delay
 import com.tencent.kuikly.core.coroutines.launch
 
-/**
- * 个股详情页
- *
- * 功能：
- * 1. 展示个股基础信息（名称、代码、行业等）
- * 2. 展示实时行情（最新价、涨跌幅、最高/最低价、成交量等）
- * 3. 展示 K 线图表区域（简化版，实际项目应集成图表库）
- * 4. 展示 AI 解读卡片（趋势判断、技术信号、风险评估、操作建议、总结）
- *
- * 可从两个通路跳转过来：
- * - 通路一：行情列表页点击某只股票
- * - 通路二：AI 聊天中的股票卡片点击
- */
 @Page("stock_detail")
 class StockDetailPage : Pager() {
 
-    // 状态：股票代码（从路由参数获取）
     internal var stockCode by observable("")
 
-    // 状态：股票详情数据
     internal var stockDetail by observable<StockDetailData?>(null)
 
-    // 状态：AI 分析结果
     internal var aiAnalysis by observable<AIAnalysisData?>(null)
 
-    // 状态：是否正在加载
     internal var isLoading by observable(true)
 
-    // 状态：是否正在加载 AI 分析
     internal var isAnalyzing by observable(false)
 
-
-
-    // 状态：分时数据（在线才有，离线为 null）
     internal var minuteData by observable<List<MinutePoint>?>(null)
 
-    // 状态：五档盘口（在线才有，仅部分热门股）
     internal var orderBook by observable<OrderBookData?>(null)
 
-    // 状态：加载失败的错误信息
     internal var loadErrorMessage by observable("")
 
-    // 状态：数据来源标注（行情/K线/分时/盘口/指标 分别来自哪）
     internal var dataSourceText by observable("")
 
-    // 状态：K线选中索引（长按/滑动 tooltip 用，-1 表示未选中）
     internal var selectedKlineIndex by observable(-1)
 
-    // 状态：K线 Canvas 实际宽度（触摸坐标换算索引用，draw 时更新）
     internal var klineCanvasWidth by observable(0f)
+
+    internal var watched by observable(false)
 
     override fun didInit() {
         super.didInit()
-        // 从路由参数中获取股票代码
         stockCode = pagerData.params.optString("code", "")
+        watched = stockCode.isNotEmpty() && WatchStore.isWatched(stockCode)
 
-        // 加载数据
         if (stockCode.isNotEmpty()) {
             loadStockDetail()
             loadExtraQuote()
             loadDataSource()
         }
+    }
+
+    internal fun toggleWatch() {
+        val code = stockCode
+        if (code.isEmpty()) return
+        val name = stockDetail?.info?.name?.takeIf { it.isNotBlank() }
+            ?: WatchStore.find(code)?.name
+            ?: code
+        WatchStore.toggle(code, name)
+        watched = WatchStore.isWatched(code)
     }
 
     override fun body(): ViewBuilder {
@@ -101,10 +89,8 @@ class StockDetailPage : Pager() {
                     errorView(ctx)
                 }
                 velse {
-                    // 顶部导航栏
                     detailNavigationBar(ctx)
 
-                    // 内容区域（可滚动）
                     Scroller {
                         attr {
                             flex(1f)
@@ -112,28 +98,20 @@ class StockDetailPage : Pager() {
                             scrollEnable(true)
                         }
 
-                        // 基础信息卡片
                         infoCard(ctx)
 
-                        // 实时行情卡片
                         realtimeCard(ctx)
 
-                        // 技术指标卡片（来自 stock_indicator）
                         indicatorCard(ctx)
 
-                        // K线图表区域
                         klineChartArea(ctx)
 
-                        // 分时数据卡片（在线才有）
                         minuteCard(ctx)
 
-                        // 五档盘口卡片（在线才有，仅部分热门股）
                         orderBookCard(ctx)
 
-                        // AI 解读卡片区域
                         aiAnalysisCards(ctx)
 
-                        // 数据来源标注（行情/K线/分时/盘口/指标 各来自哪）
                         vif({ ctx.dataSourceText.isNotEmpty() }) {
                             dataSourceFooter(ctx)
                         }
@@ -143,21 +121,13 @@ class StockDetailPage : Pager() {
         }
     }
 
-    // ==================== 数据加载方法 ====================
-
-    /**
-     * 加载股票详情
-     * 统一走 StockRepository（按开发者选项路由离线/在线）
-     */
     internal fun loadStockDetail() {
         if (stockCode.isEmpty()) return
         isLoading = true
 
         lifecycleScope.launch {
             try {
-                // 统一走 StockRepository（按开发者选项路由离线/在线）
                 val data = StockRepository.loadStockDetail(stockCode)
-                // 网络调用恢复在 OkHttp 线程，用 Kuikly delay(0) 切回渲染线程再更新 observable
                 delay(0)
                 if (data != null) {
                     stockDetail = data
@@ -166,7 +136,7 @@ class StockDetailPage : Pager() {
                     loadErrorMessage = "未找到股票 $stockCode 的数据"
                 }
             } catch (e: Throwable) {
-                delay(0)  // 网络异常在 OkHttp 线程抛出，先切回渲染线程再更新 observable
+                delay(0)
                 stockDetail = null
                 loadErrorMessage = e.message ?: "数据加载失败"
             } finally {
@@ -175,10 +145,6 @@ class StockDetailPage : Pager() {
         }
     }
 
-    /**
-     * 加载数据来源标注：读 data_source 表（table_name -> source），映射成一行可读文本。
-     * 老库无 data_source 表时返回空字符串，页脚自动隐藏。
-     */
     internal fun loadDataSource() {
         lifecycleScope.launch {
             try {
@@ -202,12 +168,7 @@ class StockDetailPage : Pager() {
         }
     }
 
-    /**
-     * 触发 AI 分析
-     * 优先调用后端真实 AI（基于数据文件夹作答）；后端不可达自动回退本地模板分析
-     */
     internal fun triggerAIAnalysis() {
-        // 防重复：分析进行中直接忽略再次点击（按钮已切换为 loading 态）
         if (stockCode.isEmpty() || isAnalyzing) return
         isAnalyzing = true
         lifecycleScope.launch {
@@ -224,9 +185,6 @@ class StockDetailPage : Pager() {
         }
     }
 
-    /**
-     * 加载分时与盘口数据（仅在线；离线返回 null，对应卡片不显示）
-     */
     internal fun loadExtraQuote() {
         if (stockCode.isEmpty()) return
         lifecycleScope.launch {
@@ -243,11 +201,6 @@ class StockDetailPage : Pager() {
         }
     }
 
-    // ==================== 辅助方法 ====================
-
-    /**
-     * 获取模拟股票名称（仅在数据缺失时兜底显示）
-     */
     private fun getMockName(code: String): String {
         return when (code) {
             "000001" -> "平安银行"
@@ -260,11 +213,6 @@ class StockDetailPage : Pager() {
     }
 }
 
-// ==================== 子视图构建函数（顶层扩展函数，可被 body 的 lambda 直接调用） ====================
-
-/**
- * 详情页导航栏
- */
 internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
     val name = ctx.stockDetail?.info?.name ?: "未知"
     val code = ctx.stockDetail?.info?.code ?: ctx.stockCode
@@ -278,7 +226,6 @@ internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
             height(48f + ctx.pagerData.statusBarHeight)
         }
 
-        // 返回按钮
         View {
             attr { padding(12f, 16f, 12f, 16f) }
             event {
@@ -295,7 +242,6 @@ internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
             }
         }
 
-        // 股票名称和代码
         Text {
             attr {
                 text(name)
@@ -317,7 +263,18 @@ internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
 
         View { attr { flex(1f) } }
 
-        // AI 分析按钮
+        View {
+            attr { padding(10f, 12f, 6f, 12f) }
+            event { click { ctx.toggleWatch() } }
+            Text {
+                attr {
+                    text(if (ctx.watched) "★" else "☆")
+                    fontSize(20f)
+                    color(0xFFFFFFFF)
+                }
+            }
+        }
+
         View {
             attr { padding(10f, 12f, 10f, 12f) }
             event { click { ctx.triggerAIAnalysis() } }
@@ -332,9 +289,6 @@ internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
     }
 }
 
-/**
- * 基础信息卡片
- */
 internal fun ViewContainer<*, *>.infoCard(ctx: StockDetailPage) {
     val info = ctx.stockDetail?.info ?: return
 
@@ -347,7 +301,6 @@ internal fun ViewContainer<*, *>.infoCard(ctx: StockDetailPage) {
             borderRadius(10f)
         }
 
-        // 标题
         Text {
             attr {
                 text("基础信息")
@@ -358,7 +311,6 @@ internal fun ViewContainer<*, *>.infoCard(ctx: StockDetailPage) {
             }
         }
 
-        // 信息项列表
         infoItem("股票代码", info.code)
         infoItem("股票名称", info.name ?: "-")
         infoItem("所属行业", info.industry ?: "-")
@@ -367,9 +319,6 @@ internal fun ViewContainer<*, *>.infoCard(ctx: StockDetailPage) {
     }
 }
 
-/**
- * 信息项
- */
 internal fun ViewContainer<*, *>.infoItem(label: String, value: String) {
     View {
         attr {
@@ -398,12 +347,8 @@ internal fun ViewContainer<*, *>.infoItem(label: String, value: String) {
     }
 }
 
-/**
- * 实时行情卡片
- */
 internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
     val realtime = ctx.stockDetail?.realtime ?: return
-    // 颜色约定：上涨红色、下跌绿色、平盘/无数据灰色
     val pct = realtime.changePercent
     val priceColor = when {
         pct == null || pct == 0.0 -> 0xFF999999
@@ -420,7 +365,6 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
             borderRadius(10f)
         }
 
-        // 标题
         Text {
             attr {
                 text("实时行情")
@@ -431,7 +375,6 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
             }
         }
 
-        // 最新价 / 涨跌额 / 涨跌幅（大字显示，带标签标注）
         View {
             attr {
                 flexDirectionRow()
@@ -449,7 +392,6 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
                 15f, priceColor)
         }
 
-        // 详细行情数据网格
         View {
             attr {
                 flexDirectionRow()
@@ -477,9 +419,6 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
     }
 }
 
-/**
- * 行情数据项
- */
 internal fun ViewContainer<*, *>.quoteItem(
     ctx: StockDetailPage,
     label: String,
@@ -512,9 +451,6 @@ internal fun ViewContainer<*, *>.quoteItem(
     }
 }
 
-/**
- * 大字行情列：标签 + 数值（最新价 / 涨跌额 / 涨跌幅 用，带单位标注）
- */
 internal fun ViewContainer<*, *>.quoteColumn(
     ctx: StockDetailPage,
     label: String,
@@ -548,9 +484,6 @@ internal fun ViewContainer<*, *>.quoteColumn(
     }
 }
 
-/**
- * 数据来源标注页脚（可读一行）：行情/K线/分时/盘口/指标 各来自哪
- */
 internal fun ViewContainer<*, *>.dataSourceFooter(ctx: StockDetailPage) {
     View {
         attr {
@@ -580,9 +513,6 @@ internal fun ViewContainer<*, *>.dataSourceFooter(ctx: StockDetailPage) {
     }
 }
 
-/**
- * 技术指标卡片（MA / MACD / RSI / KDJ）
- */
 internal fun ViewContainer<*, *>.indicatorCard(ctx: StockDetailPage) {
     val ind = ctx.stockDetail?.indicator ?: return
 
@@ -651,9 +581,6 @@ internal fun ViewContainer<*, *>.indicatorItem(label: String, value: Double?) {
 
 private fun fmtInd(v: Double?): String = if (v == null) "-" else String.format("%.3f", v)
 
-/**
- * 分时数据卡片（在线才有）
- */
 internal fun ViewContainer<*, *>.minuteCard(ctx: StockDetailPage) {
     val data = ctx.minuteData ?: return
 
@@ -701,9 +628,6 @@ internal fun ViewContainer<*, *>.minuteCard(ctx: StockDetailPage) {
     }
 }
 
-/**
- * 五档盘口卡片（在线才有，仅部分热门股）
- */
 internal fun ViewContainer<*, *>.orderBookCard(ctx: StockDetailPage) {
     val book = ctx.orderBook ?: return
 
@@ -750,9 +674,6 @@ internal fun ViewContainer<*, *>.orderBookRow(label: String, price: Double?, vol
 
 private fun fmtOpt(v: Double?): String = if (v == null) "-" else String.format("%.2f", v)
 
-/**
- * K线图表区域
- */
 internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
     val klineData = ctx.stockDetail?.kline
 
@@ -765,7 +686,6 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
             borderRadius(10f)
         }
 
-        // 标题
         Text {
             attr {
                 text("K线走势（近30日）")
@@ -777,28 +697,18 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
         }
 
         vif({ ctx.isLoading }) {
-            // 加载中：业务文案提示（非调试占位）
             klineLoadingView()
         }
         velseif({ klineData != null && klineData.isNotEmpty() }) {
-            // 真实 30 日 K 线蜡烛图（Canvas 绘制：主图 + 成交量子图 + 长按 tooltip）
             klineChartCanvas(ctx, klineData!!)
-            // 最新几条K线数据摘要
             klineSummary(klineData)
         }
         velse {
-            // 错误/空数据兜底：不能永久停留在占位文案，提供重试
             klineErrorView(ctx)
         }
     }
 }
 
-/**
- * 图表占位符
- */
-/**
- * K线加载中（业务文案）
- */
 internal fun ViewContainer<*, *>.klineLoadingView() {
     View {
         attr {
@@ -817,9 +727,6 @@ internal fun ViewContainer<*, *>.klineLoadingView() {
     }
 }
 
-/**
- * K线数据获取失败/为空 兜底（不永久停留在占位，提供重试按钮）
- */
 internal fun ViewContainer<*, *>.klineErrorView(ctx: StockDetailPage) {
     View {
         attr {
@@ -835,7 +742,6 @@ internal fun ViewContainer<*, *>.klineErrorView(ctx: StockDetailPage) {
                 textAlignCenter()
             }
         }
-        // 重试按钮
         View {
             attr {
                 marginTop(12f)
@@ -858,14 +764,6 @@ internal fun ViewContainer<*, *>.klineErrorView(ctx: StockDetailPage) {
     }
 }
 
-/**
- * 真实 30 日 K 线蜡烛图（Kuikly Canvas 绘制）
- * - 红涨绿跌（中国习惯）：close >= open 红色，close < open 绿色
- * - 蜡烛实体 = open~close，上下影线 = high~low
- * - 主图上方 tooltip：长按/按压蜡烛显示当日 开/收/高/低/涨跌/成交量（Canvas 响应式重绘）
- * - 主图下方成交量子图：红涨绿跌柱
- * - 顶部/底部标注最高/最低价；底部日期首尾对齐（measureText 防截断）
- */
 internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, klineData: List<KLineDataItem>) {
     Canvas({
         attr {
@@ -873,7 +771,6 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, klineDat
             marginTop(2f)
         }
         event {
-            // 长按/按压蜡烛显示当日详情 tooltip（state start/move/end 都更新索引，松手保留）
             longPress { params ->
                 if (ctx.klineCanvasWidth <= 0f) return@longPress
                 val i = ((params.x / ctx.klineCanvasWidth) * klineData.size)
@@ -885,19 +782,16 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, klineDat
         val n = klineData.size
         if (n == 0 || width <= 0f || height <= 0f) return@Canvas
 
-        // 记录 Canvas 实际宽度（值不变时不重复赋值，避免触发多余的响应式重绘）
         if (ctx.klineCanvasWidth != width) {
             ctx.klineCanvasWidth = width
         }
 
-        // 布局：tooltip 区(0..26) / 价格主图 / 成交量子图（标签在其上方）/ 日期行（独占底部）
         val tooltipH = 26f
         val padT = 30f
         val volTop = height - 62f
         val volH = 40f
         val dateY = height - 12f
 
-        // 价格区间（含最高/最低价）
         val all = klineData.flatMap { listOf(it.high, it.low, it.open, it.close) }
         var minP = all.minOrNull() ?: 0.0
         var maxP = all.maxOrNull() ?: 1.0
@@ -909,7 +803,6 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, klineDat
         val step = width / n
         val cw = (step * 0.55f).coerceAtLeast(1.5f)
 
-        // 背景横向网格（价格区）
         context.strokeStyle(Color(0xFFEDEDED))
         context.lineWidth(1f)
         for (i in 0..4) {
@@ -920,19 +813,16 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, klineDat
             context.stroke()
         }
 
-        // 蜡烛（主图）
         klineData.forEachIndexed { i, k ->
             val cx = step * i + step / 2f
             val up = k.close >= k.open
             val color = if (up) Color(0xFFE53935) else Color(0xFF43A047)
-            // 上下影线
             context.strokeStyle(color)
             context.lineWidth(1f)
             context.beginPath()
             context.moveTo(cx, py(k.high))
             context.lineTo(cx, py(k.low))
             context.stroke()
-            // 蜡烛实体
             val yo = py(k.open)
             val yc = py(k.close)
             val top = minOf(yo, yc)
@@ -947,9 +837,7 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, klineDat
             context.fill()
         }
 
-        // 成交量子图（主图下方，红涨绿跌柱）
         val maxVol = klineData.maxOf { it.volume }.toFloat().coerceAtLeast(1f)
-        // 分隔线
         context.strokeStyle(Color(0xFFE0E0E0))
         context.lineWidth(1f)
         context.beginPath()
@@ -970,20 +858,17 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, klineDat
             context.closePath()
             context.fill()
         }
-        // 成交量标签（放在成交量区上方，避免与底部日期行重叠）
         context.fillStyle(Color(0xFF999999))
         context.font(9f)
         context.textAlign(TextAlign.RIGHT)
         context.fillText("成交量(手)", width - 2f, volTop - 8f)
 
-        // 价格刻度（最高/最低）
         context.fillStyle(Color(0xFF999999))
         context.font(10f)
         context.textAlign(TextAlign.LEFT)
         context.fillText(String.format("%.2f", maxP), 4f, padT + 9f)
         context.fillText(String.format("%.2f", minP), 4f, volTop - 6f)
 
-        // 日期刻度（首尾对齐，measureText 防截断：首日左对齐、末日右对齐）
         val firstDate = klineData.first().tradeDate
         val lastDate = klineData.last().tradeDate
         context.font(9f)
@@ -992,12 +877,10 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, klineDat
         context.textAlign(TextAlign.RIGHT)
         context.fillText(lastDate, width - 2f, dateY)
 
-        // 选中蜡烛 tooltip（长按后显示，绘制在 Canvas 顶部；selectedKlineIndex 变化触发自动重绘）
         val sel = ctx.selectedKlineIndex
         if (sel >= 0 && sel < n) {
             val k = klineData[sel]
             val cx = step * sel + step / 2f
-            // 选中蜡烛高亮框
             context.strokeStyle(Color(0xFF333333))
             context.lineWidth(1.5f)
             context.beginPath()
@@ -1008,7 +891,6 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, klineDat
             context.closePath()
             context.stroke()
 
-            // tooltip 背景条
             context.fillStyle(Color(0xE6333333))
             context.beginPath()
             context.moveTo(0f, 2f)
@@ -1038,9 +920,6 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, klineDat
     }
 }
 
-/**
- * K线数据摘要
- */
 internal fun ViewContainer<*, *>.klineSummary(klineData: List<KLineDataItem>) {
     val latest = klineData.lastOrNull()
     if (latest == null) return
@@ -1051,7 +930,6 @@ internal fun ViewContainer<*, *>.klineSummary(klineData: List<KLineDataItem>) {
             marginTop(8f)
         }
 
-        // 分割线（替代原 borderTop）
         View {
             attr {
                 height(1f)
@@ -1095,20 +973,13 @@ internal fun ViewContainer<*, *>.klineSummary(klineData: List<KLineDataItem>) {
     }
 }
 
-/**
- * AI 解读卡片区域
- */
 internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
-    // 注意：vif/velseif 条件必须直接读 ctx.aiAnalysis（observable 响应式），
-    // 不能缓存到局部 val —— 局部快照不会随分析结果更新，会导致分析完成后
-    // 永远停留在"尚未进行 AI 分析"状态（velse 永不执行）。
     View {
         attr {
             flexDirectionColumn()
             margin(4f, 12f, 12f, 12f)
         }
 
-        // 标题栏
         View {
             attr {
                 flexDirectionRow()
@@ -1150,25 +1021,17 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
         }
 
         vif({ ctx.isAnalyzing }) {
-            // 分析中状态（带动画，防止重复点击）
             analyzingView(ctx)
         }
         velseif({ ctx.aiAnalysis == null }) {
-            // 未分析状态
             notAnalyzedView(ctx)
         }
         velse {
-            // AI 分析结果：渲染为微信式聊天气泡（Markdown 排版，自适应宽度）
             renderAnalysisBubble(ctx, ctx.aiAnalysis!!)
         }
     }
 }
 
-/**
- * AI 分析结果：微信式聊天气泡（左对齐、浅蓝底、自适应宽度、Markdown 排版）
- * 把结构化卡片内容转成 Markdown 文本后复用 ChatMainPage 的 markdown 渲染，
- * 避免大段无效底色 / 文字顶左的问题。
- */
 internal fun ViewContainer<*, *>.renderAnalysisBubble(ctx: StockDetailPage, analysis: AIAnalysisData) {
     val text = buildAnalysisMarkdown(analysis)
 
@@ -1179,8 +1042,6 @@ internal fun ViewContainer<*, *>.renderAnalysisBubble(ctx: StockDetailPage, anal
             justifyContent(FlexJustifyContent.FLEX_START)
         }
         View {
-            // 微信式气泡：Kuikly 的 maxWidth 不参与 flex 计算（会拉满），
-            // 必须显式 width。AI 分析结果通常为多段长文，直接用最大宽。
             val bubbleW = ctx.pagerData.pageViewWidth - 96f
             attr {
                 flexDirectionColumn()
@@ -1194,7 +1055,6 @@ internal fun ViewContainer<*, *>.renderAnalysisBubble(ctx: StockDetailPage, anal
     }
 }
 
-/** 把 AI 分析卡片列表转成 Markdown 文本（聊天气泡渲染用） */
 private fun buildAnalysisMarkdown(a: AIAnalysisData): String {
     val sb = StringBuilder()
     for (card in a.cards) {
@@ -1245,9 +1105,6 @@ private fun buildAnalysisMarkdown(a: AIAnalysisData): String {
     if (sb.isEmpty()) return "AI 分析完成，暂无详细内容。"
     return sb.toString().trimEnd()
 }
-/**
- * 分析中视图
- */
 internal fun ViewContainer<*, *>.analyzingView(ctx: StockDetailPage) {
     View {
         attr {
@@ -1277,9 +1134,6 @@ internal fun ViewContainer<*, *>.analyzingView(ctx: StockDetailPage) {
     }
 }
 
-/**
- * 未分析视图
- */
 internal fun ViewContainer<*, *>.notAnalyzedView(ctx: StockDetailPage) {
     View {
         attr {
@@ -1298,7 +1152,6 @@ internal fun ViewContainer<*, *>.notAnalyzedView(ctx: StockDetailPage) {
             }
         }
 
-        // 触发分析按钮
         View {
             attr {
                 marginTop(12f)
@@ -1332,9 +1185,6 @@ internal fun ViewContainer<*, *>.notAnalyzedView(ctx: StockDetailPage) {
     }
 }
 
-/**
- * 加载中视图
- */
 internal fun ViewContainer<*, *>.stockDetailLoadingView() {
     View {
         attr {
@@ -1354,9 +1204,6 @@ internal fun ViewContainer<*, *>.stockDetailLoadingView() {
     }
 }
 
-/**
- * 错误视图
- */
 internal fun ViewContainer<*, *>.errorView(ctx: StockDetailPage) {
     View {
         attr {
@@ -1384,7 +1231,6 @@ internal fun ViewContainer<*, *>.errorView(ctx: StockDetailPage) {
             }
         }
 
-        // 重试按钮
         View {
             attr {
                 marginTop(16f)
@@ -1409,11 +1255,6 @@ internal fun ViewContainer<*, *>.errorView(ctx: StockDetailPage) {
     }
 }
 
-// ==================== 数据类定义 ====================
-
-/**
- * 股票基础信息（简化版）
- */
 data class StockInfoData(
     val code: String,
     val name: String?,
@@ -1422,9 +1263,6 @@ data class StockInfoData(
     val listDate: String?
 )
 
-/**
- * 实时行情（简化版）
- */
 data class RealtimeQuoteData(
     val code: String,
     val name: String?,
@@ -1441,9 +1279,6 @@ data class RealtimeQuoteData(
     val pb: Double?
 )
 
-/**
- * 技术指标（简化版）
- */
 data class IndicatorData(
     val tradeDate: String,
     val ma5: Double?, val ma10: Double?, val ma20: Double?,
@@ -1452,9 +1287,6 @@ data class IndicatorData(
     val kdjK: Double?, val kdjD: Double?, val kdjJ: Double?
 )
 
-/**
- * K线数据项（简化版）
- */
 data class KLineDataItem(
     val code: String,
     val tradeDate: String,
@@ -1466,9 +1298,6 @@ data class KLineDataItem(
     val amount: Double?
 )
 
-/**
- * 分时数据点（简化版）
- */
 data class MinutePoint(
     val time: String,
     val price: Double,
@@ -1476,19 +1305,13 @@ data class MinutePoint(
     val volume: Double?
 )
 
-/**
- * 五档盘口（简化版）
- */
 data class OrderBookData(
     val updateTime: String?,
-    val bids: List<Pair<Double?, Double?>>,   // 买1~5 (price, vol)
-    val asks: List<Pair<Double?, Double?>>,   // 卖1~5
+    val bids: List<Pair<Double?, Double?>>,
+    val asks: List<Pair<Double?, Double?>>,
     val commissionRatio: Double?
 )
 
-/**
- * 股票详情聚合数据
- */
 data class StockDetailData(
     val info: StockInfoData?,
     val realtime: RealtimeQuoteData?,
@@ -1496,9 +1319,6 @@ data class StockDetailData(
     val indicator: IndicatorData? = null
 )
 
-/**
- * AI 分析结果数据
- */
 data class AIAnalysisData(
     val code: String,
     val name: String?,

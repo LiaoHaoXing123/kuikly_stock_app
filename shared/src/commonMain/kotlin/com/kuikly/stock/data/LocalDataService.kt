@@ -1,3 +1,5 @@
+// 本地数据服务：读取内置数据、保存设置与会话记录，并提供离线模式的模拟回答。
+
 package com.kuikly.stock.data
 
 import com.kuikly.stock.pages.StockListItem
@@ -16,30 +18,14 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-/**
- * 本地数据服务（离线优先）
- *
- * 从 assets 读取预置的 JSON 数据：
- * - stock_list.json: 股票列表（含模拟行情价格）
- * - stock_kline.json: 前50只股票的近30日K线
- *
- * 所有方法同步执行，不依赖网络。
- * KMP 项目通过 expect/actual 实现跨平台文件读取。
- */
 object LocalDataService {
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
-    /** 缓存：股票列表 */
     private var cachedStockList: List<StockListItem>? = null
 
-    /** 缓存：K线原始数据 Map<code, List<KLineRaw>> */
     private var cachedKlines: Map<String, List<KLineRaw>>? = null
 
-    /**
-     * 从 assets 加载全部股票列表（带模拟行情）
-     * 返回 StockListItem 列表，可直接用于 StockListPage 展示
-     */
     fun loadStockList(): List<StockListItem> {
         cachedStockList?.let { return it }
         val raw = loadAssetText("stock_list.json") ?: return emptyList()
@@ -62,9 +48,6 @@ object LocalDataService {
         return list
     }
 
-    /**
-     * 搜索股票（按代码或名称模糊匹配）
-     */
     fun searchStocks(keyword: String): List<StockListItem> {
         if (keyword.isBlank()) return loadStockList()
         val k = keyword.trim().uppercase()
@@ -73,11 +56,7 @@ object LocalDataService {
         }
     }
 
-    /**
-     * 加载个股详情（基础信息 + 模拟实时行情 + K线）
-     */
     fun loadStockDetail(code: String): StockDetailData? {
-        // 1. 从原始 JSON 取完整字段（assets 已升级为真实数据，含真实行情字段）
         val raw = loadAssetText("stock_list.json") ?: return null
         val arr = json.parseToJsonElement(raw).jsonArray
         val obj = arr.firstOrNull {
@@ -94,7 +73,6 @@ object LocalDataService {
         val change = obj["change"]?.jsonPrimitive?.doubleOrNull
             ?: (price * changePct / 100.0)
 
-        // 2. 构造实时行情：优先用 assets 中的真实行情字段，缺失时用随机值兜底
         val realtime = RealtimeQuoteData(
             code = code,
             name = name,
@@ -119,7 +97,6 @@ object LocalDataService {
                 ?: randomDouble(0.5, 10.0)
         )
 
-        // 3. 加载K线数据
         val klineMap = loadAllKlines()
         val klineItems = klineMap[code]?.map {
             KLineDataItem(code = it.code, tradeDate = it.tradeDate,
@@ -127,7 +104,6 @@ object LocalDataService {
                 low = it.low, volume = it.volume, amount = it.amount)
         } ?: emptyList()
 
-        // 4. 基础信息
         val info = StockInfoData(
             code = obj["code"]!!.jsonPrimitive.content,
             name = name,
@@ -139,9 +115,6 @@ object LocalDataService {
         return StockDetailData(info = info, realtime = realtime, kline = klineItems)
     }
 
-    /**
-     * 加载全部K线数据到内存
-     */
     private fun loadAllKlines(): Map<String, List<KLineRaw>> {
         cachedKlines?.let { return it }
         val raw = loadAssetText("stock_kline.json") ?: return emptyMap()
@@ -167,22 +140,14 @@ object LocalDataService {
         return map
     }
 
-    // ==================== 离线 AI 问答（Mock） ====================
-
-    /**
-     * 离线 Mock 问答：基于本地股票数据做关键词驱动回答。
-     * 返回文本 + 结构化卡片 + 追问建议，供 ChatMainPage 渲染。
-     */
     fun mockChat(message: String): ChatResult {
         val msg = message.trim()
         if (msg.isEmpty()) return generalHelp()
 
-        // 1. 命中 6 位股票代码
         val codeHit = Regex("\\d{6}").find(msg)?.value?.let { code ->
             loadStockList().find { it.code == code }
         }
 
-        // 2. 命中股票名称
         val nameHit = if (codeHit == null) {
             loadStockList().firstOrNull { stock ->
                 stock.name?.let { name -> msg.contains(name) } == true
@@ -198,13 +163,11 @@ object LocalDataService {
         }
     }
 
-    /** 是否属于大盘/行情类问题 */
     private fun isMarketQuestion(msg: String): Boolean {
         val keywords = listOf("大盘", "行情", "市场", "指数", "涨幅榜", "跌幅榜", "涨跌", "板块")
         return keywords.any { msg.contains(it) }
     }
 
-    /** 个股解读问答（离线/回退模式：不输出实时价格、涨跌幅与买卖点，仅基本面参考） */
     private fun stockQa(stock: StockListItem): ChatResult {
         val code = stock.code
         val name = stock.name ?: code
@@ -214,7 +177,6 @@ object LocalDataService {
         val plate = info?.plate ?: "未知"
         val listDate = info?.listDate ?: "未知"
 
-        // 与在线 DeepSeek 输出保持一致的 Markdown 排版（## 标题 / - 列表 / **加粗**）
         val text = "## $name($code) 基本面参考\n\n" +
             "**离线模式**：无法获取实时行情与价格，以下仅作基本面参考：\n\n" +
             "- 所属行业：**$industry**\n" +
@@ -235,7 +197,6 @@ object LocalDataService {
             mapOf("type" to "suggestion_card", "content" to "离线模式：不提供买卖建议，请联网获取实时数据后决策。")
         )
 
-        // 离线/回退模式快捷按钮：用基本面/风险类问题（行情类问题离线拿不到实时数据）
         val suggestions = listOf(
             "$name 的基本面怎么样？",
             "$name 有哪些投资风险？",
@@ -245,7 +206,6 @@ object LocalDataService {
         return ChatResult(text = text, cards = cards, suggestions = suggestions)
     }
 
-    /** 大盘/行情概览问答 */
     private fun marketOverview(): ChatResult {
         val all = loadStockList()
         val up = all.count { (it.changePercent ?: 0.0) > 0 }
@@ -255,7 +215,6 @@ object LocalDataService {
         val topGainers = all.sortedByDescending { it.changePercent ?: 0.0 }.take(3)
         val topLosers = all.sortedBy { it.changePercent ?: 0.0 }.take(3)
 
-        // 离线模式：不输出实时涨跌幅/价格，仅本地样本统计参考（与在线 Markdown 同风格）
         val text = "## 今日市场概览\n\n" +
             "**离线模式**：无法获取实时涨跌数据，以下为本地样本统计参考：\n\n" +
             "- 样本股票：共 **${all.size}** 只\n" +
@@ -263,7 +222,6 @@ object LocalDataService {
             "- 下跌（本地样本）：**$down** 家\n\n" +
             "离线模式不提供实时价格与涨跌幅，请切换在线模式获取真实行情。"
 
-        // 离线不展示带价格的股票卡片，仅保留图表占位
         val cards = mutableListOf<Map<String, Any?>>(
             mapOf("type" to "chart_card", "title" to "市场概览", "chartType" to "bar")
         )
@@ -273,7 +231,6 @@ object LocalDataService {
         return ChatResult(text = text, cards = cards, suggestions = suggestions)
     }
 
-    /** 兜底帮助回复（Markdown 排版，与在线回复样式一致） */
     private fun generalHelp(): ChatResult {
         val text = "我是 **AI 股票助手**，可以帮你查询个股行情、解读趋势并给出操作参考。\n\n" +
             "试试输入股票代码或名称：\n" +
@@ -283,7 +240,6 @@ object LocalDataService {
         return ChatResult(text = text, cards = null, suggestions = suggestions)
     }
 
-    /** 构造股票卡片（供聊天回复使用） */
     private fun stockCardOf(s: StockListItem): Map<String, Any?> = mapOf(
         "type" to "stock_card",
         "code" to s.code,
@@ -292,14 +248,8 @@ object LocalDataService {
         "changePercent" to (if ((s.changePercent ?: 0.0) >= 0) "+" else "") + fmt2(s.changePercent ?: 0.0) + "%"
     )
 
-    /**
-     * 离线模拟个股分析（真实 AI 不可达时的兜底）
-     * 基于本地数据生成分析卡片，并明确标注"未能连接 AI 服务"
-     */
     suspend fun mockAnalysis(code: String): AIAnalysisData? {
         val detail = loadStockDetail(code) ?: return null
-        // 注意：不在这里加 delay —— Kuikly 的 delay 是 CoroutineScope 扩展，普通 suspend 函数无 receiver；
-        // 且 kotlinx delay 与 Kuikly 协程混用会改变恢复线程（已踩坑），mock 数据无需模拟延迟。
 
         val name = detail.info?.name ?: "未知"
         val price = detail.realtime?.price ?: 0.0
@@ -327,8 +277,8 @@ object LocalDataService {
         if (signals.isEmpty()) signals.add("观望为主，等待方向选择")
 
         val suggestion = if (changePct > 1) "短线可持有，设好止损"
-            else if (changePct < -1) "轻仓观望，等待企稳"
-            else "保持现有仓位，控制风险"
+        else if (changePct < -1) "轻仓观望，等待企稳"
+        else "保持现有仓位，控制风险"
 
         return AIAnalysisData(
             code = code,
@@ -370,14 +320,11 @@ object LocalDataService {
         )
     }
 
-    // ==================== 工具函数 ====================
-
     private fun round2(v: Double) = kotlin.math.round(v * 100.0) / 100.0
     private fun fmt2(v: Double): String = String.format("%.2f", v)
     private fun randomFactor(lo: Double, hi: Double) = kotlin.random.Random.nextDouble() * (hi - lo) + lo
     private fun randomDouble(lo: Double, hi: Double) = kotlin.random.Random.nextDouble() * (hi - lo) + lo
 
-    /** K线原始数据结构 */
     internal data class KLineRaw(
         val code: String,
         val tradeDate: String,
@@ -390,10 +337,6 @@ object LocalDataService {
     )
 }
 
-/**
- * AI 问答回复（离线 Mock 与在线后端统一使用此结构）
- * @param errorNotice 可选：AI 服务不可用时给用户看的简短提示（由页面以悬浮提示展示，不塞进聊天气泡）
- */
 data class ChatResult(
     val text: String,
     val cards: List<Map<String, Any?>>? = null,
@@ -401,10 +344,4 @@ data class ChatResult(
     val errorNotice: String? = null
 )
 
-// ==================== 平台相关（顶层 expect/actual） ====================
-
-/**
- * expect/actual: 读取 assets 文件内容（跨平台）
- * 各平台在 androidMain / iosMain / jsMain 中 actual 实现
- */
 internal expect fun loadAssetText(path: String): String?

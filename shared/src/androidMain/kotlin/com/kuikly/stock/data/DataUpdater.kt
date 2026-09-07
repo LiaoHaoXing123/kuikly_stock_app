@@ -1,18 +1,18 @@
+// Android 平台的手动刷新实现。失败时抛异常，由界面区分无更新和失败两种情况。
+
 package com.kuikly.stock.data
 
 import android.content.Context
 import android.util.Log
+import com.kuikly.stock.update.AlertNotifier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.MessageDigest
 
-/**
- * Android 平台 DataUpdater：从 Render 拉取 version.json -> 比对最新 -> 下载 stock.db -> 替换本地库。
- * 手动刷新（抽屉按钮）用；WorkManager Worker 也可复用。失败抛异常，供调用方区分"无更新/失败"。
- */
 actual object DataUpdater {
     private const val TAG = "DataUpdater"
     private const val PREFS = "stock_data_update"
@@ -24,12 +24,14 @@ actual object DataUpdater {
     actual suspend fun refreshNow(): Boolean {
         val ctx = stockDbContext() ?: throw IllegalStateException("StockDb 未初始化")
         return withContext(Dispatchers.IO) {
+            try { AlertNotifier.checkAndNotify(ctx) } catch (_: Throwable) { }
             val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             val ver = httpGet(STOCK_DATA_BASE + "/version.json")
                 ?: throw IllegalStateException("version.json 不可达")
             val json = JSONObject(ver)
             val remoteUpdated = json.optString("updated_at", "")
             val remoteBuild = json.optLong("build", 0L)
+            val remoteSha = json.optString("sha256", "")
             val localUpdated = prefs.getString(KEY_UPDATED, "") ?: ""
             val localBuild = when (val v = prefs.all[KEY_BUILD]) {
                 is Long -> v
@@ -46,6 +48,13 @@ actual object DataUpdater {
             val tmp = File(ctx.filesDir, TMP)
             if (!downloadTo(STOCK_DATA_BASE + "/stock.db", tmp)) {
                 throw IllegalStateException("stock.db 下载失败")
+            }
+            if (remoteSha.isNotBlank()) {
+                val actual = sha256Of(tmp)
+                if (!actual.equals(remoteSha, ignoreCase = true)) {
+                    tmp.delete()
+                    throw IllegalStateException("下载库 sha256 校验失败")
+                }
             }
             val ok = StockDb.refreshFromFile(tmp.absolutePath)
             if (ok) {
@@ -74,8 +83,7 @@ actual object DataUpdater {
         }
     }
 
-    private fun downloadTo(url: String, dest: File): Boolean {
-        var conn: HttpURLConnection? = null
+    private fun downloadTo(url: String, dest: File): Boolean {        var conn: HttpURLConnection? = null
         return try {
             conn = URL(url).openConnection() as HttpURLConnection
             conn.instanceFollowRedirects = true
@@ -103,5 +111,15 @@ actual object DataUpdater {
         } finally {
             conn?.disconnect()
         }
+    }
+
+    private fun sha256Of(f: File): String {
+        val md = MessageDigest.getInstance("SHA-256")
+        f.inputStream().use { input ->
+            val buf = ByteArray(8192)
+            var n: Int
+            while (input.read(buf).also { n = it } != -1) md.update(buf, 0, n)
+        }
+        return md.digest().joinToString("") { "%02x".format(it) }
     }
 }

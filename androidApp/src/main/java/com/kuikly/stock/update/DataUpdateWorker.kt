@@ -1,3 +1,5 @@
+// 后台数据更新任务。拉取 Gitee 上的版本文件与本地记录比对，有新数据就下载 stock.db 并替换本地库。
+
 package com.kuikly.stock.update
 
 import android.content.Context
@@ -12,26 +14,22 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.kuikly.stock.data.StockDb
+import com.kuikly.stock.update.AlertNotifier
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.MessageDigest
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
-/**
- * 后台数据更新 Worker（方案A）
- *
- * 从 GitHub Release（滚动 tag data-latest）下载最新 stock.db + version.json，
- * 比对 updated_at/build 判断是否有新数据；有则下载 stock.db -> 交给 StockDb.refreshFromFile()
- * 原子替换本地只读库。触发方式见 companion.schedule。
- */
 class DataUpdateWorker(appContext: Context, params: WorkerParameters) :
     CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
         val ctx = applicationContext
         val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        try { AlertNotifier.checkAndNotify(ctx) } catch (_: Throwable) { }
         return try {
             val remote = fetchVersion(ctx)
             if (remote == null) {
@@ -40,8 +38,8 @@ class DataUpdateWorker(appContext: Context, params: WorkerParameters) :
             }
             val remoteUpdated = remote.optString("updated_at", "")
             val remoteBuild = remote.optLong("build", 0L)
+            val remoteSha = remote.optString("sha256", "")
             val localUpdated = prefs.getString(KEY_UPDATED, "") ?: ""
-            // 旧版本可能把 build 存成了 Int（32位溢出），此处强转 Long，避免 getLong 抛 ClassCastException
             val localBuild = when (val v = prefs.all[KEY_BUILD]) {
                 is Long -> v
                 is Int -> v.toLong()
@@ -55,13 +53,13 @@ class DataUpdateWorker(appContext: Context, params: WorkerParameters) :
                 Log.i(TAG, "无新数据 (local=" + localUpdated + "/" + localBuild + " remote=" + remoteUpdated + "/" + remoteBuild + ")")
                 Result.success()
             } else {
-                val ok = downloadSync(ctx)
+                val ok = downloadSync(ctx, remoteSha)
                 if (ok) {
                     prefs.edit().putString(KEY_UPDATED, remoteUpdated).putLong(KEY_BUILD, remoteBuild).apply()
                     Log.i(TAG, "数据已更新 -> " + remoteUpdated)
                     Result.success()
                 } else {
-                    Log.w(TAG, "下载失败，稍后重试")
+                    Log.w(TAG, "下载/校验失败，稍后重试")
                     Result.retry()
                 }
             }
@@ -76,10 +74,18 @@ class DataUpdateWorker(appContext: Context, params: WorkerParameters) :
         return try { JSONObject(text) } catch (e: Exception) { null }
     }
 
-    private fun downloadSync(ctx: Context): Boolean {
+    private fun downloadSync(ctx: Context, expectedSha: String): Boolean {
         val tmp = File(ctx.filesDir, STOCK_DB_TMP)
         return try {
             if (downloadTo(RELEASE_URL + "/stock.db", tmp)) {
+                if (expectedSha.isNotBlank()) {
+                    val actual = sha256Of(tmp)
+                    if (!actual.equals(expectedSha, ignoreCase = true)) {
+                        Log.w(TAG, "sha256 不匹配: 期望=" + expectedSha + " 实际=" + actual)
+                        tmp.delete()
+                        return false
+                    }
+                }
                 StockDb.refreshFromFile(tmp.absolutePath)
             } else {
                 false
@@ -88,6 +94,16 @@ class DataUpdateWorker(appContext: Context, params: WorkerParameters) :
             Log.e(TAG, "downloadSync failed", e)
             false
         }
+    }
+
+    private fun sha256Of(f: File): String {
+        val md = MessageDigest.getInstance("SHA-256")
+        f.inputStream().use { input ->
+            val buf = ByteArray(8192)
+            var n: Int
+            while (input.read(buf).also { n = it } != -1) md.update(buf, 0, n)
+        }
+        return md.digest().joinToString("") { "%02x".format(it) }
     }
 
     private fun httpGet(url: String): String? {
@@ -145,10 +161,8 @@ class DataUpdateWorker(appContext: Context, params: WorkerParameters) :
         const val KEY_UPDATED = "lastDataUpdatedAt"
         const val KEY_BUILD = "lastDataBuild"
         const val STOCK_DB_TMP = "stock.db.download"
-        // 下载后至少应达到的大小（低于视为失败/部分下载，忽略以免覆盖损坏库）
         private const val MIN_DB_BYTES = 1_000_000L
 
-        // Gitee 公开仓库 raw（国内直连，手机可匿名下载；仓库私有故不用 GitHub Release）
         const val RELEASE_URL = "https://gitee.com/LiaoHaoXing123/kuikly-stock-data/raw/master"
 
         private const val ONE_OFF = "stock_data_one_off"

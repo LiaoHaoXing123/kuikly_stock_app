@@ -47,3 +47,11 @@ data-pipeline/*.log
 data-pipeline/*.sql
 data-pipeline/version.json
 data-pipeline/venv
+
+# 本地机密（AI 密钥），严禁提交
+.env
+.env.*
+!.env.example
+
+# Local visual brainstorming previews
+.superpowers/

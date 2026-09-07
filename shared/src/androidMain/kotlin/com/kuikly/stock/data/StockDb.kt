@@ -1,3 +1,5 @@
+// 保存全局 Context 并打开本地数据库。
+
 package com.kuikly.stock.data
 
 import android.content.Context
@@ -14,15 +16,6 @@ import com.kuikly.stock.pages.StockInfoData
 import com.kuikly.stock.pages.StockListItem
 import java.io.File
 
-/**
- * Android 平台 StockDb 实现
- *
- * 数据来源：APK assets/stock.db（5MB SQLite 单文件）。
- * 首次使用时把 assets 拷到 filesDir（因 SQLiteDatabase 需要文件路径），
- * 之后直接以只读模式打开。assets/stock.db 更新（APK 重装）后会自动重新拷贝。
- *
- * 初始化：在 Application.onCreate 中调用顶层 [initStockDb]（与 initLocalDataService 同模式）。
- */
 private const val TAG = "StockDb"
 private const val ASSET_NAME = "stock.db"
 private const val CACHED_NAME = "stock.db"
@@ -31,13 +24,11 @@ private var appContext: Context? = null
 private var cachedPath: String? = null
 private var dbAvailable = false
 
-/** 在 Application.onCreate 中调用，注入 Android Context 并预拷贝数据库 */
 fun initStockDb(context: Context) {
     appContext = context.applicationContext
     ensureDb()
 }
 
-/** 获取全局 Context（由 initStockDb 注入），供 DataUpdater 等 Android 侧使用 */
 internal fun stockDbContext(): Context? = appContext
 
 private fun ensureDb() {
@@ -45,22 +36,11 @@ private fun ensureDb() {
     if (cachedPath != null) return
     try {
         val outFile = File(ctx.filesDir, CACHED_NAME)
-        // 判断是否需要拷贝：缓存缺失 或 资产大小与缓存不一致（保证 APK 数据更新后生效）。
-        // openFd 仅在资产未压缩（androidResources.noCompress += "db"）时可用；
-        // 若不可用则保守按"缓存缺失即拷贝"处理，避免每次启动都重拷贝。
-        var needCopy = !outFile.exists()
-        try {
-            val assetSize = ctx.assets.openFd(ASSET_NAME).use { it.length }
-            needCopy = needCopy || outFile.length() != assetSize
-        } catch (e: Exception) {
-            // openFd 不可用（资产被压缩）：无法比对大小，缓存已存在即视为就绪
-        }
-        if (needCopy) {
+        if (!outFile.exists()) {
             ctx.assets.open(ASSET_NAME).use { input ->
                 outFile.outputStream().use { output -> input.copyTo(output) }
             }
         }
-        // 试打开验证可用性
         SQLiteDatabase.openDatabase(
             outFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY
         ).use { it.rawQuery("SELECT 1", null).use { c -> c.moveToFirst() } }
@@ -72,11 +52,6 @@ private fun ensureDb() {
     }
 }
 
-/**
- * 打开只读数据库连接。
- * 复用同一个连接（App 生命周期内），避免每次查询 openDatabase 产生连接泄漏
- * （logcat 会报 "SQLiteConnection ... was leaked!"）；连接在进程结束由系统回收。
- */
 private var dbInstance: SQLiteDatabase? = null
 
 private fun openDb(): SQLiteDatabase? {
@@ -97,8 +72,6 @@ actual object StockDb {
         Log.i(TAG, "isAvailable=" + dbAvailable + " cached=" + cachedPath)
         return dbAvailable
     }
-
-    // ==================== 查询实现 ====================
 
     actual fun listStocks(
         keyword: String?, sort: String?, order: String?, page: Int, size: Int
@@ -121,14 +94,12 @@ actual object StockDb {
             else -> "s.code"
         }
         val dir = if (order.equals("asc", true)) "ASC" else "DESC"
-        // 排序时把 NULL 值排到最后（LEFT JOIN 无实时数据的股票），避免涨幅/成交量排序时 NULL 顶到最前
         val orderClause = when {
             sort == null -> "ORDER BY s.code ASC"
             sort == "name" -> "ORDER BY $sortCol $dir"
             else -> "ORDER BY ($sortCol IS NULL) ASC, $sortCol $dir"
         }
 
-        // 总数
         val total = db.rawQuery(
             "SELECT COUNT(*) AS c FROM stock_info s LEFT JOIN stock_realtime r ON s.code=r.code$where",
             args.toTypedArray()
@@ -155,14 +126,13 @@ actual object StockDb {
                 }
             }
         }
-        Log.i(TAG, "listStocks keyword=" + (keyword ?: "-") + " page=" + page + " -> total=" + total + " items=" + items.size)
+    Log.i(TAG, "listStocks keyword=" + (keyword ?: "-") + " page=" + page + " -> total=" + total + " items=" + items.size)
         return StockListPage(total, items)
     }
 
     actual fun stockDetail(code: String): StockDetailData? {
         val db = openDb() ?: return null
 
-        // 基础信息
         val info = db.rawQuery(
             "SELECT code,name,industry,plate,list_date FROM stock_info WHERE code=?",
             arrayOf(code)
@@ -177,7 +147,6 @@ actual object StockDb {
             )
         }
 
-        // 实时行情（JOIN 补 name）
         val realtime = db.rawQuery(
             """SELECT r.*, s.name FROM stock_realtime r
                LEFT JOIN stock_info s ON r.code=s.code
@@ -202,7 +171,6 @@ actual object StockDb {
             )
         }
 
-        // 最近30日K线（升序）
         val kline = db.rawQuery(
             "SELECT code,trade_date,open,close,high,low,volume,amount FROM stock_daily_kline " +
                 "WHERE code=? ORDER BY trade_date DESC LIMIT 30",
@@ -224,7 +192,7 @@ actual object StockDb {
             }
         }.reversed()
 
-        val indicator = latestIndicator(db, code)
+    val indicator = latestIndicator(db, code)
 
         if (info == null && realtime == null) { Log.w(TAG, "stockDetail " + code + " NOT FOUND"); return null }
         Log.i(TAG, "stockDetail " + code + " -> info=" + (info != null) + " realtime=" + (realtime != null) + " kline=" + kline.size + " ind=" + indicator?.tradeDate)
@@ -259,7 +227,7 @@ actual object StockDb {
             arrayOf(code)
         ).use { c ->
             if (!c.moveToFirst()) null
-            else IndicatorData(
+        else IndicatorData(
                 tradeDate = c.getStringOrEmpty("trade_date"),
                 ma5 = c.getDoubleOrNull("ma5"), ma10 = c.getDoubleOrNull("ma10"), ma20 = c.getDoubleOrNull("ma20"),
                 dif = c.getDoubleOrNull("dif"), dea = c.getDoubleOrNull("dea"), macd = c.getDoubleOrNull("macd"),
@@ -271,7 +239,6 @@ actual object StockDb {
 
     actual fun minute(code: String): List<MinutePoint> {
         val db = openDb() ?: return emptyList()
-        // 取最新交易日
         val tradeDate = db.rawQuery(
             "SELECT trade_date FROM stock_minute WHERE code=? ORDER BY trade_date DESC LIMIT 1",
             arrayOf(code)
@@ -283,7 +250,7 @@ actual object StockDb {
         ).use { c ->
             buildList {
                 while (c.moveToNext()) {
-                    add(MinutePoint(
+            add(MinutePoint(
                         time = c.getStringOrEmpty("time"),
                         price = c.getDoubleOrZero("price"),
                         avgPrice = c.getDoubleOrNull("avg_price"),
@@ -350,9 +317,9 @@ actual object StockDb {
                ORDER BY r.change_percent $orderDir LIMIT 3""",
             null
         ).use { c ->
-            buildList {
-                while (c.moveToNext()) {
-                    add(StockListItem(
+    buildList {
+        while (c.moveToNext()) {
+        add(StockListItem(
                         code = c.getStringOrEmpty("code"),
                         name = c.getStringOrNull("name"),
                         price = c.getDoubleOrNull("price"),
@@ -372,22 +339,20 @@ actual object StockDb {
         val db = openDb() ?: return emptyList()
         val found = mutableListOf<StockListItem>()
 
-        // 6 位代码
         Regex("(?<!\\d)\\d{6}(?!\\d)").findAll(message).map { it.value }.toSet().forEach { code ->
-            db.rawQuery("SELECT code,name FROM stock_info WHERE code=?", arrayOf(code)).use { c ->
-                if (c.moveToFirst()) found.add(StockListItem(c.getStringOrEmpty("code"), c.getStringOrNull("name"), null, null))
+        db.rawQuery("SELECT code,name FROM stock_info WHERE code=?", arrayOf(code)).use { c ->
+        if (c.moveToFirst()) found.add(StockListItem(c.getStringOrEmpty("code"), c.getStringOrNull("name"), null, null))
             }
         }
 
-        // 名称匹配（最多补到 3 只）
         if (found.size < 3) {
-            db.rawQuery("SELECT code,name FROM stock_info WHERE name IS NOT NULL AND name<>''", null).use { c ->
-                while (c.moveToNext() && found.size < 3) {
-                    val name = c.getStringOrNull("name") ?: continue
-                    if (name.length >= 2 && name in message) {
-                        val code = c.getStringOrEmpty("code")
-                        if (found.none { it.code == code }) {
-                            found.add(StockListItem(code, name, null, null))
+        db.rawQuery("SELECT code,name FROM stock_info WHERE name IS NOT NULL AND name<>''", null).use { c ->
+            while (c.moveToNext() && found.size < 3) {
+            val name = c.getStringOrNull("name") ?: continue
+            if (name.length >= 2 && name in message) {
+        val code = c.getStringOrEmpty("code")
+        if (found.none { it.code == code }) {
+        found.add(StockListItem(code, name, null, null))
                         }
                     }
                 }
@@ -396,71 +361,140 @@ actual object StockDb {
         return found.take(3)
     }
 
-    // ==================== 数据更新（WorkManager 热切换） ====================
-
-    /**
-     * 用新下载的 SQLite 文件原子替换本地库并重新打开只读连接。
-     * 流程：关旧连接 -> 拷贝到 filesDir/stock.db.new -> 删除旧库 -> 重命名 -> 重新打开校验。
-     * 直接打开 dest（不经过 ensureDb 的 assets 拷贝，避免把刚下载的新数据又覆盖回旧资源）。
-     */
-    actual fun refreshFromFile(sourcePath: String): Boolean {
+        actual fun refreshFromFile(sourcePath: String): Boolean {
         val ctx = appContext ?: return false
-        return try {
-            dbInstance?.close()
-            dbInstance = null
-            val dest = File(ctx.filesDir, CACHED_NAME)
-            val src = File(sourcePath)
-            if (!src.exists()) {
-                Log.w(TAG, "refreshFromFile: source missing " + sourcePath)
-                return false
+        val src = File(sourcePath)
+        if (!src.exists()) {
+        Log.w(TAG, "refreshFromFile: source missing " + sourcePath)
+        return false
+        }
+        val dest = File(ctx.filesDir, CACHED_NAME)
+
+                if (!validateDb(src)) {
+            Log.e(TAG, "refreshFromFile: 校验失败，保留旧库")
+            src.delete()
+            return false
+        }
+
+            val backup = File(ctx.filesDir, CACHED_NAME + ".bak")
+        if (backup.exists()) backup.delete()
+        if (dest.exists()) {
+            if (!dest.renameTo(backup)) {
+            copyTo(dest, backup); dest.delete()
             }
-            if (dest.exists()) dest.delete()
-            // 把下载的源文件直接移动/拷贝到目标库（同目录 rename 是原子的）
-            val moved = src.renameTo(dest)
+        }
+
+        try {
+                val moved = src.renameTo(dest)
             if (!moved) {
-                src.copyTo(dest, overwrite = true)
-                src.delete()
+            copyTo(src, dest); src.delete()
             }
+                dbInstance?.close(); dbInstance = null
+            val conn = SQLiteDatabase.openDatabase(dest.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
+            conn.rawQuery("SELECT 1", null).use { c -> c.moveToFirst() }
+            dbInstance = conn
             cachedPath = dest.absolutePath
-            val newConn = SQLiteDatabase.openDatabase(dest.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
-            newConn.rawQuery("SELECT 1", null).use { c -> c.moveToFirst() }
-            dbInstance = newConn
             dbAvailable = true
+            backup.delete()
             Log.i(TAG, "refreshFromFile OK size=" + dest.length())
+            return true
+        } catch (e: Exception) {
+    Log.e(TAG, "refreshFromFile 失败，回滚旧库: " + (e.message ?: e.toString()), e)
+    dbInstance?.close(); dbInstance = null
+        if (backup.exists()) {
+            if (dest.exists()) dest.delete()
+            backup.renameTo(dest)
+            }
+            try {
+                val conn = SQLiteDatabase.openDatabase(dest.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
+                conn.rawQuery("SELECT 1", null).use { c -> c.moveToFirst() }
+                dbInstance = conn
+                cachedPath = dest.absolutePath
+                dbAvailable = true
+            } catch (e2: Exception) {
+                dbAvailable = false
+            }
+            return false
+        }
+    }
+
+        private fun validateDb(f: File): Boolean {
+        return try {
+            val conn = SQLiteDatabase.openDatabase(f.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
+            conn.use {
+                val integrity = it.rawQuery("PRAGMA integrity_check", null).use { c ->
+                if (c.moveToFirst()) c.getString(0) else ""
+                }
+                if (integrity != "ok") {
+                Log.e(TAG, "validateDb integrity_check=" + integrity)
+                    return false
+                }
+                val required = setOf(
+                    "stock_info", "stock_realtime", "stock_daily_kline",
+                    "stock_indicator", "stock_minute", "stock_order_book", "data_source"
+                )
+            val tables = it.rawQuery("SELECT name FROM sqlite_master WHERE type='table'", null).use { c ->
+            buildSet { while (c.moveToNext()) add(c.getString(0)) }
+                }
+        val missing = required - tables
+    if (missing.isNotEmpty()) {
+    Log.e(TAG, "validateDb 缺表: " + missing.joinToString(","))
+        return false
+                }
+    val n = it.rawQuery("SELECT COUNT(*) FROM stock_info", null).use { c ->
+    if (c.moveToFirst()) c.getInt(0) else 0
+                }
+        if (n < 100) {
+            Log.e(TAG, "validateDb stock_info 行数过少=" + n)
+                return false
+                }
+            }
             true
         } catch (e: Exception) {
-            dbAvailable = false
-            Log.e(TAG, "refreshFromFile failed: " + (e.message ?: e.toString()), e)
+            Log.e(TAG, "validateDb 异常: " + (e.message ?: e.toString()), e)
             false
         }
     }
 
-    /** 数据来源标注：data_source 表 table_name -> source（老库无此表时返回空） */
+    private fun copyTo(src: File, dst: File) {
+    src.inputStream().use { i -> dst.outputStream().use { o -> i.copyTo(o) } }
+    }
+
     actual fun dataSources(): List<Pair<String, String>> {
-        val db = openDb() ?: return emptyList()
-        return try {
-            db.rawQuery("SELECT table_name, source FROM data_source ORDER BY table_name", null).use { c ->
-                buildList {
-                    while (c.moveToNext()) {
-                        add(c.getStringOrEmpty("table_name") to (c.getStringOrNull("source") ?: ""))
+    val db = openDb() ?: return emptyList()
+    return try {
+        db.rawQuery("SELECT table_name, source FROM data_source ORDER BY table_name", null).use { c ->
+        buildList {
+        while (c.moveToNext()) {
+    add(c.getStringOrEmpty("table_name") to (c.getStringOrNull("source") ?: ""))
                     }
                 }
             }
         } catch (e: Exception) {
-            emptyList()
+emptyList()
         }
     }
 
-    // ==================== Cursor 取值工具 ====================
-
-    private fun Cursor.getStringOrNull(col: String): String? {
-        val i = getColumnIndex(col)
-        return if (i < 0 || isNull(i)) null else getString(i)
+private fun Cursor.getStringOrNull(col: String): String? {
+val i = getColumnIndex(col)
+    return if (i < 0 || isNull(i)) null else getString(i)
     }
     private fun Cursor.getStringOrEmpty(col: String): String = getStringOrNull(col) ?: ""
-    private fun Cursor.getDoubleOrNull(col: String): Double? {
-        val i = getColumnIndex(col)
-        return if (i < 0 || isNull(i)) null else getDouble(i)
+private fun Cursor.getDoubleOrNull(col: String): Double? {
+val i = getColumnIndex(col)
+return if (i < 0 || isNull(i)) null else getDouble(i)
     }
-    private fun Cursor.getDoubleOrZero(col: String): Double = getDoubleOrNull(col) ?: 0.0
+private fun Cursor.getDoubleOrZero(col: String): Double = getDoubleOrNull(col) ?: 0.0
+}
+
+private const val WATCH_PREFS = "kuikly_watch_prefs"
+
+internal actual fun appPrefsGet(key: String): String? {
+val ctx = appContext ?: return null
+return ctx.getSharedPreferences(WATCH_PREFS, Context.MODE_PRIVATE).getString(key, null)
+}
+
+internal actual fun appPrefsSet(key: String, value: String) {
+val ctx = appContext ?: return
+ctx.getSharedPreferences(WATCH_PREFS, Context.MODE_PRIVATE).edit().putString(key, value).apply()
 }

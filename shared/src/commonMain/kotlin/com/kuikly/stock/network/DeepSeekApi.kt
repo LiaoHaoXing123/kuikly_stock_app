@@ -1,5 +1,11 @@
-﻿package com.kuikly.stock.network
+// DeepSeek 接口封装。行情数据从本地 SQLite 组装进提示词，模型只负责分析生成。
 
+package com.kuikly.stock.network
+
+import com.kuikly.stock.ai.config.DeepSeekConfig
+import com.kuikly.stock.ai.prompt.ChatPromptContext
+import com.kuikly.stock.ai.tool.StockTools
+import com.kuikly.stock.base.normalizeBreaks
 import com.kuikly.stock.data.ChatResult
 import com.kuikly.stock.data.StockDb
 import com.kuikly.stock.pages.AIAnalysisData
@@ -23,51 +29,64 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-/**
- * 方案 B：App 直连 DeepSeek（OpenAI 兼容 API）
- *
- * - 行情/K线/指标等数据上下文由 [StockDb]（本地 SQLite）组装
- * - AI 调用走真实 DeepSeek 模型，API key 配在 [DeepSeekConfig]（见下，发布前自行替换）
- * - ⚠️ key 会随 APK 分发而暴露，仅适合个人 Demo；正式分发需自建中转
- */
-object DeepSeekConfig {
-    const val BASE_URL = "https://api.deepseek.com/v1"
-    const val MODEL = "deepseek-chat"
-    /** 发布前替换为你自己的 key（https://platform.deepseek.com/）
-     * ⚠️ 真实 key 不入库（公共仓库会泄露）；本地构建前从 backend/.env 的 DEEPSEEK_API_KEY 复制进来再打包 */
-    const val API_KEY = "sk-63d78e00e0db4a4ea39084affcde0d72"
-    const val MAX_TOKENS = 4096
-    const val TEMPERATURE = 0.7
-    /** 未配置真实 key 时，AI 相关功能自动回退本地模板（避免无效网络请求） */
-    val enabled: Boolean get() = API_KEY.isNotEmpty() && !API_KEY.startsWith("sk-xxxx")
-}
-
 private const val TAG_JSON = "```json"
 
 object DeepSeekApi {
 
-    /**
-     * 调用 chat/completions，返回 assistant 文本
-     * @param messages role→content 列表
-     */
     suspend fun chat(messages: List<Pair<String, String>>): String {
-        val body: JsonObject = buildJsonObject {
+        return extractContent(postChat(chatBody(messages, null)))
+            ?: throw Exception("AI 响应缺少 content")
+    }
+
+    suspend fun chatWithTools(messages: List<Pair<String, String>>): String {
+        val msg = postChat(chatBody(messages, StockTools.definitions))
+        val toolCalls = (msg["tool_calls"] as? JsonArray).orEmpty()
+        if (toolCalls.isEmpty()) {
+            return extractContent(msg) ?: throw Exception("AI 响应缺少 content")
+        }
+        val body = buildJsonObject {
             put("model", DeepSeekConfig.MODEL)
             put("temperature", DeepSeekConfig.TEMPERATURE)
             put("max_tokens", DeepSeekConfig.MAX_TOKENS)
-            put(
-                "messages", buildJsonArray {
-                    for ((role, content) in messages) {
-                        add(buildJsonObject {
-                            put("role", role)
-                            put("content", content)
-                        })
-                    }
+            put("messages", buildJsonArray {
+                for ((role, content) in messages) add(buildJsonObject { put("role", role); put("content", content) })
+                add(msg)
+                for (tc in toolCalls) {
+                    val tcObj = tc as? JsonObject ?: continue
+                    val f = tcObj["function"]?.jsonObject ?: continue
+                    val name = f["name"]?.jsonPrimitive?.content ?: ""
+                    val argsRaw = f["arguments"]?.jsonPrimitive?.content ?: "{}"
+                    val args = try {
+                        ApiClient.json.parseToJsonElement(argsRaw).jsonObject
+                    } catch (_: Throwable) { buildJsonObject { } }
+                    val result = StockTools.execute(name, args)
+                    add(buildJsonObject {
+                        put("role", "tool")
+                        put("tool_call_id", tcObj["id"]?.jsonPrimitive?.content ?: "")
+                        put("name", name)
+                        put("content", result.toString())
+                    })
                 }
-            )
+            })
         }
+        return extractContent(postChat(body))
+            ?: throw Exception("AI 响应缺少 content")
+    }
 
-        println("[DeepSeek] POST " + DeepSeekConfig.BASE_URL + "/chat/completions model=" + DeepSeekConfig.MODEL + " messages=" + messages.size)
+    private fun chatBody(messages: List<Pair<String, String>>, tools: JsonArray?): JsonObject = buildJsonObject {
+        put("model", DeepSeekConfig.MODEL)
+        put("temperature", DeepSeekConfig.TEMPERATURE)
+        put("max_tokens", DeepSeekConfig.MAX_TOKENS)
+        put("messages", buildJsonArray {
+            for ((role, content) in messages) {
+                add(buildJsonObject { put("role", role); put("content", content) })
+            }
+        })
+        if (tools != null) put("tools", tools)
+    }
+
+    private suspend fun postChat(body: JsonObject): JsonObject {
+        println("[DeepSeek] POST " + DeepSeekConfig.BASE_URL + "/chat/completions model=" + DeepSeekConfig.MODEL)
         val resp = ApiClient.client.post("${DeepSeekConfig.BASE_URL}/chat/completions") {
             contentType(ContentType.Application.Json)
             header("Authorization", "Bearer ${DeepSeekConfig.API_KEY}")
@@ -82,12 +101,11 @@ object DeepSeekApi {
         val root = ApiClient.json.parseToJsonElement(text).jsonObject
         val choices = root["choices"] as? JsonArray
             ?: throw Exception("AI 响应缺少 choices")
-        val content = choices[0].jsonObject["message"]?.jsonObject?.get("content")
-            ?: throw Exception("AI 响应缺少 content")
-        return content.jsonPrimitive.content
+        return choices[0].jsonObject["message"]?.jsonObject
+            ?: throw Exception("AI 响应缺少 message")
     }
 
-    // ==================== 个股分析（对应后端 prompts/stock_analysis.py） ====================
+    private fun extractContent(m: JsonObject): String? = m["content"]?.jsonPrimitive?.content
 
     suspend fun analyzeStock(detail: StockDetailData): AIAnalysisData {
         val messages = buildAnalysisPrompt(detail)
@@ -185,18 +203,18 @@ $indicatorText
         return listOf("system" to system, "user" to user)
     }
 
-    private fun buildAnalysisCards(detail: StockDetailData, a: Map<String, Any?>): List<Map<String, Any?>> {
+        private fun buildAnalysisCards(detail: StockDetailData, a: Map<String, Any?>): List<Map<String, Any?>> {
         val cards = mutableListOf<Map<String, Any?>>()
         val code = detail.info?.code ?: ""
 
-        a["trend"]?.let {
-            val sug = a["suggestion"]?.toString()
-            val color = if (sug == "买入" || sug == "持有") "#FF6B6B" else "#4ECDC4"
-            cards.add(mapOf("type" to "trend_card", "title" to "趋势判断",
+    a["trend"]?.let {
+    val sug = a["suggestion"]?.toString()
+    val color = if (sug == "买入" || sug == "持有") "#FF6B6B" else "#4ECDC4"
+    cards.add(mapOf("type" to "trend_card", "title" to "趋势判断",
                 "content" to it.toString(), "color" to color))
         }
         (a["signals"] as? List<*>)?.takeIf { it.isNotEmpty() }?.let {
-            cards.add(mapOf("type" to "signal_card", "title" to "技术信号",
+        cards.add(mapOf("type" to "signal_card", "title" to "技术信号",
                 "signals" to it.map { x -> x?.toString() ?: "" }, "color" to "#45B7D1"))
         }
         a["suggestion"]?.let {
@@ -216,31 +234,33 @@ $indicatorText
                 "risk_level" to it.toString(), "risks" to risks,
                 "color" to (colorMap[it.toString()] ?: "#FFEAA7")))
         }
-        a["summary"]?.let {
-            cards.add(mapOf("type" to "summary_card", "title" to "AI 总结",
+    a["summary"]?.let {
+    cards.add(mapOf("type" to "summary_card", "title" to "AI 总结",
                 "summary" to it.toString(), "color" to "#DDA0DD"))
         }
-        // 数据来源标注
         cards.add(mapOf("type" to "summary_card", "title" to "数据来源",
             "summary" to "技术指标来自本地 SQLite（真实计算值），AI 由 DeepSeek 直连生成。",
             "color" to "#90A4AE"))
         return cards
     }
 
-    // ==================== 智能问答（对应后端 prompts/chat.py） ====================
-
-    suspend fun chat(
+        suspend fun chat(
         message: String,
         mentioned: List<StockListItem>,
-        buildContext: () -> String,
+        buildContext: () -> ChatPromptContext,
     ): ChatResult {
         val context = buildContext()
         val messages = buildChatPrompt(message, context)
-        val raw = chat(messages)
+                val raw = try {
+            chatWithTools(messages)
+        } catch (e: Throwable) {
+        println("[DeepSeek] 工具调用失败，回退预注入路径: " + (e.message ?: e.toString()))
+        chat(messages)
+        }
         return parseChatReply(raw, mentioned)
     }
 
-    private fun buildChatPrompt(message: String, context: String): List<Pair<String, String>> {
+    private fun buildChatPrompt(message: String, context: ChatPromptContext): List<Pair<String, String>> {
         val system = """你是一位专业的投资顾问AI助手，擅长股票市场分析和投资建议。
 
 你的特点：
@@ -259,22 +279,40 @@ $indicatorText
 
 回复格式（JSON，卡片字段一律用 snake_case）：
 {
-  "text": "Markdown格式的详细回答文本",
+  "text": "Markdown格式的补充说明（可较简短，核心结论放进 conclusion_card）",
   "cards": [
-    { "type": "stock_card", "code": "股票代码", "name": "股票名称", "price": "最新价", "change_percent": "涨跌幅，如 +2.35%" }
+    {
+      "type": "conclusion_card",
+      "name": "股票名称",
+      "code": "6位代码",
+      "change_percent": "涨跌幅，如 +2.40%",
+      "bias": "偏强|偏弱|中性",
+      "bias_note": "一个简短提示，如 短线留意回踩",
+      "one_liner": "一句话结论：方向+关键提醒",
+      "resistance": "压力位，如 1338 元",
+      "support": "MA5 支撑位，如 1305 元",
+      "signals": "每行一条技术信号，用\\n分隔，最多3条",
+      "action": "观察动作：给出触发条件和应对，如 等待放量突破压力，或回踩 MA5 后再评估",
+      "footnote": "数据截至 MM-DD · 仅供参考，不构成投资建议"
+    }
   ],
   "suggestions": ["推荐的后续问题1", "推荐的后续问题2"]
 }
 
-注意：cards 可选；字段名必须用 change_percent / chart_type；suggestions 给 2-3 个；相关股票数据为空时如实说明，不要编造。"""
+排版硬性要求（面向移动端「结论优先」）：
+- 只要问题涉及某只具体股票，cards 第一个必须是 conclusion_card，先给方向和关键价位，再给信号。
+- conclusion_card 的所有字段都是纯字符串；signals 用 \n 分隔多条，不要用数组。
+- 价位、涨跌幅只能引用「相关股票数据」中的真实数字；缺失的字段留空字符串，不要编造。
+- text 作为补充，不要重复 conclusion_card 已表达的全部内容。
+- 若问题不针对具体个股（如大盘、概念），可不给 conclusion_card。
+- 字段名必须用 change_percent / chart_type；suggestions 给 2-3 个。"""
 
-        val user = if (context.isBlank()) {
+        val user = if (!context.hasData) {
             "用户问题：$message\n\n请根据以上信息给出专业、准确的回答。"
         } else {
             """用户问题：$message
 
-相关股票数据：
-$context
+${context.render()}
 
 请根据以上信息给出专业、准确的回答。"""
         }
@@ -286,26 +324,25 @@ $context
         var cards: List<Map<String, Any?>>? = null
         var suggestions: List<String>? = null
 
-        val obj = parseJsonObjectLoose(raw)
-        if (obj.isNotEmpty()) {
-            obj["text"]?.let { text = it.toString() }
-            (obj["cards"] as? List<*>)?.let {
-                cards = it.mapNotNull { c ->
-                    @Suppress("UNCHECKED_CAST")
-                    val m = c as? Map<String, Any?> ?: return@mapNotNull null
-                    normalizeCard(m)
+    val obj = parseJsonObjectLoose(raw)
+    if (obj.isNotEmpty()) {
+        obj["text"]?.let { text = it.toString() }
+        (obj["cards"] as? List<*>)?.let {
+        cards = it.mapNotNull { c ->
+    @Suppress("UNCHECKED_CAST")
+    val m = c as? Map<String, Any?> ?: return@mapNotNull null
+    normalizeCard(m)
                 }.ifEmpty { null }
             }
-            (obj["suggestions"] as? List<*>)?.let {
-                suggestions = it.map { x -> x?.toString() ?: "" }.ifEmpty { null }
+        (obj["suggestions"] as? List<*>)?.let {
+            suggestions = it.map { x -> x?.toString() ?: "" }.ifEmpty { null }
             }
         }
 
-        // 未提取到卡片但提到了股票 → 补股票卡片（用本地真实行情）
         if (cards == null && mentioned.isNotEmpty()) {
-            val auto = mutableListOf<Map<String, Any?>>()
-            for (s in mentioned.take(2)) {
-                auto.add(mapOf(
+    val auto = mutableListOf<Map<String, Any?>>()
+    for (s in mentioned.take(2)) {
+        auto.add(mapOf(
                     "type" to "stock_card",
                     "code" to s.code,
                     "name" to (s.name ?: s.code),
@@ -318,104 +355,102 @@ $context
         if (suggestions == null) {
             suggestions = listOf("查看技术指标分析？", "对比同行业表现？", "了解最新市场动态？")
         }
-        return ChatResult(text = text, cards = cards, suggestions = suggestions)
+        return ChatResult(text = normalizeBreaks(text), cards = cards, suggestions = suggestions)
     }
 
     private fun normalizeCard(m: Map<String, Any?>): Map<String, Any?> {
-        // changePercent -> change_percent, chartType -> chart_type
-        val mapping = mapOf("changePercent" to "change_percent", "chartType" to "chart_type")
-        return m.mapKeys { (k, _) -> mapping[k] ?: k }
+val mapping = mapOf("changePercent" to "change_percent", "chartType" to "chart_type")
+return m.entries.associate { (k, v) ->
+    val key = mapping[k] ?: k
+        val value = when (v) {
+        is List<*> -> v.joinToString("\n") { it?.toString() ?: "" }
+            is String -> normalizeBreaks(v)
+            else -> v
+            }
+    key to value
+        }
     }
 
-    // ==================== 上下文构建（本地 SQLite 数据） ====================
-
-    /**
-     * 组装 AI 问答上下文：命中股票的最新行情 + 近5日K线 + 技术指标 + 市场概览。
-     * 数据全部来自 [StockDb]（本地 SQLite）。
-     */
-    fun buildChatContext(message: String, mentioned: List<StockListItem>): String {
-        if (mentioned.isEmpty()) return ""
-        val parts = mutableListOf<String>()
-        for (s in mentioned) {
-            val detail = try { StockDb.stockDetail(s.code) } catch (e: Throwable) { null } ?: continue
-            val r: RealtimeQuoteData = detail.realtime ?: continue
-            parts.add(
+fun buildChatContext(message: String, mentioned: List<StockListItem>): ChatPromptContext {
+if (mentioned.isEmpty()) return ChatPromptContext.empty(message, mentioned)
+val stockLines = mutableListOf<String>()
+val marketLines = mutableListOf<String>()
+for (s in mentioned) {
+val detail = try { StockDb.stockDetail(s.code) } catch (e: Throwable) { null } ?: continue
+val r: RealtimeQuoteData = detail.realtime ?: continue
+stockLines.add(
                 "- ${r.name ?: s.code}(${s.code}): 最新价 ${r.price}, 涨跌幅 ${r.changePercent}%, " +
                     "开盘 ${r.openPrice}, 最高 ${r.high}, 最低 ${r.low}, " +
                     "成交量 ${r.volume} 手, 成交额 ${r.amount} 元, PE(TTM) ${r.peTtm}, PB ${r.pb}"
             )
-            val kline = detail.kline.orEmpty()
-            if (kline.isNotEmpty()) {
-                val recent = kline.takeLast(5)
-                parts.add("  近${recent.size}日K线: " + recent.joinToString(", ") {
-                    "${it.tradeDate} 开${it.open} 收${it.close} 高${it.high} 低${it.low}"
+val kline = detail.kline.orEmpty()
+if (kline.isNotEmpty()) {
+val recent = kline.takeLast(5)
+stockLines.add("  近${recent.size}日K线: " + recent.joinToString(", ") {
+"${it.tradeDate} 开${it.open} 收${it.close} 高${it.high} 低${it.low}"
                 })
             }
-            detail.indicator?.let { ind ->
-                parts.add(
+detail.indicator?.let { ind ->
+stockLines.add(
                     "  技术指标(${ind.tradeDate}): MA5=${fmt(ind.ma5)}, MA10=${fmt(ind.ma10)}, MA20=${fmt(ind.ma20)}, " +
                         "MACD(DIF=${fmt(ind.dif)}/DEA=${fmt(ind.dea)}/柱=${fmt(ind.macd)}), " +
                         "RSI6=${fmt(ind.rsi6)}, KDJ(K=${fmt(ind.kdjK)}/D=${fmt(ind.kdjD)}/J=${fmt(ind.kdjJ)})"
                 )
             }
         }
-        if (isMarketQuestion(message)) {
-            val ov = try { StockDb.marketOverview() } catch (e: Throwable) { null }
-            if (ov != null) {
-                parts.add("- 全市场概览: 共 ${ov.total} 只, 上涨 ${ov.up} 家, 下跌 ${ov.down} 家, 平盘 ${ov.flat} 家")
-                parts.add("- 涨幅榜: " + ov.topGainers.joinToString(", ") { "${it.name ?: it.code}(+${it.changePercent}%)" })
-                parts.add("- 跌幅榜: " + ov.topLosers.joinToString(", ") { "${it.name ?: it.code}(${it.changePercent}%)" })
+if (isMarketQuestion(message)) {
+val ov = try { StockDb.marketOverview() } catch (e: Throwable) { null }
+if (ov != null) {
+marketLines.add("- 全市场概览: 共 ${ov.total} 只, 上涨 ${ov.up} 家, 下跌 ${ov.down} 家, 平盘 ${ov.flat} 家")
+marketLines.add("- 涨幅榜: " + ov.topGainers.joinToString(", ") { "${it.name ?: it.code}(+${it.changePercent}%)" })
+marketLines.add("- 跌幅榜: " + ov.topLosers.joinToString(", ") { "${it.name ?: it.code}(${it.changePercent}%)" })
             }
         }
-        return parts.joinToString("\n")
+return ChatPromptContext(message, mentioned, stockLines, marketLines)
     }
 
-    private fun isMarketQuestion(message: String): Boolean {
-        val keywords = listOf("大盘", "行情", "市场", "指数", "涨幅榜", "跌幅榜", "涨跌", "板块", "整体")
-        return keywords.any { message.contains(it) }
+private fun isMarketQuestion(message: String): Boolean {
+val keywords = listOf("大盘", "行情", "市场", "指数", "涨幅榜", "跌幅榜", "涨跌", "板块", "整体")
+return keywords.any { message.contains(it) }
     }
 
-    private fun fmt(v: Double?): String = if (v == null) "-" else "%.3f".format(v)
+private fun fmt(v: Double?): String = if (v == null) "-" else "%.3f".format(v)
 
-    // ==================== JSON 解析工具 ====================
-
-    /** 从 AI 文本里宽松提取 JSON 对象（容忍 ```json 代码块 / 纯 JSON / 夹杂文字） */
-    private fun parseJsonObjectLoose(raw: String): Map<String, Any?> {
-        val jsonStr = extractJsonBlock(raw) ?: return emptyMap()
-        return try {
-            ApiClient.json.parseToJsonElement(jsonStr).jsonObject.mapValues { it.value.toAnyDeep() }
+private fun parseJsonObjectLoose(raw: String): Map<String, Any?> {
+val jsonStr = extractJsonBlock(raw) ?: return emptyMap()
+return try {
+ApiClient.json.parseToJsonElement(jsonStr).jsonObject.mapValues { it.value.toAnyDeep() }
         } catch (e: Exception) {
-            emptyMap()
+emptyMap()
         }
     }
 
-    private fun extractJsonBlock(raw: String): String? {
-        val trimmed = raw.trim()
-        return when {
-            TAG_JSON in trimmed -> {
-                val start = trimmed.indexOf(TAG_JSON) + TAG_JSON.length
-                val end = trimmed.indexOf("```", start)
-                if (end > start) trimmed.substring(start, end).trim() else trimmed.substring(start).trim()
+private fun extractJsonBlock(raw: String): String? {
+val trimmed = raw.trim()
+return when {
+TAG_JSON in trimmed -> {
+val start = trimmed.indexOf(TAG_JSON) + TAG_JSON.length
+val end = trimmed.indexOf("```", start)
+if (end > start) trimmed.substring(start, end).trim() else trimmed.substring(start).trim()
             }
-            trimmed.startsWith("{") -> trimmed.substringBeforeLast("}") + "}"
-            "```" in trimmed -> {
-                val start = trimmed.indexOf("```") + 3
-                val end = trimmed.indexOf("```", start)
-                if (end > start) trimmed.substring(start, end).trim() else null
+trimmed.startsWith("{") -> trimmed.substringBeforeLast("}") + "}"
+"```" in trimmed -> {
+val start = trimmed.indexOf("```") + 3
+val end = trimmed.indexOf("```", start)
+if (end > start) trimmed.substring(start, end).trim() else null
             }
-            else -> null
+else -> null
         }
     }
 }
 
-/** kotlinx JsonElement -> Map/List/scalar（用于 analysis/chat 解析后的自由取值） */
 private fun kotlinx.serialization.json.JsonElement.toAnyDeep(): Any? = when (this) {
-    is JsonPrimitive -> {
-        if (isString) content
-        else content.toDoubleOrNull() ?: when (content) {
-            "true" -> true; "false" -> false; else -> content
+is JsonPrimitive -> {
+if (isString) content
+else content.toDoubleOrNull() ?: when (content) {
+"true" -> true; "false" -> false; else -> content
         }
     }
-    is JsonArray -> map { it.toAnyDeep() }
-    is JsonObject -> mapValues { it.value.toAnyDeep() }
+is JsonArray -> map { it.toAnyDeep() }
+is JsonObject -> mapValues { it.value.toAnyDeep() }
 }
