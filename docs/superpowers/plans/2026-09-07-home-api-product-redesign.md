@@ -315,7 +315,7 @@ git commit -m "feat(ai): use active OpenAI-compatible profile"
 - Create: `shared/src/commonTest/kotlin/com/kuikly/stock/home/HomeDashboardServiceTest.kt`
 - Create: `shared/src/commonTest/kotlin/com/kuikly/stock/risk/PortfolioRiskCalculatorTest.kt`
 
-- [ ] **Step 1: Write failing portfolio tests**
+- [x] **Step 1: Write failing portfolio tests**
 
 ```kotlin
 @Test fun calculatesPnlAndConcentration() {
@@ -335,23 +335,23 @@ git commit -m "feat(ai): use active OpenAI-compatible profile"
 }
 ```
 
-- [ ] **Step 2: Write failing dashboard summary tests**
+- [x] **Step 2: Write failing dashboard summary tests**
 
 Test positive/negative market breadth, stale data, no-watchlist state, triggered alert priority, and deterministic text such as `市场涨跌家数偏弱`.
 
-- [ ] **Step 3: Run RED**
+- [x] **Step 3: Run RED**
 
 Run both test classes; expected unresolved calculators.
 
-- [ ] **Step 4: Implement pure calculations**
+- [x] **Step 4: Implement pure calculations**
 
 Portfolio weights use current market value. Risk badges use fixed boundaries: single stock ≥ 50% is high concentration, industry ≥ 70% is high concentration, loss ≤ -15% is high drawdown risk. Missing price excludes an item from totals and records it as unavailable.
 
-- [ ] **Step 5: Implement dashboard service adapter**
+- [x] **Step 5: Implement dashboard service adapter**
 
 Read `StockDb.marketOverview()`, `WatchStore.list()`, latest detail/indicator data, and `AlertEngine.hits()`. Cache the snapshot for 30 seconds and invalidate after data refresh.
 
-- [ ] **Step 6: Run GREEN and commit**
+- [x] **Step 6: Run GREEN and commit**
 
 ```powershell
 .\gradlew.bat :shared:testDebugUnitTest --console=plain
