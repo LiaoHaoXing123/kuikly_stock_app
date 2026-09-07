@@ -445,23 +445,23 @@ git commit -m "feat(ui): add research dashboard home"
 - Create: `shared/src/commonMain/kotlin/com/kuikly/stock/pages/ProfilePage.kt`
 - Create: `shared/src/commonMain/kotlin/com/kuikly/stock/pages/ApiConfigPage.kt`
 
-- [ ] **Step 1: Implement risk-center states**
+- [x] **Step 1: Implement risk-center states**
 
 Render empty, partial-price, and complete portfolio states. Show total market value, P&L, return, maximum stock weight, maximum industry weight, each holding, and active/triggered alerts. Never render zero as a valid total when no priced holding exists.
 
-- [ ] **Step 2: Implement profile hub**
+- [x] **Step 2: Implement profile hub**
 
 Move API configuration, data refresh, data-source status, privacy statement, and application version into `ProfilePage`. Keep each row as a 44dp target.
 
-- [ ] **Step 3: Implement API profile list and editor**
+- [x] **Step 3: Implement API profile list and editor**
 
 The list shows name, Base URL, model, active status, tool status, and masked key. The editor validates every field, leaves an existing key unchanged when the key input is empty, and clears the input after save. Add enable, edit, delete, and add-custom actions.
 
-- [ ] **Step 4: Implement asynchronous connection testing**
+- [x] **Step 4: Implement asynchronous connection testing**
 
 Disable the test button while running; show success with provider/model/elapsed time or the sanitized mapped error. Never copy the key into observable status strings.
 
-- [ ] **Step 5: Compile and commit**
+- [x] **Step 5: Compile and commit**
 
 ```powershell
 .\gradlew.bat :shared:compileDebugKotlinAndroid --console=plain

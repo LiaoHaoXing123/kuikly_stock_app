@@ -78,3 +78,37 @@ internal fun ViewContainer<*, *>.appBottomNav(ctx: Pager, activeRoute: String) {
         }
     }
 }
+
+internal fun ViewContainer<*, *>.pageTitleBar(
+    ctx: Pager,
+    title: String,
+    subtitle: String,
+    trailingAction: (() -> Unit)? = null,
+) {
+    View {
+        attr {
+            padding(top = ctx.pagerData.statusBarHeight, left = 6f, right = 10f)
+            height(58f + ctx.pagerData.statusBarHeight)
+            flexDirectionRow()
+            alignItems(FlexAlign.CENTER)
+            backgroundColor(Color.WHITE)
+        }
+        View {
+            attr { size(44f, 44f); allCenter() }
+            event { click { ctx.acquireModule<RouterModule>(RouterModule.MODULE_NAME).closePage() } }
+            Text { attr { text("‹"); fontSize(32f); color(0xFF243A55) } }
+        }
+        View {
+            attr { flex(1f) }
+            Text { attr { text(title); fontSize(18f); fontWeightBold(); color(0xFF12263F) } }
+            Text { attr { text(subtitle); fontSize(10f); color(0xFF8792A1); marginTop(1f) } }
+        }
+        if (trailingAction != null) {
+            View {
+                attr { minWidth(44f); height(44f); allCenter() }
+                event { click { trailingAction() } }
+                Text { attr { text("刷新"); fontSize(12f); fontWeightBold(); color(0xFF0E67D1) } }
+            }
+        }
+    }
+}
