@@ -276,6 +276,10 @@ $indicatorText
                 "stop_loss" to (a["stop_loss"]?.toString() ?: "-"),
                 "support_price" to (a["support_price"]?.toString() ?: "-"),
                 "resistance_price" to (a["resistance_price"]?.toString() ?: "-"),
+                "support_value" to numericLevel(a["support_price"]),
+                "resistance_value" to numericLevel(a["resistance_price"]),
+                "data_date" to (detail.indicator?.tradeDate ?: ""),
+                "indicator_date" to (detail.indicator?.tradeDate ?: ""),
                 "color" to color))
         }
         a["risk_level"]?.let {
@@ -293,6 +297,14 @@ $indicatorText
             "summary" to "技术指标来自本地 SQLite（真实计算值），AI 由 DeepSeek 直连生成。",
             "color" to "#90A4AE"))
         return cards
+    }
+
+    private fun numericLevel(value: Any?): Double? = when (value) {
+        is Number -> value.toDouble().takeIf { it.isFinite() && it > 0.0 }
+        else -> Regex("""\d+(?:\.\d+)?""").find(value?.toString().orEmpty())
+            ?.value
+            ?.toDoubleOrNull()
+            ?.takeIf { it.isFinite() && it > 0.0 }
     }
 
         suspend fun chat(
@@ -342,6 +354,10 @@ $indicatorText
       "one_liner": "一句话结论：方向+关键提醒",
       "resistance": "压力位，如 1338 元",
       "support": "MA5 支撑位，如 1305 元",
+      "resistance_value": 1338.0,
+      "support_value": 1305.0,
+      "data_date": "行情数据日期",
+      "indicator_date": "指标计算日期",
       "signals": "每行一条技术信号，用\\n分隔，最多3条",
       "action": "观察动作：给出触发条件和应对，如 等待放量突破压力，或回踩 MA5 后再评估",
       "footnote": "数据截至 MM-DD · 仅供参考，不构成投资建议"

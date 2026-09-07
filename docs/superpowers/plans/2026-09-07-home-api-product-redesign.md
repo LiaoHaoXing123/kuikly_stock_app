@@ -366,7 +366,7 @@ git commit -m "feat: add dashboard and portfolio risk models"
 - Create: `shared/src/commonTest/kotlin/com/kuikly/stock/data/ConclusionAlertFactoryTest.kt`
 - Modify: `shared/src/commonMain/kotlin/com/kuikly/stock/network/DeepSeekApi.kt`
 
-- [ ] **Step 1: Write failing alert-mapping tests**
+- [x] **Step 1: Write failing alert-mapping tests**
 
 ```kotlin
 @Test fun supportCreatesPriceBelowAlert() {
@@ -382,11 +382,11 @@ git commit -m "feat: add dashboard and portfolio risk models"
 }
 ```
 
-- [ ] **Step 2: Run RED, implement factory, run GREEN**
+- [x] **Step 2: Run RED, implement factory, run GREEN**
 
 The factory rejects blank codes, non-finite prices, and prices ≤ 0. Extend the AI card schema with numeric `support_value`, `resistance_value`, `data_date`, and `indicator_date`; reminder creation uses only numeric fields.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```powershell
 git add shared/src/commonMain/kotlin/com/kuikly/stock/data/ConclusionAlertFactory.kt shared/src/commonMain/kotlin/com/kuikly/stock/network/DeepSeekApi.kt shared/src/commonTest/kotlin/com/kuikly/stock/data/ConclusionAlertFactoryTest.kt
