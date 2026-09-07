@@ -475,27 +475,27 @@ git commit -m "feat(ui): add risk and API settings pages"
 - Modify: `shared/src/commonMain/kotlin/com/kuikly/stock/pages/ChatMainPage.kt`
 - Modify: `shared/src/commonMain/kotlin/com/kuikly/stock/data/CompareCards.kt`
 
-- [ ] **Step 1: Replace crowded top-level controls**
+- [x] **Step 1: Replace crowded top-level controls**
 
 Use a back button, title `AI 研究室`, and active profile/model chip. Move market, watchlist, data source, and refresh actions out of the chat header/drawer into bottom navigation or profile pages.
 
-- [ ] **Step 2: Render compare results as vertical cards**
+- [x] **Step 2: Render compare results as vertical cards**
 
 Stop rendering five narrow columns. For each stock, render name/code and change on one row, then a 2×2 metric grid for price, MA5, RSI6, and key level. Keep exact numbers unbroken.
 
-- [ ] **Step 3: Add conclusion hierarchy and evidence disclosure**
+- [x] **Step 3: Add conclusion hierarchy and evidence disclosure**
 
 Render one-line verdict first, then key levels and observation action. Collapse long signal/evidence/source content behind an explicit toggle. Display data and indicator dates beside the source label.
 
-- [ ] **Step 4: Add one-tap alert confirmation**
+- [x] **Step 4: Add one-tap alert confirmation**
 
 Support and resistance buttons open a confirmation sheet showing stock, direction, and exact threshold. On confirmation call `WatchStore.upsertAlert` with `ConclusionAlertFactory` output and show a short success toast.
 
-- [ ] **Step 5: Preserve one-shot scroll and compact composer**
+- [x] **Step 5: Preserve one-shot scroll and compact composer**
 
 Do not change the `ChatScrollCoordinator` contract. Reduce composer vertical height while maintaining a 44dp send target and keyboard-safe padding.
 
-- [ ] **Step 6: Compile, test, and commit**
+- [x] **Step 6: Compile, test, and commit**
 
 ```powershell
 .\gradlew.bat :shared:testDebugUnitTest :shared:compileDebugKotlinAndroid --console=plain

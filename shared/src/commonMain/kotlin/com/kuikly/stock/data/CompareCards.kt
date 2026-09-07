@@ -21,13 +21,19 @@ internal object CompareCards {
                 val pct = rt.changePercent ?: 0.0
                 val ma5 = detail.indicator?.ma5
                 val rsi = detail.indicator?.rsi6
+                val recent = detail.kline.orEmpty().takeLast(5)
+                val keyLevel = formatComparisonKeyLevel(
+                    recent.minOfOrNull { it.low },
+                    recent.maxOfOrNull { it.high },
+                )
                 add(
                     listOf(
                         name,
                         fmt2(price),
                         fmtSignedPct(pct),
                         ma5?.let { fmt2(it) } ?: "-",
-                        rsi?.let { fmt2(it) } ?: "-"
+                        rsi?.let { fmt2(it) } ?: "-",
+                        keyLevel,
                     ).joinToString("|")
                 )
             }
@@ -37,9 +43,14 @@ internal object CompareCards {
             mapOf(
                 "type" to "compare_card",
                 "title" to "多股对比",
-                "headers" to "名称|现价|涨跌幅|MA5|RSI6",
+                "headers" to "名称|现价|涨跌幅|MA5|RSI6|关键位",
                 "rows" to cols.joinToString("\n")
             )
         )
     }
+}
+
+internal fun formatComparisonKeyLevel(support: Double?, resistance: Double?): String {
+    if (support == null || resistance == null || !support.isFinite() || !resistance.isFinite()) return "-"
+    return "支 ${fmt2(support)} / 压 ${fmt2(resistance)}"
 }

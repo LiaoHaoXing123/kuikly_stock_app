@@ -26,6 +26,9 @@ import com.kuikly.stock.data.LocalDataService
 import com.kuikly.stock.data.StockDb
 import com.kuikly.stock.data.StockRepository
 import com.kuikly.stock.data.DataUpdater
+import com.kuikly.stock.data.ConclusionAlertFactory
+import com.kuikly.stock.data.WatchStore
+import com.kuikly.stock.ai.config.AiRuntimeConfig
 import com.tencent.kuikly.core.coroutines.delay
 import com.tencent.kuikly.core.coroutines.launch
 
@@ -81,6 +84,14 @@ class ChatMainPage : Pager() {
     internal var msgActionContent by observable("")
     internal var quoteText by observable("")
 
+    internal var activeProviderLabel by observable("API 未配置")
+    internal var expandedEvidenceCodes: ObservableList<String> by observableList()
+    internal var showAlertConfirm by observable(false)
+    internal var pendingAlertCode by observable("")
+    internal var pendingAlertName by observable("")
+    internal var pendingAlertType by observable(0)
+    internal var pendingAlertValue by observable(0.0)
+
     lateinit var inputRef: ViewRef<InputView>
 
     companion object {
@@ -105,6 +116,9 @@ class ChatMainPage : Pager() {
                     messageList(ctx)
                 }
                 inputArea(ctx)
+                vif({ ctx.keyboardHeight <= 0f }) {
+                    appBottomNav(ctx, AppRoutes.CHAT)
+                }
 
                 vif({ ctx.showDrawer }) {
                     drawer(ctx)
@@ -143,6 +157,10 @@ class ChatMainPage : Pager() {
                 vif({ ctx.showMsgActions }) {
                     msgActionSheet(ctx)
                 }
+
+                vif({ ctx.showAlertConfirm }) {
+                    alertConfirmDialog(ctx)
+                }
             }
         }
     }
@@ -155,6 +173,10 @@ class ChatMainPage : Pager() {
             DataSourceManager.setMode(DataSourceManager.Mode.ONLINE)
         }
         devModeOnline = DataSourceManager.isOnline
+        activeProviderLabel = runCatching {
+            val p = AiRuntimeConfig.activeProfile()
+            if (AiRuntimeConfig.isConfigured()) "${p.name} · ${p.model}" else "${p.name} · 待配置"
+        }.getOrDefault("API 未配置")
         restoreSessions()
         loadQuickQuestion()
     }
@@ -163,7 +185,7 @@ class ChatMainPage : Pager() {
         val id = createSessionId()
         sessions.add(ChatSession(id = id, title = "新对话", messages = emptyList(), updatedAt = System.currentTimeMillis()))
         switchToSession(id, persist = false)
-        aiErrorNotice = "已新建对话，可点击左上角☰查看历史对话"
+        aiErrorNotice = "已新建对话，可点击右上角查看历史对话"
     }
 
     internal fun switchToSession(id: String, persist: Boolean = true) {
@@ -542,7 +564,7 @@ class ChatMainPage : Pager() {
                     ChatMessageItem(
                         role = "assistant",
                         content = "⚠️ AI 助手暂时无法回答：" + (e.message ?: "未知错误") +
-                            "\n\n排查：①是否联网（在线模式需直连 DeepSeek）②数据源是否已配置",
+                            "\n\n排查：①是否联网 ②“我的 → API 配置”中的地址、模型和密钥是否有效",
                         isUser = false
                     )
                 )
@@ -551,6 +573,33 @@ class ChatMainPage : Pager() {
                 isThinking = false
             }
         }
+    }
+
+    internal fun toggleEvidence(key: String) {
+        if (expandedEvidenceCodes.contains(key)) expandedEvidenceCodes.remove(key) else expandedEvidenceCodes.add(key)
+    }
+
+    internal fun prepareAlert(code: String, name: String, type: Int, value: Double) {
+        if (code.isBlank() || !value.isFinite() || value <= 0.0) {
+            aiErrorNotice = "当前结论没有可用的精确价位"
+            return
+        }
+        pendingAlertCode = code
+        pendingAlertName = name
+        pendingAlertType = type
+        pendingAlertValue = value
+        showAlertConfirm = true
+    }
+
+    internal fun confirmAlert() {
+        val rule = if (pendingAlertType == 1) {
+            ConclusionAlertFactory.support(pendingAlertCode, pendingAlertName, pendingAlertValue)
+        } else {
+            ConclusionAlertFactory.resistance(pendingAlertCode, pendingAlertName, pendingAlertValue)
+        }
+        WatchStore.upsertAlert(rule)
+        showAlertConfirm = false
+        aiErrorNotice = "提醒已创建 · ${pendingAlertName} ${if (pendingAlertType == 1) "跌至" else "涨至"} ${fmtCardNumber(pendingAlertValue)}"
     }
 
     internal fun runAiStatusCheck() {
@@ -579,73 +628,59 @@ internal fun ViewContainer<*, *>.topBar(ctx: ChatMainPage) {
         attr {
             flexDirectionRow()
             alignItems(FlexAlign.CENTER)
-            height(56f)
+            height(60f + ctx.pagerData.statusBarHeight)
             backgroundColor(0xFFFFFFFF)
             paddingTop(ctx.pagerData.statusBarHeight)
         }
 
         View {
-            attr { padding(left = 16f, top = 12f, right = 12f, bottom = 12f) }
+            attr { size(44f, 44f); allCenter(); marginLeft(4f) }
             event {
-                click { ctx.showDrawer = !ctx.showDrawer }
+                click { ctx.acquireModule<RouterModule>(RouterModule.MODULE_NAME).closePage() }
             }
             Text {
                 attr {
-                    text("☰")
-                    fontSize(22f)
-                    color(0xFF333333)
+                    text("‹")
+                    fontSize(32f)
+                    color(0xFF243A55)
                 }
             }
         }
 
-        View { attr { flex(1f) } }
-        Text {
-            attr {
-                text(ctx.activeTitle)
-                fontSize(17f)
-                fontWeightBold()
-                color(0xFF333333)
+        View {
+            attr { flex(1f); marginLeft(2f) }
+            Text {
+                attr {
+                    text("AI 研究室")
+                    fontSize(18f)
+                    fontWeightBold()
+                    color(0xFF12263F)
+                }
+            }
+            Text {
+                attr {
+                    text(ctx.activeProviderLabel)
+                    fontSize(10f)
+                    color(0xFF0E67D1)
+                    marginTop(1f)
+                }
             }
         }
-        View { attr { flex(1f) } }
 
         View {
             attr {
-                flexDirectionRow()
-                alignItems(FlexAlign.CENTER)
+                minWidth(52f)
+                height(44f)
+                allCenter()
+                marginRight(6f)
             }
-            View {
-                attr { padding(left = 8f, top = 12f, right = 8f, bottom = 12f) }
-                event {
-                    click {
-                        ctx.acquireModule<RouterModule>(RouterModule.MODULE_NAME)
-                            .openPage("watchlist", JSONObject())
-                    }
-                }
-                Text {
-                    attr {
-                        text("☆ 自选")
-                        fontSize(14f)
-                        color(0xFF1976D2)
-                        fontWeightBold()
-                    }
-                }
-            }
-            View {
-                attr { padding(left = 6f, top = 12f, right = 16f, bottom = 12f) }
-                event {
-                    click {
-                        ctx.acquireModule<RouterModule>(RouterModule.MODULE_NAME)
-                            .openPage("stock_list", JSONObject())
-                    }
-                }
-                Text {
-                    attr {
-                        text("大盘行情")
-                        fontSize(14f)
-                        color(0xFF1976D2)
-                        fontWeightBold()
-                    }
+            event { click { ctx.showDrawer = !ctx.showDrawer } }
+            Text {
+                attr {
+                    text("历史")
+                    fontSize(12f)
+                    color(0xFF0E67D1)
+                    fontWeightBold()
                 }
             }
         }
@@ -836,21 +871,7 @@ internal fun ViewContainer<*, *>.compareCard(
                 color(0xFF20242B)
             }
         }
-        View {
-            attr {
-                flexDirectionColumn()
-                marginTop(8f)
-                backgroundColor(0xFFF7F9FC)
-                borderRadius(8f)
-            }
-            compareTableLine(headers, colCount, isHeader = true)
-            rawRows.forEachIndexed { index, cells ->
-                if (index > 0) {
-                    View { attr { height(1f); backgroundColor(0xFFEEF1F5) } }
-                }
-                compareTableLine(cells, colCount, isHeader = false)
-            }
-        }
+        rawRows.forEach { cells -> compareStockBlock(headers, cells) }
         Text {
             attr {
                 text("本地实时数据 · 仅供参考")
@@ -859,6 +880,36 @@ internal fun ViewContainer<*, *>.compareCard(
                 marginTop(6f)
             }
         }
+    }
+}
+
+internal fun ViewContainer<*, *>.compareStockBlock(headers: List<String>, cells: List<String>) {
+    val name = cells.getOrNull(0).orEmpty()
+    val change = cells.getOrNull(2).orEmpty()
+    View {
+        attr { marginTop(9f); padding(11f); borderRadius(10f); backgroundColor(0xFFF7F9FC) }
+        View { attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
+            Text { attr { text(name); fontSize(14f); fontWeightBold(); color(0xFF23364D); flex(1f) } }
+            Text { attr { text(change); fontSize(14f); fontWeightBold(); color(if (change.startsWith("+")) 0xFFD64545 else if (change.startsWith("-")) 0xFF2E9E5B else 0xFF5F6B7A) } }
+        }
+        View { attr { flexDirectionRow(); marginTop(9f) }
+            compareMetric(headers.getOrNull(1) ?: "现价", cells.getOrNull(1) ?: "-")
+            View { attr { width(7f) } }
+            compareMetric(headers.getOrNull(3) ?: "MA5", cells.getOrNull(3) ?: "-")
+        }
+        View { attr { flexDirectionRow(); marginTop(7f) }
+            compareMetric(headers.getOrNull(4) ?: "RSI6", cells.getOrNull(4) ?: "-")
+            View { attr { width(7f) } }
+            compareMetric("关键位", cells.getOrNull(5) ?: "-")
+        }
+    }
+}
+
+internal fun ViewContainer<*, *>.compareMetric(label: String, value: String) {
+    View {
+        attr { flex(1f); padding(8f); borderRadius(8f); backgroundColor(Color.WHITE) }
+        Text { attr { text(label); fontSize(10f); color(0xFF8490A0) } }
+        Text { attr { text(value); fontSize(14f); fontWeightBold(); color(0xFF1E3047); marginTop(3f) } }
     }
 }
 
@@ -907,6 +958,10 @@ internal fun ViewContainer<*, *>.conclusionCard(
     val oneLiner = card["one_liner"] as? String ?: ""
     val resistance = card["resistance"] as? String ?: ""
     val support = card["support"] as? String ?: ""
+    val resistanceValue = cardNumber(card["resistance_value"])
+    val supportValue = cardNumber(card["support_value"])
+    val dataDate = card["data_date"]?.toString().orEmpty()
+    val indicatorDate = card["indicator_date"]?.toString().orEmpty()
     val signals = when (val s = card["signals"]) {
         is String -> splitBreaks(s)
         is List<*> -> s.map { it?.toString() ?: "" }.flatMap { splitBreaks(it) }
@@ -914,6 +969,8 @@ internal fun ViewContainer<*, *>.conclusionCard(
     }
     val action = card["action"] as? String ?: ""
     val footnote = card["footnote"] as? String ?: "仅供参考，不构成投资建议"
+    val evidenceKey = (code + "_" + oneLiner).take(80)
+    val evidenceExpanded = ctx.expandedEvidenceCodes.contains(evidenceKey)
 
     val isUp = changePercent.contains("+")
     val upColor = 0xFFD64545
@@ -993,19 +1050,26 @@ internal fun ViewContainer<*, *>.conclusionCard(
                 View { attr { width(7f) } }
                 metricBox("MA5 支撑", support.ifEmpty { "-" })
             }
+            if (resistanceValue != null || supportValue != null) {
+                View { attr { flexDirectionRow(); marginTop(8f) } }
+                if (resistanceValue != null) {
+                    conclusionAction("设压力位提醒") { ctx.prepareAlert(code, name, 0, resistanceValue) }
+                }
+                if (resistanceValue != null && supportValue != null) View { attr { width(7f) } }
+                if (supportValue != null) {
+                    conclusionAction("设支撑位提醒") { ctx.prepareAlert(code, name, 1, supportValue) }
+                }
+            }
         }
 
         if (signals.isNotEmpty()) {
-            Text {
-                attr {
-                    text("技术信号")
-                    fontSize(14f)
-                    fontWeightBold()
-                    color(0xFF20242B)
-                    marginTop(12f)
-                }
+            View {
+                attr { minHeight(44f); flexDirectionRow(); alignItems(FlexAlign.CENTER); marginTop(8f) }
+                event { click { ctx.toggleEvidence(evidenceKey) } }
+                Text { attr { text(if (evidenceExpanded) "收起技术依据" else "展开技术依据（${signals.size}）"); fontSize(12f); fontWeightBold(); color(0xFF0E67D1); flex(1f) } }
+                Text { attr { text(if (evidenceExpanded) "⌃" else "⌄"); fontSize(17f); color(0xFF0E67D1) } }
             }
-            signals.forEach { sig -> signalBullet(sig) }
+            if (evidenceExpanded) signals.forEach { sig -> signalBullet(sig) }
         }
 
         if (action.isNotEmpty()) {
@@ -1039,10 +1103,50 @@ internal fun ViewContainer<*, *>.conclusionCard(
 
         Text {
             attr {
-                text(footnote)
+                text(buildString {
+                    append(footnote)
+                    if (dataDate.isNotBlank()) append(" · 行情 ").append(dataDate)
+                    if (indicatorDate.isNotBlank() && indicatorDate != dataDate) append(" · 指标 ").append(indicatorDate)
+                })
                 fontSize(10f)
                 color(0xFF9AA3B0)
                 marginTop(11f)
+            }
+        }
+    }
+}
+
+private fun cardNumber(value: Any?): Double? = when (value) {
+    is Number -> value.toDouble().takeIf { it.isFinite() && it > 0.0 }
+    else -> value?.toString()?.toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 }
+}
+
+private fun fmtCardNumber(value: Double): String = String.format("%.2f", value)
+
+internal fun ViewContainer<*, *>.conclusionAction(label: String, action: () -> Unit) {
+    View {
+        attr { flex(1f); minHeight(42f); allCenter(); borderRadius(9f); backgroundColor(0xFFE8F2FF) }
+        event { click { action() } }
+        Text { attr { text(label); fontSize(11f); fontWeightBold(); color(0xFF0E67D1) } }
+    }
+}
+
+internal fun ViewContainer<*, *>.alertConfirmDialog(ctx: ChatMainPage) {
+    View {
+        attr { absolutePositionAllZero(); backgroundColor(0x88000000); allCenter() }
+        View {
+            attr { width(ctx.pagerData.pageViewWidth - 46f); padding(18f); borderRadius(18f); backgroundColor(Color.WHITE) }
+            Text { attr { text("确认创建价格提醒"); fontSize(18f); fontWeightBold(); color(0xFF172A43) } }
+            Text { attr { text("${ctx.pendingAlertName} · ${ctx.pendingAlertCode}"); fontSize(13f); color(0xFF697789); marginTop(9f) } }
+            View { attr { padding(14f); marginTop(12f); borderRadius(12f); backgroundColor(0xFFF4F7FB) }
+                Text { attr { text(if (ctx.pendingAlertType == 1) "价格跌至或低于" else "价格涨至或高于"); fontSize(11f); color(0xFF7A8797) } }
+                Text { attr { text("¥ ${fmtCardNumber(ctx.pendingAlertValue)}"); fontSize(23f); fontWeightBold(); color(0xFF173C64); marginTop(4f) } }
+            }
+            Text { attr { text("提醒在行情数据刷新时检查，可能存在延迟。"); fontSize(11f); color(0xFF8A94A1); marginTop(10f) } }
+            View { attr { flexDirectionRow(); marginTop(16f) }
+                View { attr { flex(1f); height(44f); allCenter(); borderRadius(12f); backgroundColor(0xFFF0F2F5) }; event { click { ctx.showAlertConfirm = false } }; Text { attr { text("取消"); fontSize(13f); color(0xFF697586) } } }
+                View { attr { width(10f) } }
+                View { attr { flex(1f); height(44f); allCenter(); borderRadius(12f); backgroundColor(0xFF0E67D1) }; event { click { ctx.confirmAlert() } }; Text { attr { text("确认创建"); fontSize(13f); fontWeightBold(); color(Color.WHITE) } } }
             }
         }
     }
@@ -1446,7 +1550,7 @@ internal fun ViewContainer<*, *>.inputArea(ctx: ChatMainPage) {
             View {
                 attr {
                     flex(1f)
-                    height(64f)
+                    height(50f)
                     backgroundColor(0xFFF5F5F5)
                     borderRadius(20f)
                     flexDirectionRow()
@@ -1458,14 +1562,14 @@ internal fun ViewContainer<*, *>.inputArea(ctx: ChatMainPage) {
                     }
                     attr {
                         flex(1f)
-                        height(56f)
+                        height(46f)
                         fontSize(14f)
                         color(Color(0xFF333333))
                         placeholder("输入问题...")
                         placeholderColor(Color(0xFF999999))
                         marginLeft(16f)
                         marginRight(16f)
-                        lines(3)
+                        lines(2)
                         editable(true)
                         imeNoFullscreen(true)
                     }
@@ -1483,10 +1587,10 @@ internal fun ViewContainer<*, *>.inputArea(ctx: ChatMainPage) {
 
             View {
                 attr {
-                    width(60f)
-                    height(36f)
-                    backgroundColor(0xFF1976D2)
-                    borderRadius(18f)
+                    width(64f)
+                    height(44f)
+                    backgroundColor(0xFF0E67D1)
+                    borderRadius(22f)
                     alignItems(FlexAlign.CENTER)
                     justifyContent(FlexJustifyContent.CENTER)
                     marginLeft(8f)
