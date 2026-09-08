@@ -722,7 +722,8 @@ data class StockListItem(
     val price: Double? = null,
     val changePercent: Double? = null,
     val change: Double? = null,
-    val volume: Double? = null
+    val volume: Double? = null,
+    val isIndex: Boolean = false
 )
 
 internal fun highlightSegments(text: String, keyword: String): List<Pair<String, Boolean>> {

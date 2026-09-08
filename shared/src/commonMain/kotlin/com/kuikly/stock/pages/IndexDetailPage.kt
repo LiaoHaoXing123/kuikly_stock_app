@@ -1,10 +1,12 @@
-// 个股详情页：基础信息、实时行情、技术指标、分时与五档盘口，以及 AI 分析入口。
+// 指数详情页：基础信息、实时点位、日K走势，以及 AI 解读入口。
+// 由聊天页 index_card 跳转承接（openPage("index_detail", {code})）。
+// 注意：指数代码与个股代码存在重叠（如 000001），本页只读 index_* 表，绝不调用个股 minute/orderBook/indicator；
+// 也不提供自选按钮（WatchStore 以 code 为键，会与同代码个股冲突）。
 
 package com.kuikly.stock.pages
 
 import com.tencent.kuikly.core.annotations.Page
 import com.tencent.kuikly.core.base.*
-import com.tencent.kuikly.core.directives.vfor
 import com.tencent.kuikly.core.directives.vif
 import com.tencent.kuikly.core.directives.velse
 import com.tencent.kuikly.core.directives.velseif
@@ -13,32 +15,25 @@ import com.tencent.kuikly.core.layout.FlexJustifyContent
 import com.tencent.kuikly.core.layout.FlexWrap
 import com.tencent.kuikly.core.module.RouterModule
 import com.tencent.kuikly.core.pager.Pager
-import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.observable
-import com.tencent.kuikly.core.reactive.handler.observableList
 import com.tencent.kuikly.core.views.*
 import com.tencent.kuikly.core.views.TextAlign
 import com.kuikly.stock.data.StockRepository
-import com.kuikly.stock.data.WatchStore
 import com.tencent.kuikly.core.coroutines.delay
 import com.tencent.kuikly.core.coroutines.launch
 
-@Page("stock_detail")
-class StockDetailPage : Pager() {
+@Page("index_detail")
+class IndexDetailPage : Pager() {
 
-    internal var stockCode by observable("")
+    internal var indexCode by observable("")
 
-    internal var stockDetail by observable<StockDetailData?>(null)
+    internal var indexDetail by observable<StockDetailData?>(null)
 
     internal var aiAnalysis by observable<AIAnalysisData?>(null)
 
     internal var isLoading by observable(true)
 
     internal var isAnalyzing by observable(false)
-
-    internal var minuteData by observable<List<MinutePoint>?>(null)
-
-    internal var orderBook by observable<OrderBookData?>(null)
 
     internal var loadErrorMessage by observable("")
 
@@ -48,28 +43,14 @@ class StockDetailPage : Pager() {
 
     internal var klineCanvasWidth by observable(0f)
 
-    internal var watched by observable(false)
-
     override fun didInit() {
         super.didInit()
-        stockCode = pagerData.params.optString("code", "")
-        watched = stockCode.isNotEmpty() && WatchStore.isWatched(stockCode)
+        indexCode = pagerData.params.optString("code", "")
 
-        if (stockCode.isNotEmpty()) {
-            loadStockDetail()
-            loadExtraQuote()
+        if (indexCode.isNotEmpty()) {
+            loadIndexDetail()
             loadDataSource()
         }
-    }
-
-    internal fun toggleWatch() {
-        val code = stockCode
-        if (code.isEmpty()) return
-        val name = stockDetail?.info?.name?.takeIf { it.isNotBlank() }
-            ?: WatchStore.find(code)?.name
-            ?: code
-        WatchStore.toggle(code, name)
-        watched = WatchStore.isWatched(code)
     }
 
     override fun body(): ViewBuilder {
@@ -85,11 +66,11 @@ class StockDetailPage : Pager() {
                 vif({ ctx.isLoading }) {
                     stockDetailLoadingView()
                 }
-                velseif({ ctx.stockDetail == null }) {
-                    errorView(ctx)
+                velseif({ ctx.indexDetail == null }) {
+                    indexErrorView(ctx)
                 }
                 velse {
-                    detailNavigationBar(ctx)
+                    indexNavigationBar(ctx)
 
                     Scroller {
                         attr {
@@ -98,22 +79,16 @@ class StockDetailPage : Pager() {
                             scrollEnable(true)
                         }
 
-                        infoCard(ctx)
+                        indexInfoCard(ctx)
 
-                        realtimeCard(ctx)
+                        indexRealtimeCard(ctx)
 
-                        indicatorCard(ctx)
+                        indexKlineChartArea(ctx)
 
-                        klineChartArea(ctx)
-
-                        minuteCard(ctx)
-
-                        orderBookCard(ctx)
-
-                        aiAnalysisCards(ctx)
+                        indexAiAnalysisCards(ctx)
 
                         vif({ ctx.dataSourceText.isNotEmpty() }) {
-                            dataSourceFooter(ctx)
+                            indexDataSourceFooter(ctx)
                         }
                     }
                 }
@@ -121,23 +96,23 @@ class StockDetailPage : Pager() {
         }
     }
 
-    internal fun loadStockDetail() {
-        if (stockCode.isEmpty()) return
+    internal fun loadIndexDetail() {
+        if (indexCode.isEmpty()) return
         isLoading = true
 
         lifecycleScope.launch {
             try {
-                val data = StockRepository.loadStockDetail(stockCode)
+                val data = StockRepository.loadIndexDetail(indexCode)
                 delay(0)
                 if (data != null) {
-                    stockDetail = data
+                    indexDetail = data
                 } else {
-                    stockDetail = null
-                    loadErrorMessage = "未找到股票 $stockCode 的数据"
+                    indexDetail = null
+                    loadErrorMessage = "未找到指数 $indexCode 的数据（可能是旧版数据库，更新后重试）"
                 }
             } catch (e: Throwable) {
                 delay(0)
-                stockDetail = null
+                indexDetail = null
                 loadErrorMessage = e.message ?: "数据加载失败"
             } finally {
                 isLoading = false
@@ -151,11 +126,8 @@ class StockDetailPage : Pager() {
                 val list = StockRepository.dataSources()
                 delay(0)
                 val labels = linkedMapOf(
-                    "stock_realtime" to "行情",
-                    "stock_daily_kline" to "K线",
-                    "stock_minute" to "分时",
-                    "stock_order_book" to "盘口",
-                    "stock_indicator" to "指标",
+                    "index_realtime" to "行情",
+                    "index_daily_kline" to "K线",
                 )
                 val kv = list.toMap()
                 dataSourceText = labels.entries.mapNotNull { (k, label) ->
@@ -169,11 +141,11 @@ class StockDetailPage : Pager() {
     }
 
     internal fun triggerAIAnalysis() {
-        if (stockCode.isEmpty() || isAnalyzing) return
+        if (indexCode.isEmpty() || isAnalyzing) return
         isAnalyzing = true
         lifecycleScope.launch {
             try {
-                val result = StockRepository.analyzeStock(stockCode)
+                val result = StockRepository.analyzeIndex(indexCode)
                 delay(0)
                 aiAnalysis = result
             } catch (e: Throwable) {
@@ -184,44 +156,17 @@ class StockDetailPage : Pager() {
             }
         }
     }
-
-    internal fun loadExtraQuote() {
-        if (stockCode.isEmpty()) return
-        lifecycleScope.launch {
-            try {
-                val minute = StockRepository.loadMinute(stockCode)
-                delay(0)
-                minuteData = minute
-                val book = StockRepository.loadOrderBook(stockCode)
-                delay(0)
-                orderBook = book
-            } catch (e: Throwable) {
-                delay(0)
-            }
-        }
-    }
-
-    private fun getMockName(code: String): String {
-        return when (code) {
-            "000001" -> "平安银行"
-            "600519" -> "贵州茅台"
-            "000002" -> "万科A"
-            "600036" -> "招商银行"
-            "300750" -> "宁德时代"
-            else -> "未知股票"
-        }
-    }
 }
 
-internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
-    val name = ctx.stockDetail?.info?.name ?: "未知"
-    val code = ctx.stockDetail?.info?.code ?: ctx.stockCode
+internal fun ViewContainer<*, *>.indexNavigationBar(ctx: IndexDetailPage) {
+    val name = ctx.indexDetail?.info?.name ?: "指数"
+    val code = ctx.indexDetail?.info?.code ?: ctx.indexCode
 
     View {
         attr {
             flexDirectionRow()
             alignItems(FlexAlign.CENTER)
-            backgroundColor(0xFF1976D2)
+            backgroundColor(0xFF2E7D32)
             paddingTop(ctx.pagerData.statusBarHeight)
             height(48f + ctx.pagerData.statusBarHeight)
         }
@@ -256,24 +201,12 @@ internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
             attr {
                 text("($code)")
                 fontSize(12f)
-                color(0xFFB3D9FF)
+                color(0xFFC8E6C9)
                 marginLeft(4f)
             }
         }
 
         View { attr { flex(1f) } }
-
-        View {
-            attr { padding(10f, 12f, 6f, 12f) }
-            event { click { ctx.toggleWatch() } }
-            Text {
-                attr {
-                    text(if (ctx.watched) "★" else "☆")
-                    fontSize(20f)
-                    color(0xFFFFFFFF)
-                }
-            }
-        }
 
         View {
             attr { padding(10f, 12f, 10f, 12f) }
@@ -289,8 +222,8 @@ internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
     }
 }
 
-internal fun ViewContainer<*, *>.infoCard(ctx: StockDetailPage) {
-    val info = ctx.stockDetail?.info ?: return
+internal fun ViewContainer<*, *>.indexInfoCard(ctx: IndexDetailPage) {
+    val info = ctx.indexDetail?.info ?: return
 
     View {
         attr {
@@ -311,44 +244,14 @@ internal fun ViewContainer<*, *>.infoCard(ctx: StockDetailPage) {
             }
         }
 
-        infoItem("股票代码", info.code)
-        infoItem("股票名称", info.name ?: "-")
-        infoItem("所属行业", info.industry ?: "-")
-        infoItem("市场板块", info.plate ?: "-")
-        infoItem("上市日期", info.listDate ?: "-")
+        infoItem("指数代码", info.code)
+        infoItem("指数名称", info.name ?: "-")
+        infoItem("所属市场", info.plate ?: "-")
     }
 }
 
-internal fun ViewContainer<*, *>.infoItem(label: String, value: String) {
-    View {
-        attr {
-            flexDirectionRow()
-            marginTop(6f)
-        }
-
-        Text {
-            attr {
-                text(label)
-                fontSize(13f)
-                color(0xFF666666)
-                width(80f)
-            }
-        }
-
-        Text {
-            attr {
-                text(value)
-                fontSize(13f)
-                fontWeightBold()
-                color(0xFF333333)
-                flex(1f)
-            }
-        }
-    }
-}
-
-internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
-    val realtime = ctx.stockDetail?.realtime ?: return
+internal fun ViewContainer<*, *>.indexRealtimeCard(ctx: IndexDetailPage) {
+    val realtime = ctx.indexDetail?.realtime ?: return
     val pct = realtime.changePercent
     val priceColor = when {
         pct == null || pct == 0.0 -> 0xFF999999
@@ -381,13 +284,13 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
                 marginBottom(8f)
             }
 
-            quoteColumn(ctx, "最新价",
+            indexQuoteColumn("最新点位",
                 realtime.price?.let { String.format("%.2f", it) } ?: "-",
                 26f, priceColor)
-            quoteColumn(ctx, "涨跌额",
+            indexQuoteColumn("涨跌点",
                 realtime.change?.let { String.format("%+.2f", it) } ?: "-",
                 15f, priceColor)
-            quoteColumn(ctx, "涨跌幅",
+            indexQuoteColumn("涨跌幅",
                 realtime.changePercent?.let { String.format("%+.2f%%", it) } ?: "-",
                 15f, priceColor)
         }
@@ -398,10 +301,10 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
                 flexWrap(FlexWrap.WRAP)
             }
 
-            quoteItem(ctx, "开盘", realtime.openPrice, "")
-            quoteItem(ctx, "昨收", realtime.preClose, "")
-            quoteItem(ctx, "最高", realtime.high, "")
-            quoteItem(ctx, "最低", realtime.low, "")
+            indexQuoteItem(ctx.pagerData.pageViewWidth, "开盘", realtime.openPrice)
+            indexQuoteItem(ctx.pagerData.pageViewWidth, "昨收", realtime.preClose)
+            indexQuoteItem(ctx.pagerData.pageViewWidth, "最高", realtime.high)
+            indexQuoteItem(ctx.pagerData.pageViewWidth, "最低", realtime.low)
         }
 
         View {
@@ -411,23 +314,21 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
                 flexWrap(FlexWrap.WRAP)
             }
 
-            quoteItem(ctx, "成交量", realtime.volume, "手")
-            quoteItem(ctx, "成交额", realtime.amount, "元")
-            quoteItem(ctx, "市盈率", realtime.peTtm, "")
-            quoteItem(ctx, "市净率", realtime.pb, "")
+            indexQuoteItem(ctx.pagerData.pageViewWidth, "成交量", realtime.volume, ::fmtIndexVolume)
+            indexQuoteItem(ctx.pagerData.pageViewWidth, "成交额", realtime.amount, ::fmtIndexAmount)
         }
     }
 }
 
-internal fun ViewContainer<*, *>.quoteItem(
-    ctx: StockDetailPage,
+internal fun ViewContainer<*, *>.indexQuoteItem(
+    pageViewWidth: Float,
     label: String,
     value: Double?,
-    suffix: String = ""
+    format: ((Double) -> String)? = null
 ) {
     View {
         attr {
-            width((ctx.pagerData.pageViewWidth - 40f) / 4f)
+            width((pageViewWidth - 40f) / 4f)
             flexDirectionColumn()
             marginTop(4f)
         }
@@ -442,7 +343,7 @@ internal fun ViewContainer<*, *>.quoteItem(
 
         Text {
             attr {
-                text(value?.let { String.format("%.2f", it) } ?: "-$suffix")
+                text(value?.let { format?.invoke(it) ?: String.format("%.2f", it) } ?: "-")
                 fontSize(13f)
                 fontWeightBold()
                 color(0xFF333333)
@@ -451,8 +352,7 @@ internal fun ViewContainer<*, *>.quoteItem(
     }
 }
 
-internal fun ViewContainer<*, *>.quoteColumn(
-    ctx: StockDetailPage,
+internal fun ViewContainer<*, *>.indexQuoteColumn(
     label: String,
     value: String,
     valueSize: Float,
@@ -484,7 +384,19 @@ internal fun ViewContainer<*, *>.quoteColumn(
     }
 }
 
-internal fun ViewContainer<*, *>.dataSourceFooter(ctx: StockDetailPage) {
+internal fun fmtIndexVolume(v: Double): String = when {
+    v >= 100000000 -> String.format("%.2f亿股", v / 100000000)
+    v >= 10000 -> String.format("%.2f万股", v / 10000)
+    else -> String.format("%.0f股", v)
+}
+
+internal fun fmtIndexAmount(v: Double): String = when {
+    v >= 100000000 -> String.format("%.2f亿元", v / 100000000)
+    v >= 10000 -> String.format("%.2f万元", v / 10000)
+    else -> String.format("%.0f元", v)
+}
+
+internal fun ViewContainer<*, *>.indexDataSourceFooter(ctx: IndexDetailPage) {
     View {
         attr {
             flexDirectionColumn()
@@ -513,169 +425,8 @@ internal fun ViewContainer<*, *>.dataSourceFooter(ctx: StockDetailPage) {
     }
 }
 
-internal fun ViewContainer<*, *>.indicatorCard(ctx: StockDetailPage) {
-    val ind = ctx.stockDetail?.indicator ?: return
-
-    View {
-        attr {
-            flexDirectionColumn()
-            margin(4f, 12f, 4f, 12f)
-            padding(top = 12f, left = 16f, bottom = 12f, right = 16f)
-            backgroundColor(0xFFFFFFFF)
-            borderRadius(10f)
-        }
-
-        Text {
-            attr {
-                text("技术指标（${ind.tradeDate}）")
-                fontSize(15f)
-                fontWeightBold()
-                color(0xFF333333)
-                marginBottom(8f)
-            }
-        }
-
-        indicatorItem("MA5", ind.ma5)
-        indicatorItem("MA10", ind.ma10)
-        indicatorItem("MA20", ind.ma20)
-
-        View {
-            attr { height(1f); backgroundColor(0xFFEEEEEE); margin(8f, 0f, 8f, 0f) }
-        }
-
-        View {
-            attr { flexDirectionRow(); marginTop(6f) }
-            Text { attr { text("MACD"); fontSize(12f); color(0xFF666666); width(60f) } }
-            Text {
-                attr {
-                    text("DIF ${fmtInd(ind.dif)}  DEA ${fmtInd(ind.dea)}  柱 ${fmtInd(ind.macd)}")
-                    fontSize(12f); color(0xFF333333)
-                }
-            }
-        }
-        View {
-            attr { flexDirectionRow(); marginTop(6f) }
-            Text { attr { text("RSI6"); fontSize(12f); color(0xFF666666); width(60f) } }
-            Text { attr { text(fmtInd(ind.rsi6)); fontSize(12f); color(0xFF333333) } }
-        }
-        View {
-            attr { flexDirectionRow(); marginTop(6f) }
-            Text { attr { text("KDJ"); fontSize(12f); color(0xFF666666); width(60f) } }
-            Text {
-                attr {
-                    text("K ${fmtInd(ind.kdjK)}  D ${fmtInd(ind.kdjD)}  J ${fmtInd(ind.kdjJ)}")
-                    fontSize(12f); color(0xFF333333)
-                }
-            }
-        }
-    }
-}
-
-internal fun ViewContainer<*, *>.indicatorItem(label: String, value: Double?) {
-    View {
-        attr { flexDirectionRow(); marginTop(4f) }
-        Text { attr { text(label); fontSize(12f); color(0xFF666666); width(60f) } }
-        Text { attr { text(fmtInd(value)); fontSize(12f); color(0xFF333333) } }
-    }
-}
-
-private fun fmtInd(v: Double?): String = if (v == null) "-" else String.format("%.3f", v)
-
-internal fun ViewContainer<*, *>.minuteCard(ctx: StockDetailPage) {
-    val data = ctx.minuteData ?: return
-
-    View {
-        attr {
-            flexDirectionColumn()
-            margin(4f, 12f, 4f, 12f)
-            padding(top = 12f, left = 16f, bottom = 12f, right = 16f)
-            backgroundColor(0xFFFFFFFF)
-            borderRadius(10f)
-        }
-
-        Text {
-            attr {
-                text("分时数据（共 ${data.size} 分钟）")
-                fontSize(15f); fontWeightBold(); color(0xFF333333); marginBottom(8f)
-            }
-        }
-
-        val latest = data.lastOrNull()
-        if (latest != null) {
-            View {
-                attr { flexDirectionRow() }
-                Text { attr { text("最新分时"); fontSize(12f); color(0xFF666666); width(72f) } }
-                Text {
-                    attr {
-                        text("${latest.time}  价 ${String.format("%.2f", latest.price)}  均价 ${fmtOpt(latest.avgPrice)}")
-                        fontSize(12f); color(0xFF333333)
-                    }
-                }
-            }
-            View {
-                attr { flexDirectionRow(); marginTop(4f) }
-                Text { attr { text("区间"); fontSize(12f); color(0xFF666666); width(72f) } }
-                val prices = data.map { it.price }
-                val hi = prices.maxOrNull(); val lo = prices.minOrNull()
-                Text {
-                    attr { text("高 ${fmtOpt(hi)}  低 ${fmtOpt(lo)}"); fontSize(12f); color(0xFF333333) }
-                }
-            }
-        }
-        Text {
-            attr { text("提示：分时仅 11 只热门股有数据"); fontSize(11f); color(0xFF999999); marginTop(6f) }
-        }
-    }
-}
-
-internal fun ViewContainer<*, *>.orderBookCard(ctx: StockDetailPage) {
-    val book = ctx.orderBook ?: return
-
-    View {
-        attr {
-            flexDirectionColumn()
-            margin(4f, 12f, 4f, 12f)
-            padding(top = 12f, left = 16f, bottom = 12f, right = 16f)
-            backgroundColor(0xFFFFFFFF)
-            borderRadius(10f)
-        }
-
-        Text {
-            attr {
-                text("五档盘口${book.updateTime?.let { "（$it）" } ?: ""}")
-                fontSize(15f); fontWeightBold(); color(0xFF333333); marginBottom(8f)
-            }
-        }
-
-        book.asks.reversed().forEachIndexed { i, (price, vol) ->
-            orderBookRow("卖${5 - i}", price, vol, 0xFF43A047)
-        }
-        View { attr { height(1f); backgroundColor(0xFFEEEEEE); margin(4f, 0f, 4f, 0f) } }
-        book.bids.forEachIndexed { i, (price, vol) ->
-            orderBookRow("买${i + 1}", price, vol, 0xFFE53935)
-        }
-
-        book.commissionRatio?.let { ratio ->
-            Text {
-                attr { text("委比 ${String.format("%.2f", ratio)}%"); fontSize(12f); color(0xFF666666); marginTop(6f) }
-            }
-        }
-    }
-}
-
-internal fun ViewContainer<*, *>.orderBookRow(label: String, price: Double?, vol: Double?, color: Long) {
-    View {
-        attr { flexDirectionRow(); marginTop(3f) }
-        Text { attr { text(label); fontSize(12f); color(0xFF666666); width(40f) } }
-        Text { attr { text(fmtOpt(price)); fontSize(12f); color(color); flex(1f) } }
-        Text { attr { text(fmtOpt(vol)); fontSize(12f); color(0xFF666666) } }
-    }
-}
-
-private fun fmtOpt(v: Double?): String = if (v == null) "-" else String.format("%.2f", v)
-
-internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
-    val klineData = ctx.stockDetail?.kline
+internal fun ViewContainer<*, *>.indexKlineChartArea(ctx: IndexDetailPage) {
+    val klineData = ctx.indexDetail?.kline
 
     View {
         attr {
@@ -700,34 +451,16 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
             klineLoadingView()
         }
         velseif({ klineData != null && klineData.isNotEmpty() }) {
-            klineChartCanvas(ctx, klineData!!)
-            klineSummary(klineData)
+            indexKlineChartCanvas(ctx, klineData!!)
+            indexKlineSummary(klineData)
         }
         velse {
-            klineErrorView(ctx)
+            indexKlineErrorView(ctx)
         }
     }
 }
 
-internal fun ViewContainer<*, *>.klineLoadingView() {
-    View {
-        attr {
-            height(200f)
-            alignItems(FlexAlign.CENTER)
-            justifyContent(FlexJustifyContent.CENTER)
-        }
-        Text {
-            attr {
-                text("K线数据加载中...")
-                fontSize(13f)
-                color(0xFF999999)
-                textAlignCenter()
-            }
-        }
-    }
-}
-
-internal fun ViewContainer<*, *>.klineErrorView(ctx: StockDetailPage) {
+internal fun ViewContainer<*, *>.indexKlineErrorView(ctx: IndexDetailPage) {
     View {
         attr {
             padding(top = 24f, left = 0f, bottom = 24f, right = 0f)
@@ -736,7 +469,7 @@ internal fun ViewContainer<*, *>.klineErrorView(ctx: StockDetailPage) {
         }
         Text {
             attr {
-                text("K线数据获取失败或暂无数据")
+                text("指数K线暂无数据（旧版数据库请更新后重试）")
                 fontSize(13f)
                 color(0xFF999999)
                 textAlignCenter()
@@ -746,25 +479,25 @@ internal fun ViewContainer<*, *>.klineErrorView(ctx: StockDetailPage) {
             attr {
                 marginTop(12f)
                 padding(top = 8f, left = 20f, bottom = 8f, right = 20f)
-                backgroundColor(0xFFE3F2FD)
+                backgroundColor(0xFFE8F5E9)
                 borderRadius(16f)
             }
             event {
-                click { ctx.loadStockDetail() }
+                click { ctx.loadIndexDetail() }
             }
             Text {
                 attr {
                     text("重试")
                     fontSize(13f)
                     fontWeightBold()
-                    color(0xFF1976D2)
+                    color(0xFF2E7D32)
                 }
             }
         }
     }
 }
 
-internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, klineData: List<KLineDataItem>) {
+internal fun ViewContainer<*, *>.indexKlineChartCanvas(ctx: IndexDetailPage, klineData: List<KLineDataItem>) {
     Canvas({
         attr {
             height(344f)
@@ -861,7 +594,7 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, klineDat
         context.fillStyle(Color(0xFF999999))
         context.font(9f)
         context.textAlign(TextAlign.RIGHT)
-        context.fillText("成交量(手)", width - 2f, volTop - 8f)
+        context.fillText("成交量", width - 2f, volTop - 8f)
 
         context.fillStyle(Color(0xFF999999))
         context.font(10f)
@@ -913,14 +646,14 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, klineDat
             )
             context.fillStyle(tooltipColor)
             context.fillText(
-                "涨跌 ${String.format("%+.2f%%", pct)}   量 ${k.volume.toInt()} 手",
+                "涨跌 ${String.format("%+.2f%%", pct)}   量 ${fmtIndexVolume(k.volume)}",
                 4f, 20f
             )
         }
     }
 }
 
-internal fun ViewContainer<*, *>.klineSummary(klineData: List<KLineDataItem>) {
+internal fun ViewContainer<*, *>.indexKlineSummary(klineData: List<KLineDataItem>) {
     val latest = klineData.lastOrNull()
     if (latest == null) return
 
@@ -963,7 +696,7 @@ internal fun ViewContainer<*, *>.klineSummary(klineData: List<KLineDataItem>) {
 
             Text {
                 attr {
-                    text("成交量: ${latest.volume.toInt()} 手")
+                    text("成交量: ${fmtIndexVolume(latest.volume)}")
                     fontSize(12f)
                     color(0xFF666666)
                     marginLeft(12f)
@@ -973,7 +706,7 @@ internal fun ViewContainer<*, *>.klineSummary(klineData: List<KLineDataItem>) {
     }
 }
 
-internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
+internal fun ViewContainer<*, *>.indexAiAnalysisCards(ctx: IndexDetailPage) {
     View {
         attr {
             flexDirectionColumn()
@@ -1001,7 +734,7 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
                     attr {
                         marginLeft(8f)
                         padding(top = 4f, left = 8f, bottom = 4f, right = 8f)
-                        backgroundColor(0xFFFFF9C4)
+                        backgroundColor(0xFFE8F5E9)
                         borderRadius(12f)
                     }
                     event {
@@ -1021,18 +754,18 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
         }
 
         vif({ ctx.isAnalyzing }) {
-            analyzingView(ctx)
+            indexAnalyzingView()
         }
         velseif({ ctx.aiAnalysis == null }) {
-            notAnalyzedView(ctx)
+            indexNotAnalyzedView(ctx)
         }
         velse {
-            renderAnalysisBubble(ctx, ctx.aiAnalysis!!)
+            indexAnalysisBubble(ctx, ctx.aiAnalysis!!)
         }
     }
 }
 
-internal fun ViewContainer<*, *>.renderAnalysisBubble(ctx: StockDetailPage, analysis: AIAnalysisData) {
+internal fun ViewContainer<*, *>.indexAnalysisBubble(ctx: IndexDetailPage, analysis: AIAnalysisData) {
     val text = buildAnalysisMarkdown(analysis)
 
     View {
@@ -1046,7 +779,7 @@ internal fun ViewContainer<*, *>.renderAnalysisBubble(ctx: StockDetailPage, anal
             attr {
                 flexDirectionColumn()
                 width(bubbleW)
-                backgroundColor(0xFFF1F5FF)
+                backgroundColor(0xFFEAF4EA)
                 borderRadius(12f)
                 padding(left = 12f, top = 10f, right = 12f, bottom = 10f)
             }
@@ -1055,57 +788,7 @@ internal fun ViewContainer<*, *>.renderAnalysisBubble(ctx: StockDetailPage, anal
     }
 }
 
-internal fun buildAnalysisMarkdown(a: AIAnalysisData): String {
-    val sb = StringBuilder()
-    for (card in a.cards) {
-        val title = card["title"]?.toString() ?: continue
-        when (card["type"] as? String) {
-            "trend_card" -> {
-                sb.append("**").append(title).append("**\n")
-                sb.append(card["content"] ?: "").append("\n\n")
-            }
-            "signal_card" -> {
-                sb.append("**").append(title).append("**\n")
-                (card["signals"] as? List<*>)?.forEach { sb.append("• ").append(it).append("\n") }
-                sb.append("\n")
-            }
-            "suggestion_card" -> {
-                sb.append("**").append(title).append("**\n")
-                sb.append("建议：").append(card["suggestion"] ?: "-").append("\n")
-                sb.append("目标价：").append(card["target_price"] ?: "-").append("\n")
-                sb.append("止损价：").append(card["stop_loss"] ?: "-").append("\n")
-                card["support_price"]?.let {
-                    if (it.toString().isNotBlank() && it.toString() != "-") sb.append("支撑位：").append(it).append("\n")
-                }
-                card["resistance_price"]?.let {
-                    if (it.toString().isNotBlank() && it.toString() != "-") sb.append("压力位：").append(it).append("\n")
-                }
-                sb.append("\n")
-            }
-            "risk_card" -> {
-                sb.append("**").append(title).append("**\n")
-                card["risk_level"]?.let { sb.append("风险等级：").append(it).append("\n") }
-                (card["risks"] as? List<*>)?.forEach { sb.append("• ").append(it).append("\n") }
-                sb.append("\n")
-            }
-            "summary_card" -> {
-                val summary = card["summary"] ?: card["content"] ?: ""
-                if (summary.toString().isNotBlank()) {
-                    sb.append("**").append(title).append("**\n").append(summary).append("\n\n")
-                }
-            }
-            else -> {
-                val content = card["content"] ?: ""
-                if (content.toString().isNotBlank()) {
-                    sb.append("**").append(title).append("**\n").append(content).append("\n\n")
-                }
-            }
-        }
-    }
-    if (sb.isEmpty()) return "AI 分析完成，暂无详细内容。"
-    return sb.toString().trimEnd()
-}
-internal fun ViewContainer<*, *>.analyzingView(ctx: StockDetailPage) {
+internal fun ViewContainer<*, *>.indexAnalyzingView() {
     View {
         attr {
             flexDirectionColumn()
@@ -1125,7 +808,7 @@ internal fun ViewContainer<*, *>.analyzingView(ctx: StockDetailPage) {
 
         Text {
             attr {
-                text("请稍候，当前 AI 服务正在生成分析报告")
+                text("请稍候，当前 AI 服务正在生成指数分析报告")
                 fontSize(12f)
                 color(0xFF999999)
                 marginTop(6f)
@@ -1134,7 +817,7 @@ internal fun ViewContainer<*, *>.analyzingView(ctx: StockDetailPage) {
     }
 }
 
-internal fun ViewContainer<*, *>.notAnalyzedView(ctx: StockDetailPage) {
+internal fun ViewContainer<*, *>.indexNotAnalyzedView(ctx: IndexDetailPage) {
     View {
         attr {
             flexDirectionColumn()
@@ -1156,7 +839,7 @@ internal fun ViewContainer<*, *>.notAnalyzedView(ctx: StockDetailPage) {
             attr {
                 marginTop(12f)
                 padding(top = 10f, left = 24f, bottom = 10f, right = 24f)
-                backgroundColor(0xFF1976D2)
+                backgroundColor(0xFF2E7D32)
                 borderRadius(20f)
             }
             event {
@@ -1176,7 +859,7 @@ internal fun ViewContainer<*, *>.notAnalyzedView(ctx: StockDetailPage) {
 
         Text {
             attr {
-                text("AI 将为您分析趋势、信号、风险并给出操作建议")
+                text("AI 将为您分析指数趋势、点位、风险并给出操作参考")
                 fontSize(11f)
                 color(0xFF999999)
                 marginTop(8f)
@@ -1185,26 +868,7 @@ internal fun ViewContainer<*, *>.notAnalyzedView(ctx: StockDetailPage) {
     }
 }
 
-internal fun ViewContainer<*, *>.stockDetailLoadingView() {
-    View {
-        attr {
-            flex(1f)
-            flexDirectionColumn()
-            alignItems(FlexAlign.CENTER)
-            justifyContent(FlexJustifyContent.CENTER)
-        }
-
-        Text {
-            attr {
-                text("加载中...")
-                fontSize(16f)
-                color(0xFF666666)
-            }
-        }
-    }
-}
-
-internal fun ViewContainer<*, *>.errorView(ctx: StockDetailPage) {
+internal fun ViewContainer<*, *>.indexErrorView(ctx: IndexDetailPage) {
     View {
         attr {
             flex(1f)
@@ -1223,7 +887,7 @@ internal fun ViewContainer<*, *>.errorView(ctx: StockDetailPage) {
 
         Text {
             attr {
-                text("${ctx.loadErrorMessage}\n未找到股票 ${ctx.stockCode} 的数据")
+                text(ctx.loadErrorMessage.ifEmpty { "未找到指数 ${ctx.indexCode} 的数据" })
                 fontSize(13f)
                 color(0xFF999999)
                 marginTop(8f)
@@ -1235,12 +899,12 @@ internal fun ViewContainer<*, *>.errorView(ctx: StockDetailPage) {
             attr {
                 marginTop(16f)
                 padding(top = 10f, left = 24f, bottom = 10f, right = 24f)
-                backgroundColor(0xFF1976D2)
+                backgroundColor(0xFF2E7D32)
                 borderRadius(20f)
             }
             event {
                 click {
-                    ctx.loadStockDetail()
+                    ctx.loadIndexDetail()
                 }
             }
             Text {
@@ -1254,74 +918,3 @@ internal fun ViewContainer<*, *>.errorView(ctx: StockDetailPage) {
         }
     }
 }
-
-data class StockInfoData(
-    val code: String,
-    val name: String?,
-    val industry: String?,
-    val plate: String?,
-    val listDate: String?
-)
-
-data class RealtimeQuoteData(
-    val code: String,
-    val name: String?,
-    val price: Double?,
-    val change: Double?,
-    val changePercent: Double?,
-    val openPrice: Double?,
-    val preClose: Double?,
-    val high: Double?,
-    val low: Double?,
-    val volume: Double?,
-    val amount: Double?,
-    val peTtm: Double?,
-    val pb: Double?
-)
-
-data class IndicatorData(
-    val tradeDate: String,
-    val ma5: Double?, val ma10: Double?, val ma20: Double?,
-    val dif: Double?, val dea: Double?, val macd: Double?,
-    val rsi6: Double?,
-    val kdjK: Double?, val kdjD: Double?, val kdjJ: Double?
-)
-
-data class KLineDataItem(
-    val code: String,
-    val tradeDate: String,
-    val open: Double,
-    val close: Double,
-    val high: Double,
-    val low: Double,
-    val volume: Double,
-    val amount: Double?
-)
-
-data class MinutePoint(
-    val time: String,
-    val price: Double,
-    val avgPrice: Double?,
-    val volume: Double?
-)
-
-data class OrderBookData(
-    val updateTime: String?,
-    val bids: List<Pair<Double?, Double?>>,
-    val asks: List<Pair<Double?, Double?>>,
-    val commissionRatio: Double?
-)
-
-data class StockDetailData(
-    val info: StockInfoData?,
-    val realtime: RealtimeQuoteData?,
-    val kline: List<KLineDataItem>?,
-    val indicator: IndicatorData? = null
-)
-
-data class AIAnalysisData(
-    val code: String,
-    val name: String?,
-    val analysis: Map<String, Any?>,
-    val cards: List<Map<String, Any?>>
-)

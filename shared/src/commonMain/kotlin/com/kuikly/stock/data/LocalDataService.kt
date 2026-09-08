@@ -144,6 +144,8 @@ object LocalDataService {
         val msg = message.trim()
         if (msg.isEmpty()) return generalHelp()
 
+        val indices = runCatching { StockDb.detectMentionedIndices(msg) }.getOrDefault(emptyList())
+
         val codeHit = Regex("\\d{6}").find(msg)?.value?.let { code ->
             loadStockList().find { it.code == code }
         }
@@ -157,6 +159,7 @@ object LocalDataService {
         val target = codeHit ?: nameHit
 
         return when {
+            indices.isNotEmpty() -> indexQa(indices.first())
             target != null -> stockQa(target)
             isMarketQuestion(msg) -> marketOverview()
             else -> generalHelp()
@@ -203,6 +206,42 @@ object LocalDataService {
             "今天大盘怎么样？"
         )
 
+        return ChatResult(text = text, cards = cards, suggestions = suggestions)
+    }
+
+    private fun indexQa(index: StockListItem): ChatResult {
+        val code = index.code
+        val detail = runCatching { StockDb.indexDetail(code) }.getOrNull()
+        val name = detail?.info?.name ?: index.name ?: code
+        val r = detail?.realtime
+        val text = if (r?.price != null) {
+            "## $name($code) 指数行情\n\n" +
+                "**本地指数库**（离线模板，仅展示本地快照）：\n\n" +
+                "- 最新点位：**${fmt2(r.price ?: 0.0)}**\n" +
+                "- 涨跌幅：**${fmt2(r.changePercent ?: 0.0)}%**\n" +
+                "- 区间：最高 ${fmt2(r.high ?: 0.0)} / 最低 ${fmt2(r.low ?: 0.0)}\n\n" +
+                "如需 AI 趋势解读，请切换回在线模式。"
+        } else {
+            "## $name($code) 指数\n\n" +
+                "本地暂无该指数的行情快照（可能是旧版数据库，更新后重试）。\n\n" +
+                "如需实时点位与走势分析，请切换回在线模式。"
+        }
+        val cards = listOf<Map<String, Any?>>(
+            mapOf(
+                "type" to "index_card",
+                "code" to code,
+                "name" to name,
+                "price" to fmt2(r?.price ?: 0.0),
+                "changePercent" to fmtSignedPct(r?.changePercent ?: 0.0)
+            ),
+            mapOf("type" to "signal_card", "content" to "离线模式：指数技术信号不可用，请联网查询实时数据。"),
+            mapOf("type" to "risk_card", "content" to "离线模板不构成投资建议，指数投资同样有风险。")
+        )
+        val suggestions = listOf(
+            "$name 近期走势怎么样？",
+            "今天大盘怎么样？",
+            "沪深300和上证指数有什么区别？"
+        )
         return ChatResult(text = text, cards = cards, suggestions = suggestions)
     }
 
@@ -309,6 +348,77 @@ object LocalDataService {
                     "suggestion" to suggestion,
                     "target_price" to fmt2(price * 1.05),
                     "stop_loss" to fmt2(price * 0.95),
+                    "color" to "#43A047"
+                ),
+                mapOf(
+                    "type" to "summary_card", "title" to "总结",
+                    "content" to "$name($code): $trend | ${signals.size} 项技术信号 | 模板回答",
+                    "color" to "#7B1FA2"
+                )
+            )
+        )
+    }
+
+    suspend fun mockIndexAnalysis(code: String): AIAnalysisData? {
+        val detail = runCatching { StockDb.indexDetail(code) }.getOrNull() ?: return null
+
+        val name = detail.info?.name ?: "未知指数"
+        val price = detail.realtime?.price ?: 0.0
+        val changePct = detail.realtime?.changePercent ?: 0.0
+
+        val trend = when {
+            changePct > 1 -> "强势上行"
+            changePct > 0 -> "震荡偏强"
+            changePct == 0.0 -> "横盘整理"
+            changePct > -1 -> "震荡偏弱"
+            else -> "明显走弱"
+        }
+
+        val signals = mutableListOf<String>()
+        if (changePct > 1) signals.add("短期动能较强")
+        if (changePct < -1) signals.add("短期承压明显")
+        val kline = detail.kline ?: emptyList()
+        if (kline.size >= 5) {
+            val recent = kline.takeLast(5)
+            val upCount = recent.count { it.close > it.open }
+            if (upCount >= 4) signals.add("连续收阳，多头占优")
+            else if (upCount <= 1) signals.add("连续收阴，空头主导")
+        }
+        if (signals.isEmpty()) signals.add("方向不明，观望为主")
+
+        val suggestion = if (changePct > 0.5) "偏多思路，注意追高风险"
+        else if (changePct < -0.5) "谨慎观望，等待企稳信号"
+        else "区间震荡，不宜重仓押注方向"
+
+        return AIAnalysisData(
+            code = code,
+            name = name,
+            analysis = mapOf(
+                "趋势判断" to trend,
+                "最新点位" to fmt2(price),
+                "涨跌幅" to fmt2(changePct) + "%",
+                "数据来源" to "本地离线数据（未能连接 AI 服务，模板回答）"
+            ),
+            cards = listOf(
+                mapOf(
+                    "type" to "trend_card", "title" to "趋势研判",
+                    "content" to "$name 当前处于$trend 阶段，重点观察量能配合与整数关口得失。",
+                    "color" to "#1976D2"
+                ),
+                mapOf(
+                    "type" to "signal_card", "title" to "技术信号",
+                    "signals" to signals.toMutableList<Any?>(), "color" to "#FF9800"
+                ),
+                mapOf(
+                    "type" to "risk_card", "title" to "风险提示",
+                    "content" to "本分析基于本地模板，不构成投资建议。市场有风险，投资需谨慎。",
+                    "color" to "#E53935"
+                ),
+                mapOf(
+                    "type" to "suggestion_card", "title" to "操作建议",
+                    "suggestion" to suggestion,
+                    "target_price" to fmt2(price * 1.03),
+                    "stop_loss" to fmt2(price * 0.97),
                     "color" to "#43A047"
                 ),
                 mapOf(

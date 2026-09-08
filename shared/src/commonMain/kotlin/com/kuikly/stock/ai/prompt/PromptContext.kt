@@ -9,13 +9,14 @@ data class ChatPromptContext(
     val mentioned: List<StockListItem>,
         val stockLines: List<String>,
         val marketLines: List<String>,
+        val indexLines: List<String> = emptyList(),
 ) {
     companion object {
         fun empty(message: String, mentioned: List<StockListItem> = emptyList()) =
             ChatPromptContext(message, mentioned, emptyList(), emptyList())
     }
 
-    val hasData: Boolean get() = stockLines.isNotEmpty() || marketLines.isNotEmpty()
+    val hasData: Boolean get() = stockLines.isNotEmpty() || marketLines.isNotEmpty() || indexLines.isNotEmpty()
 
     fun render(): String {
         if (!hasData) return ""
@@ -23,6 +24,10 @@ data class ChatPromptContext(
             if (stockLines.isNotEmpty()) {
                 append("相关股票数据：\n")
                 stockLines.forEach { append(it).append("\n") }
+            }
+            if (indexLines.isNotEmpty()) {
+                append("相关指数数据：\n")
+                indexLines.forEach { append(it).append("\n") }
             }
             if (marketLines.isNotEmpty()) {
                 append("\n")

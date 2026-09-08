@@ -90,4 +90,16 @@ class ChatProtocolTest {
         assertEquals(12, boundedHistory(history).size)
         assertEquals("q5", boundedHistory(history).first().second)
     }
+    @Test fun validIndexCardPasses() {
+        val result = decodeChatReply("{\"version\":1,\"text\":\"指数\",\"cards\":[{\"type\":\"index_card\",\"code\":\"000001\",\"name\":\"上证指数\",\"price\":3800.5,\"change_percent\":\"+0.40%\"}],\"suggestions\":[]}")
+        val card = result.cards!!.single()
+        assertEquals("index_card", card["type"])
+        assertEquals(3800.5, card["price"])
+        assertTrue(result.errorNotice == null)
+    }
+    @Test fun badIndexCardIsRejected() {
+        val result = decodeChatReply("{\"version\":1,\"text\":\"指数\",\"cards\":[{\"type\":\"index_card\",\"code\":\"000001\",\"name\":\"上证指数\",\"price\":\"3800\",\"change_percent\":\"+0.40%\"}],\"suggestions\":[]}")
+        assertTrue(result.cards.isNullOrEmpty())
+        assertNotNull(result.errorNotice)
+    }
 }

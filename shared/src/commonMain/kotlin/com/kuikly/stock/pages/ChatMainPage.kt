@@ -893,6 +893,7 @@ internal fun ViewContainer<*, *>.renderCard(
         "conclusion_card" -> conclusionCard(ctx, card)
         "compare_card" -> compareCard(ctx, card)
         "stock_card" -> stockCard(ctx, card)
+        "index_card" -> indexCard(ctx, card)
         "chart_card" -> chartCard(card)
         "trend_card" -> aiCard(card, "趋势判断")
         "signal_card" -> aiCard(card, "技术信号")
@@ -1339,6 +1340,83 @@ internal fun ViewContainer<*, *>.stockCard(
                     fontSize(14f)
                     fontWeightBold()
                     color(0xFF1976D2)
+                }
+            }
+        }
+
+        Text {
+            attr {
+                text(price)
+                fontSize(14f)
+                fontWeightBold()
+                color(if (changePercent.contains("+")) 0xFFE53935 else 0xFF43A047)
+                marginLeft(8f)
+            }
+        }
+        Text {
+            attr {
+                text(changePercent)
+                fontSize(12f)
+                color(if (changePercent.contains("+")) 0xFFE53935 else 0xFF43A047)
+                marginLeft(4f)
+            }
+        }
+    }
+}
+
+internal fun ViewContainer<*, *>.indexCard(
+    ctx: ChatMainPage,
+    card: Map<String, Any?>
+) {
+    val code = card["code"] as? String ?: ""
+    val name = card["name"] as? String ?: ""
+    val price = (card["price"] as? Number)?.let { fmtCardNumber(it.toDouble()) } ?: card["price"] as? String ?: "-"
+    val changePercent = (card["change_percent"] as? String)
+        ?: (card["changePercent"] as? String) ?: "-"
+
+    View {
+        attr {
+            flexDirectionRow()
+            alignItems(FlexAlign.CENTER)
+            marginTop(8f)
+            padding(left = 12f, top = 10f, right = 12f, bottom = 10f)
+            backgroundColor(0xFFEFF6EE)
+            borderRadius(8f)
+        }
+        event {
+            click {
+                val params = JSONObject()
+                params.put("code", code)
+                ctx.acquireModule<RouterModule>(RouterModule.MODULE_NAME)
+                    .openPage("index_detail", params)
+            }
+        }
+
+        View {
+            attr {
+                padding(left = 6f, top = 2f, right = 6f, bottom = 2f)
+                backgroundColor(0xFF2E7D32)
+                borderRadius(4f)
+                marginRight(8f)
+            }
+            Text {
+                attr {
+                    text("指数")
+                    fontSize(11f)
+                    fontWeightBold()
+                    color(0xFFFFFFFF)
+                }
+            }
+        }
+
+        View {
+            attr { flex(1f) }
+            Text {
+                attr {
+                    text("$name ($code)")
+                    fontSize(14f)
+                    fontWeightBold()
+                    color(0xFF1B5E20)
                 }
             }
         }

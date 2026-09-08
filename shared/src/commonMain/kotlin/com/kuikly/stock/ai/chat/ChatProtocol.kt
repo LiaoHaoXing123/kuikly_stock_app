@@ -15,6 +15,8 @@ internal const val CHAT_PROTOCOL_PROMPT = """
 2. conclusion_card: type,code,name,bias(偏强/偏弱/中性),one_liner 必填；可选字符串 bias_note,change_percent,support,resistance,data_date,indicator_date,action,footnote；可选正数或 null 的 support_value,resistance_value；signals 为字符串数组，最多 5 项。
 3. signal_card 或 risk_card: type,content(字符串)。
 4. chart_card: type,title,code(6位字符串),chart_type(line/bar),data([{label:日期字符串,value:有限数字}])。data 最多 120 项，至少 2 项；仅引用工具提供的数据，没有数据就省略卡片。走势问题请提供 chart_card。
+5. index_card: type,code(6位字符串),name,price(有限正数),change_percent(字符串)，与 stock_card 同形、仅用于指数。
+指数问题必须用 index_card（不要用 stock_card）；conclusion_card 仅用于个股，不要对指数输出结论卡。
 不要把数字或数组转换成字符串，不要编造价格或日期。价位缺失时省略数值字段。风险提示只能作为研究信息，不能承诺收益。
 历史对话仅用于理解追问；本轮附带数据和工具查询才是价格依据。
 """
@@ -64,7 +66,7 @@ private fun validCard(card: JsonObject): Boolean {
     fun code() = card.string("code")?.matches(Regex("[0-9]{6}")) == true
     fun keys(vararg names: String) = card.keys.all { it == "type" || it in names }
     return when (card.string("type")) {
-        "stock_card" -> keys("code", "name", "price", "change_percent") && code() && text("name") && (card.number("price") ?: -1.0) > 0 && text("change_percent")
+        "stock_card", "index_card" -> keys("code", "name", "price", "change_percent") && code() && text("name") && (card.number("price") ?: -1.0) > 0 && text("change_percent")
         "conclusion_card" -> {
             val strings = setOf("code", "name", "bias", "one_liner", "bias_note", "change_percent", "support", "resistance", "data_date", "indicator_date", "action", "footnote")
             code() && text("name") && text("one_liner") && card.string("bias") in setOf("偏强", "偏弱", "中性") &&

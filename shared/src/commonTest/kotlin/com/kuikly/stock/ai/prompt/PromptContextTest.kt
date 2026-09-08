@@ -41,4 +41,14 @@ class PromptContextTest {
         assertTrue(out.contains("平安银行"))
         assertTrue(out.contains("涨幅榜"))
     }
+
+    @Test
+    fun indexLines_renderWithHeader() {
+        val idx = StockListItem("000001", "上证指数", isIndex = true)
+        val c = ChatPromptContext(msg, listOf(idx), emptyList(), emptyList(), listOf("- 上证指数: 最新点位 3800.5"))
+        assertTrue(c.hasData)
+        val out = c.render()
+        assertTrue(out.contains("相关指数数据："))
+        assertTrue(out.contains("最新点位 3800.5"))
+    }
 }

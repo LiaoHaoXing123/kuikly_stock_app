@@ -172,6 +172,89 @@ object DeepSeekApi {
         )
     }
 
+    suspend fun analyzeIndex(detail: StockDetailData): AIAnalysisData {
+        val messages = buildIndexAnalysisPrompt(detail)
+        val raw = chat(messages)
+        val analysis = parseJsonObjectLoose(raw)
+        val cards = buildAnalysisCards(detail, analysis)
+        return AIAnalysisData(
+            code = detail.info?.code ?: "",
+            name = detail.info?.name,
+            analysis = analysis.mapValues { it.value?.toString() ?: "" },
+            cards = cards,
+        )
+    }
+
+    private fun buildIndexAnalysisPrompt(detail: StockDetailData): List<Pair<String, String>> {
+        val info = detail.info
+        val infoText = buildString {
+            info?.let {
+                append("\n- 代码：${it.code}")
+                append("\n- 名称：${it.name ?: "未知"}")
+                append("\n- 市场：${it.plate ?: "未知"}")
+            }
+        }
+        val r = detail.realtime
+        val realtimeText = if (r != null) buildString {
+            append("\n- 最新点位：${r.price ?: "-"}")
+            append("\n- 涨跌幅：${r.changePercent ?: "-"}%")
+            append("\n- 开盘点位：${r.openPrice ?: "-"}")
+            append("\n- 最高点位：${r.high ?: "-"}")
+            append("\n- 最低点位：${r.low ?: "-"}")
+            append("\n- 成交量：${r.volume ?: "-"} 股")
+            append("\n- 成交额：${r.amount ?: "-"} 元")
+        } else ""
+
+        val kline = detail.kline.orEmpty()
+        val klineText = if (kline.isNotEmpty()) {
+            val recent = kline.takeLast(10)
+            recent.joinToString("\n") { k ->
+                "  ${k.tradeDate}: 开${k.open} 收${k.close} 高${k.high} 低${k.low} 量${k.volume}"
+            }
+        } else ""
+
+        val system = """你是一位专业的指数与市场策略分析师，请对以下股票指数进行全面的综合分析。
+
+请从以下维度进行分析，并以 JSON 格式返回：
+1. 趋势判断 (trend): 短期/中期趋势如何？用一句话描述
+2. 技术信号 (signals): K线形态与量能配合给出哪些信号？列出所有发现的信号
+3. 支撑压力位 (support_price, resistance_price): 关键的支撑点位和压力点位在哪里？
+4. 风险评估 (risk_level, risks): 当前风险等级（低/中/高）？需要注意哪些风险因素？
+5. 操作建议 (suggestion): 买入/卖出/持有/观望？目标点位和止损点位？
+6. 总结 (summary): 一句话总结当前该指数的点位位置与风险收益特征
+
+注意：没有技术指标与估值数据，不要编造均线/MACD/RSI/KDJ 数值与 PE/PB。
+
+JSON 格式示例：
+{
+  "trend": "趋势描述",
+  "signals": ["信号1", "信号2"],
+  "support_price": "支撑点位",
+  "resistance_price": "压力点位",
+  "risk_level": "低|中|高",
+  "risks": ["风险因素1", "风险因素2"],
+  "suggestion": "买入|卖出|持有|观望",
+  "target_price": "目标点位",
+  "stop_loss": "止损点位",
+  "summary": "一句话总结"
+}"""
+
+        val user = """请分析以下指数：
+
+## 指数基础信息
+$infoText
+
+## 实时行情
+$realtimeText
+
+## 近期K线数据（最近10个交易日）
+$klineText
+
+请根据以上数据进行全面分析，重点结合点位位置、K线形态与成交量变化给出专业判断。"""
+
+        return listOf("system" to system, "user" to user)
+    }
+
     private fun buildAnalysisPrompt(detail: StockDetailData): List<Pair<String, String>> {
         val info = detail.info
         val infoText = buildString {
@@ -356,11 +439,30 @@ ${context.render()}
         return listOf("system" to system, "user" to user)
     }
 
+private fun appendIndexLines(indexLines: MutableList<String>, s: StockListItem) {
+val detail = try { StockDb.indexDetail(s.code) } catch (e: Throwable) { null } ?: return
+val r: RealtimeQuoteData = detail.realtime ?: return
+indexLines.add(
+"- ${r.name ?: s.code}(${s.code})[指数]: 最新点位 ${r.price}, 涨跌幅 ${r.changePercent}%, " +
+"开盘 ${r.openPrice}, 最高 ${r.high}, 最低 ${r.low}, " +
+"成交量 ${r.volume} 股, 成交额 ${r.amount} 元（指数无 PE/PB/技术指标，不要编造）"
+)
+val kline = detail.kline.orEmpty()
+if (kline.isNotEmpty()) {
+val recent = kline.takeLast(5)
+indexLines.add("  近${recent.size}日K线: " + recent.joinToString(", ") {
+"${it.tradeDate} 开${it.open} 收${it.close} 高${it.high} 低${it.low}"
+})
+}
+}
+
 fun buildChatContext(message: String, mentioned: List<StockListItem>): ChatPromptContext {
 
 val stockLines = mutableListOf<String>()
 val marketLines = mutableListOf<String>()
+val indexLines = mutableListOf<String>()
 for (s in mentioned) {
+if (s.isIndex) { appendIndexLines(indexLines, s); continue }
 val detail = try { StockDb.stockDetail(s.code) } catch (e: Throwable) { null } ?: continue
 val r: RealtimeQuoteData = detail.realtime ?: continue
 stockLines.add(
@@ -391,7 +493,7 @@ marketLines.add("- 涨幅榜: " + ov.topGainers.joinToString(", ") { "${it.name 
 marketLines.add("- 跌幅榜: " + ov.topLosers.joinToString(", ") { "${it.name ?: it.code}(${it.changePercent}%)" })
             }
         }
-return ChatPromptContext(message, mentioned, stockLines, marketLines)
+return ChatPromptContext(message, mentioned, stockLines, marketLines, indexLines)
     }
 
 private fun isMarketQuestion(message: String): Boolean {

@@ -30,6 +30,12 @@ expect object StockDb {
 
     fun detectMentioned(message: String): List<StockListItem>
 
+    fun indexDetail(code: String): StockDetailData?
+
+    fun detectMentionedIndices(message: String): List<StockListItem>
+
+    fun listIndices(keyword: String?): List<StockListItem>
+
     fun isAvailable(): Boolean
 
     fun refreshFromFile(sourcePath: String): Boolean

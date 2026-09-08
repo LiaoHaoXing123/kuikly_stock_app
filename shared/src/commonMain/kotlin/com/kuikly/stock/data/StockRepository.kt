@@ -79,30 +79,46 @@ object StockRepository {
         onStage: suspend (String) -> Unit = {},
     ): ChatResult {
         val context = boundedHistory(history)
-        onStage("正在识别股票与追问…")
+        onStage("正在识别股票/指数与追问…")
         val mentioned = resolveFocus(message, context) { input ->
             val aliases = mapOf("茅台" to "贵州茅台", "宁德" to "宁德时代")
             val expanded = input + aliases.filterKeys { it in input }.values.joinToString(" ", prefix = " ")
             runCatching { StockDb.detectMentioned(expanded) }.getOrDefault(emptyList())
         }
-        val result = chatImpl(message, mentioned, context, onText, onStage)
+        val mentionedIndices = resolveFocus(message, context) { input ->
+            runCatching { StockDb.detectMentionedIndices(input) }.getOrDefault(emptyList())
+        }
+        val allMentioned = (mentioned + mentionedIndices).take(4)
+        val result = chatImpl(message, allMentioned, context, onText, onStage)
         val compare = runCatching { CompareCards.maybeBuild(message) }.getOrNull().orEmpty()
         // Render charts only from our own price history, never from generated prices.
         val requestedCharts = result.cards.orEmpty().filter { it["type"] == "chart_card" }
         val wantsChart = listOf("走势", "趋势", "图", "K线", "k线", "成交量").any { it in message }
         val codes = (requestedCharts.mapNotNull { it["code"] as? String } +
-            if (wantsChart || requestedCharts.isNotEmpty()) mentioned.map { it.code } else emptyList()).distinct().take(2)
+            if (wantsChart || requestedCharts.isNotEmpty()) allMentioned.map { it.code } else emptyList()).distinct().take(2)
         val charts = codes.mapNotNull { code ->
-            val detail = runCatching { StockDb.stockDetail(code) }.getOrNull() ?: return@mapNotNull null
+            val preferIndex = allMentioned.firstOrNull { it.code == code }?.isIndex == true
+            val (detail, isIndex) = loadChartDetail(code, preferIndex) ?: return@mapNotNull null
             val bars = detail.kline.orEmpty().takeLast(60)
             val volume = "成交量" in message || requestedCharts.any { it["code"] == code && it["chart_type"] == "bar" }
-            buildLocalChart(code, detail.info?.name ?: code, bars, volume)
+            val chart = buildLocalChart(code, detail.info?.name ?: code, bars, volume) ?: return@mapNotNull null
+            if (isIndex) chart + ("unit" to if (volume) "股" else "点") else chart
         }
         val notice = if ((wantsChart || requestedCharts.isNotEmpty()) && charts.isEmpty()) "暂无可用的本地 K 线，未生成走势图" else null
         return result.copy(
             cards = (compare + result.cards.orEmpty().filter { it["type"] != "chart_card" } + charts).ifEmpty { null },
             errorNotice = listOfNotNull(result.errorNotice, notice).joinToString("；").ifBlank { null },
         )
+    }
+
+    private fun loadChartDetail(code: String, preferIndex: Boolean): Pair<StockDetailData, Boolean>? {
+        return if (preferIndex) {
+            runCatching { StockDb.indexDetail(code) }.getOrNull()?.let { it to true }
+                ?: runCatching { StockDb.stockDetail(code) }.getOrNull()?.let { it to false }
+        } else {
+            runCatching { StockDb.stockDetail(code) }.getOrNull()?.let { it to false }
+                ?: runCatching { StockDb.indexDetail(code) }.getOrNull()?.let { it to true }
+        }
     }
 
     private suspend fun chatImpl(
@@ -152,6 +168,31 @@ object StockRepository {
         } catch (e: Throwable) {
             println("[Repo] analyzeStock FAILED: " + (e.message ?: e.toString()))
             LocalDataService.mockAnalysis(code)
+        }
+    }
+
+    suspend fun loadIndexDetail(code: String): StockDetailData? {
+        return try {
+            StockDb.indexDetail(code)
+        } catch (e: Throwable) {
+            null
+        }
+    }
+
+    suspend fun analyzeIndex(code: String): AIAnalysisData? {
+        if (!DataSourceManager.isOnline || !AiRuntimeConfig.isConfigured()) {
+            println("[Repo] analyzeIndex OFFLINE fallback for " + code)
+            return LocalDataService.mockIndexAnalysis(code)
+        }
+        return try {
+            val detail = StockDb.indexDetail(code) ?: return LocalDataService.mockIndexAnalysis(code)
+            println("[Repo] analyzeIndex calling DeepSeek for " + code)
+            val result = DeepSeekApi.analyzeIndex(detail)
+            println("[Repo] analyzeIndex DONE cards=" + result.cards.size)
+            result
+        } catch (e: Throwable) {
+            println("[Repo] analyzeIndex FAILED: " + (e.message ?: e.toString()))
+            LocalDataService.mockIndexAnalysis(code)
         }
     }
 

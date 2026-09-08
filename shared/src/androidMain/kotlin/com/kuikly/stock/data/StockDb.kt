@@ -361,6 +361,134 @@ actual object StockDb {
         return found.take(3)
     }
 
+    actual fun indexDetail(code: String): StockDetailData? {
+        val db = openDb() ?: return null
+        return try {
+            val info = db.rawQuery(
+                "SELECT code,name,market FROM index_info WHERE code=?",
+                arrayOf(code)
+            ).use { c ->
+                if (!c.moveToFirst()) null
+                else StockInfoData(
+                    code = c.getStringOrEmpty("code"),
+                    name = c.getStringOrNull("name"),
+                    industry = null,
+                    plate = c.getStringOrNull("market"),
+                    listDate = null,
+                )
+            }
+
+            val realtime = db.rawQuery(
+                """SELECT r.*, s.name FROM index_realtime r
+                   LEFT JOIN index_info s ON r.code=s.code
+                   WHERE r.code=? ORDER BY r.update_time DESC LIMIT 1""",
+                arrayOf(code)
+            ).use { c ->
+                if (!c.moveToFirst()) null
+                else RealtimeQuoteData(
+                    code = c.getStringOrEmpty("code"),
+                    name = c.getStringOrNull("name"),
+                    price = c.getDoubleOrNull("price"),
+                    change = c.getDoubleOrNull("change"),
+                    changePercent = c.getDoubleOrNull("change_percent"),
+                    openPrice = c.getDoubleOrNull("open"),
+                    preClose = c.getDoubleOrNull("pre_close"),
+                    high = c.getDoubleOrNull("high"),
+                    low = c.getDoubleOrNull("low"),
+                    volume = c.getDoubleOrNull("volume"),
+                    amount = c.getDoubleOrNull("amount"),
+                    peTtm = c.getDoubleOrNull("pe_ttm"),
+                    pb = c.getDoubleOrNull("pb"),
+                )
+            }
+
+            val kline = db.rawQuery(
+                "SELECT code,trade_date,open,close,high,low,volume,amount FROM index_daily_kline " +
+                    "WHERE code=? ORDER BY trade_date DESC LIMIT 30",
+                arrayOf(code)
+            ).use { c ->
+                buildList {
+                    while (c.moveToNext()) {
+                        add(KLineDataItem(
+                            code = c.getStringOrEmpty("code"),
+                            tradeDate = c.getStringOrEmpty("trade_date"),
+                            open = c.getDoubleOrZero("open"),
+                            close = c.getDoubleOrZero("close"),
+                            high = c.getDoubleOrZero("high"),
+                            low = c.getDoubleOrZero("low"),
+                            volume = c.getDoubleOrZero("volume"),
+                            amount = c.getDoubleOrNull("amount"),
+                        ))
+                    }
+                }
+            }.reversed()
+
+            if (info == null && realtime == null) {
+                Log.w(TAG, "indexDetail " + code + " NOT FOUND")
+                return null
+            }
+            Log.i(TAG, "indexDetail " + code + " -> info=" + (info != null) + " realtime=" + (realtime != null) + " kline=" + kline.size)
+            StockDetailData(info = info, realtime = realtime, kline = kline, indicator = null)
+        } catch (e: Exception) {
+            // 旧库无指数表时降级为空，由上层决定提示语
+            Log.w(TAG, "indexDetail " + code + " failed: " + (e.message ?: e.toString()))
+            null
+        }
+    }
+
+    actual fun detectMentionedIndices(message: String): List<StockListItem> {
+        val db = openDb() ?: return emptyList()
+        return try {
+            val candidates = db.rawQuery(
+                "SELECT code,name FROM index_info WHERE name IS NOT NULL AND name<>''", null
+            ).use { c ->
+                buildList {
+                    while (c.moveToNext()) {
+                        add(IndexCandidate(c.getStringOrEmpty("code"), c.getStringOrNull("name")))
+                    }
+                }
+            }
+            matchIndexCandidates(message, candidates)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    actual fun listIndices(keyword: String?): List<StockListItem> {
+        val db = openDb() ?: return emptyList()
+        return try {
+            val where = StringBuilder()
+            val args = mutableListOf<String>()
+            if (!keyword.isNullOrBlank()) {
+                where.append(" WHERE (i.code LIKE ? OR i.name LIKE ?)")
+                val k = "%$keyword%"
+                args.add(k); args.add(k)
+            }
+            db.rawQuery(
+                """SELECT i.code, i.name, r.price, r.change, r.change_percent, r.volume
+                   FROM index_info i LEFT JOIN index_realtime r ON i.code=r.code""" + where +
+                    " ORDER BY i.code ASC",
+                if (args.isEmpty()) null else args.toTypedArray()
+            ).use { c ->
+                buildList {
+                    while (c.moveToNext()) {
+                        add(StockListItem(
+                            code = c.getStringOrEmpty("code"),
+                            name = c.getStringOrNull("name"),
+                            price = c.getDoubleOrNull("price"),
+                            changePercent = c.getDoubleOrNull("change_percent"),
+                            change = c.getDoubleOrNull("change"),
+                            volume = c.getDoubleOrNull("volume"),
+                            isIndex = true,
+                        ))
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
         actual fun refreshFromFile(sourcePath: String): Boolean {
         val ctx = appContext ?: return false
         val src = File(sourcePath)

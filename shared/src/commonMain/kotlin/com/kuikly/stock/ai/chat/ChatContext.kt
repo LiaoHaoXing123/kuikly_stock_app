@@ -27,7 +27,7 @@ internal fun boundedHistory(history: List<Pair<String, String>>, maxChars: Int =
 internal fun <T> resolveFocus(message: String, history: List<Pair<String, String>>, detect: (String) -> List<T>): List<T> {
     val explicit = detect(message)
     if (explicit.isNotEmpty()) return explicit
-    val followup = listOf("它", "该股", "这只", "这支", "继续", "走势", "支撑", "压力", "风险", "技术指标", "成交量", "分时", "画图", "走势图")
+    val followup = listOf("它", "该股", "这只", "这支", "继续", "走势", "支撑", "压力", "风险", "技术指标", "成交量", "分时", "画图", "走势图", "指数", "大盘", "点位")
     if (followup.none { message.contains(it) }) return emptyList()
     for ((role, text) in boundedHistory(history).asReversed()) {
         if (role != "user") continue
