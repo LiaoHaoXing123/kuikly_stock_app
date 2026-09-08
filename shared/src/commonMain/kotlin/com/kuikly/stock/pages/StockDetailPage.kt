@@ -1,4 +1,5 @@
 // 个股详情页：基础信息、实时行情、技术指标、分时与五档盘口，以及 AI 分析入口。
+// 增强版：K线多周期/缩放/平移/MA/AI价位联动，AI分析卡片化与K线深度融合
 
 package com.kuikly.stock.pages
 
@@ -20,6 +21,8 @@ import com.tencent.kuikly.core.views.*
 import com.tencent.kuikly.core.views.TextAlign
 import com.kuikly.stock.data.StockRepository
 import com.kuikly.stock.data.WatchStore
+import com.kuikly.stock.data.ConclusionAlertFactory
+import com.kuikly.stock.data.PriceAlertRule
 import com.tencent.kuikly.core.coroutines.delay
 import com.tencent.kuikly.core.coroutines.launch
 import com.tencent.kuiklybase.KuiklyMarkdown
@@ -27,33 +30,45 @@ import com.kuikly.stock.data.fmt2
 import com.kuikly.stock.data.fmt3
 import com.kuikly.stock.data.fmtSigned2
 import com.kuikly.stock.data.fmtSignedPct
+import kotlin.math.abs
 
 @Page("stock_detail")
 class StockDetailPage : Pager() {
 
     internal var stockCode by observable("")
-
     internal var stockDetail by observable<StockDetailData?>(null)
-
     internal var aiAnalysis by observable<AIAnalysisData?>(null)
-
     internal var isLoading by observable(true)
-
     internal var isAnalyzing by observable(false)
-
     internal var minuteData by observable<List<MinutePoint>?>(null)
-
     internal var orderBook by observable<OrderBookData?>(null)
-
     internal var loadErrorMessage by observable("")
-
     internal var dataSourceText by observable("")
-
     internal var selectedKlineIndex by observable(-1)
-
     internal var klineCanvasWidth by observable(0f)
-
     internal var watched by observable(false)
+
+    // --- K线增强状态 ---
+    internal var klinePeriod by observable("D") // D=日 W=周 M=月
+    internal var klineVisibleCount by observable(30)
+    internal var klineStartIndex by observable(0)
+    internal var klineShowMA by observable(true)
+    internal var klineShowVolume by observable(true)
+    internal var highlightedPrice by observable(0.0)
+    internal var highlightedPriceLabel by observable("")
+    internal var klineInfoText by observable("")
+
+    // --- AI卡片交互 ---
+    internal var aiExpandedKeys: ObservableList<String> by observableList()
+    internal var aiCardHighlightKey by observable("")
+
+    // --- 提醒确认弹窗 ---
+    internal var showAlertConfirm by observable(false)
+    internal var pendingAlertCode by observable("")
+    internal var pendingAlertName by observable("")
+    internal var pendingAlertType by observable(0)
+    internal var pendingAlertValue by observable(0.0)
+    internal var aiErrorNotice by observable("")
 
     override fun didInit() {
         super.didInit()
@@ -104,23 +119,25 @@ class StockDetailPage : Pager() {
                         }
 
                         infoCard(ctx)
-
                         realtimeCard(ctx)
-
                         indicatorCard(ctx)
-
                         klineChartArea(ctx)
-
                         minuteCard(ctx)
-
                         orderBookCard(ctx)
-
                         aiAnalysisCards(ctx)
 
                         vif({ ctx.dataSourceText.isNotEmpty() }) {
                             dataSourceFooter(ctx)
                         }
                     }
+                }
+
+                vif({ ctx.showAlertConfirm }) {
+                    detailAlertConfirmDialog(ctx)
+                }
+
+                vif({ ctx.aiErrorNotice.isNotEmpty() }) {
+                    detailAiToast(ctx)
                 }
             }
         }
@@ -136,6 +153,16 @@ class StockDetailPage : Pager() {
                 delay(0)
                 if (data != null) {
                     stockDetail = data
+                    // 初始化K线视口
+                    val total = data.kline?.size ?: 0
+                    klineVisibleCount = when {
+                        total >= 60 -> 30
+                        total >= 30 -> total
+                        else -> total.coerceAtLeast(10)
+                    }
+                    klineStartIndex = (total - klineVisibleCount).coerceAtLeast(0)
+                    selectedKlineIndex = -1
+                    klineInfoText = ""
                 } else {
                     stockDetail = null
                     loadErrorMessage = "未找到股票 $stockCode 的数据"
@@ -181,6 +208,12 @@ class StockDetailPage : Pager() {
                 val result = StockRepository.analyzeStock(stockCode)
                 delay(0)
                 aiAnalysis = result
+                // 自动高亮第一个关键价位
+                val levels = parseAIPriceLevels(result)
+                if (levels.isNotEmpty()) {
+                    highlightedPrice = levels.first().price
+                    highlightedPriceLabel = levels.first().label
+                }
             } catch (e: Throwable) {
                 delay(0)
                 aiAnalysis = null
@@ -206,17 +239,290 @@ class StockDetailPage : Pager() {
         }
     }
 
-    private fun getMockName(code: String): String {
-        return when (code) {
-            "000001" -> "平安银行"
-            "600519" -> "贵州茅台"
-            "000002" -> "万科A"
-            "600036" -> "招商银行"
-            "300750" -> "宁德时代"
-            else -> "未知股票"
+    // --- K线周期与视口逻辑 ---
+
+    internal fun switchKlinePeriod(period: String) {
+        if (klinePeriod == period) return
+        klinePeriod = period
+        // 切换周期后重置视口
+        val aggregated = getAggregatedKline()
+        val total = aggregated.size
+        klineVisibleCount = when (period) {
+            "W" -> 26.coerceAtMost(total)
+            "M" -> 12.coerceAtMost(total)
+            else -> 30.coerceAtMost(total).coerceAtLeast(10)
+        }
+        klineStartIndex = (total - klineVisibleCount).coerceAtLeast(0)
+        selectedKlineIndex = -1
+        klineInfoText = if (period == "D") "日K" else if (period == "W") "周K · 每5日聚合" else "月K · 按月聚合"
+    }
+
+    internal fun getAggregatedKline(): List<KLineDataItem> {
+        val original = stockDetail?.kline ?: return emptyList()
+        return when (klinePeriod) {
+            "W" -> aggregateToWeekly(original)
+            "M" -> aggregateToMonthly(original)
+            else -> original
+        }
+    }
+
+    internal fun getVisibleKline(): List<KLineDataItem> {
+        val agg = getAggregatedKline()
+        if (agg.isEmpty()) return emptyList()
+        val start = klineStartIndex.coerceIn(0, (agg.size - 1).coerceAtLeast(0))
+        val end = (start + klineVisibleCount).coerceAtMost(agg.size)
+        return if (start >= end) emptyList() else agg.subList(start, end)
+    }
+
+    internal fun zoomIn() {
+        val newCount = (klineVisibleCount - 5).coerceAtLeast(10)
+        if (newCount != klineVisibleCount) {
+            // 保持中心点
+            val center = klineStartIndex + klineVisibleCount / 2
+            klineVisibleCount = newCount
+            klineStartIndex = (center - newCount / 2).coerceIn(0, (getAggregatedKline().size - newCount).coerceAtLeast(0))
+        }
+    }
+
+    internal fun zoomOut() {
+        val total = getAggregatedKline().size
+        val newCount = (klineVisibleCount + 5).coerceAtMost(90).coerceAtMost(total)
+        if (newCount != klineVisibleCount) {
+            val center = klineStartIndex + klineVisibleCount / 2
+            klineVisibleCount = newCount
+            klineStartIndex = (center - newCount / 2).coerceIn(0, (total - newCount).coerceAtLeast(0))
+        }
+    }
+
+    internal fun panLeft() {
+        klineStartIndex = (klineStartIndex - 5).coerceAtLeast(0)
+    }
+
+    internal fun panRight() {
+        val total = getAggregatedKline().size
+        klineStartIndex = (klineStartIndex + 5).coerceAtMost((total - klineVisibleCount).coerceAtLeast(0))
+    }
+
+    internal fun resetView() {
+        val total = getAggregatedKline().size
+        klineStartIndex = (total - klineVisibleCount).coerceAtLeast(0)
+        selectedKlineIndex = -1
+        highlightedPrice = 0.0
+        highlightedPriceLabel = ""
+    }
+
+    internal fun toggleMA() {
+        klineShowMA = !klineShowMA
+    }
+
+    internal fun toggleVolume() {
+        klineShowVolume = !klineShowVolume
+    }
+
+    internal fun selectKlineAtX(x: Float) {
+        val agg = getAggregatedKline()
+        if (agg.isEmpty() || klineCanvasWidth <= 0f) return
+        val visibleCount = klineVisibleCount
+        if (visibleCount <= 0) return
+        val visibleIndex = ((x / klineCanvasWidth) * visibleCount).toInt().coerceIn(0, visibleCount - 1)
+        val globalIndex = (klineStartIndex + visibleIndex).coerceIn(0, agg.size - 1)
+        selectedKlineIndex = globalIndex
+        // 更新信息文本
+        val k = agg.getOrNull(globalIndex)
+        if (k != null) {
+            val changePct = if (k.open != 0.0) (k.close - k.open) / k.open * 100.0 else 0.0
+            klineInfoText = "${k.tradeDate} 开${fmt2(k.open)} 收${fmt2(k.close)} 高${fmt2(k.high)} 低${fmt2(k.low)} ${fmtSignedPct(changePct)}"
+        }
+    }
+
+    internal fun highlightAIPrice(price: Double, label: String) {
+        if (price <= 0 || !price.isFinite()) return
+        highlightedPrice = price
+        highlightedPriceLabel = label
+        // 轻提示
+        aiErrorNotice = "已在K线标注 $label ¥${fmt2(price)}"
+        lifecycleScope.launch {
+            delay(2000)
+            if (aiErrorNotice.contains("已在K线标注")) aiErrorNotice = ""
+        }
+    }
+
+    internal fun clearHighlight() {
+        highlightedPrice = 0.0
+        highlightedPriceLabel = ""
+    }
+
+    // AI卡片展开/收起
+    internal fun toggleAISection(key: String) {
+        val cur = aiExpandedKeys.toList()
+        aiExpandedKeys.clear()
+        if (cur.contains(key)) {
+            aiExpandedKeys.addAll(cur.filter { it != key })
+        } else {
+            aiExpandedKeys.addAll(cur + key)
+        }
+    }
+
+    internal fun isAIExpanded(key: String): Boolean = aiExpandedKeys.contains(key)
+
+    // 提醒
+    internal fun prepareAlertFromDetail(type: Int, value: Double) {
+        if (stockCode.isBlank() || !value.isFinite() || value <= 0.0) {
+            aiErrorNotice = "当前没有可用的精确价位"
+            lifecycleScope.launch {
+                delay(2000)
+                aiErrorNotice = ""
+            }
+            return
+        }
+        val name = stockDetail?.info?.name ?: stockCode
+        pendingAlertCode = stockCode
+        pendingAlertName = name
+        pendingAlertType = type
+        pendingAlertValue = value
+        showAlertConfirm = true
+    }
+
+    internal fun confirmAlert() {
+        val rule = if (pendingAlertType == 1) {
+            ConclusionAlertFactory.support(pendingAlertCode, pendingAlertName, pendingAlertValue)
+        } else {
+            ConclusionAlertFactory.resistance(pendingAlertCode, pendingAlertName, pendingAlertValue)
+        }
+        WatchStore.upsertAlert(rule)
+        showAlertConfirm = false
+        aiErrorNotice = "提醒已创建 · ${pendingAlertName} ${if (pendingAlertType == 1) "跌至" else "涨至"} ${fmt2(pendingAlertValue)}"
+        lifecycleScope.launch {
+            delay(2500)
+            aiErrorNotice = ""
         }
     }
 }
+
+// --- 聚合逻辑 ---
+
+internal fun aggregateToWeekly(daily: List<KLineDataItem>): List<KLineDataItem> {
+    if (daily.size <= 5) return daily
+    val result = mutableListOf<KLineDataItem>()
+    var i = 0
+    while (i < daily.size) {
+        val chunk = daily.subList(i, (i + 5).coerceAtMost(daily.size))
+        if (chunk.isEmpty()) break
+        val first = chunk.first()
+        val last = chunk.last()
+        val high = chunk.maxOf { it.high }
+        val low = chunk.minOf { it.low }
+        val vol = chunk.sumOf { it.volume }
+        val amt = chunk.mapNotNull { it.amount }.sum().takeIf { it > 0 }
+        result.add(
+            KLineDataItem(
+                code = first.code,
+                tradeDate = last.tradeDate,
+                open = first.open,
+                close = last.close,
+                high = high,
+                low = low,
+                volume = vol,
+                amount = amt
+            )
+        )
+        i += 5
+    }
+    return result
+}
+
+internal fun aggregateToMonthly(daily: List<KLineDataItem>): List<KLineDataItem> {
+    if (daily.isEmpty()) return emptyList()
+    val grouped = linkedMapOf<String, MutableList<KLineDataItem>>()
+    for (k in daily) {
+        val monthKey = extractMonthKey(k.tradeDate)
+        grouped.getOrPut(monthKey) { mutableListOf() }.add(k)
+    }
+    return grouped.values.map { chunk ->
+        val first = chunk.first()
+        val last = chunk.last()
+        val high = chunk.maxOf { it.high }
+        val low = chunk.minOf { it.low }
+        val vol = chunk.sumOf { it.volume }
+        val amt = chunk.mapNotNull { it.amount }.sum().takeIf { it > 0 }
+        KLineDataItem(
+            code = first.code,
+            tradeDate = last.tradeDate,
+            open = first.open,
+            close = last.close,
+            high = high,
+            low = low,
+            volume = vol,
+            amount = amt
+        )
+    }
+}
+
+internal fun extractMonthKey(date: String): String {
+    // 支持 YYYY-MM-DD 和 YYYYMMDD
+    return if (date.contains("-")) {
+        if (date.length >= 7) date.substring(0, 7) else date
+    } else {
+        if (date.length >= 6) date.substring(0, 6) else date
+    }
+}
+
+// --- AI价位解析 ---
+
+internal data class AIPriceLevel(
+    val label: String,
+    val price: Double,
+    val color: Long,
+    val type: String // support, resistance, target, stopLoss
+)
+
+internal fun parseAIPriceLevels(analysis: AIAnalysisData?): List<AIPriceLevel> {
+    if (analysis == null) return emptyList()
+    val levels = mutableListOf<AIPriceLevel>()
+    for (card in analysis.cards) {
+        val type = card["type"] as? String ?: continue
+        if (type != "suggestion_card" && type != "trend_card") continue
+        // 兼容多种字段名
+        fun addLevel(key: String, label: String, color: Long, t: String) {
+            val raw = card[key] ?: return
+            val price = when (raw) {
+                is Number -> raw.toDouble()
+                is String -> raw.toDoubleOrNull() ?: return
+                else -> return
+            }
+            if (price.isFinite() && price > 0) {
+                // 去重
+                if (levels.none { it.price == price && it.type == t }) {
+                    levels.add(AIPriceLevel(label, price, color, t))
+                }
+            }
+        }
+        addLevel("support_price", "支撑位", 0xFF2E9E5B, "support")
+        addLevel("support_value", "支撑位", 0xFF2E9E5B, "support")
+        addLevel("resistance_price", "压力位", 0xFFD64545, "resistance")
+        addLevel("resistance_value", "压力位", 0xFFD64545, "resistance")
+        addLevel("target_price", "目标价", 0xFF0E67D1, "target")
+        addLevel("stop_loss", "止损价", 0xFFA56100, "stopLoss")
+        // 有些模板用下划线不同
+        addLevel("target", "目标价", 0xFF0E67D1, "target")
+        addLevel("stop", "止损价", 0xFFA56100, "stopLoss")
+    }
+    return levels.sortedBy { it.price }
+}
+
+internal fun parseAISignals(analysis: AIAnalysisData?): List<String> {
+    if (analysis == null) return emptyList()
+    val signals = mutableListOf<String>()
+    for (card in analysis.cards) {
+        if (card["type"] == "signal_card") {
+            val list = card["signals"] as? List<*>
+            list?.forEach { s -> s?.toString()?.let { if (it.isNotBlank()) signals.add(it) } }
+        }
+    }
+    return signals
+}
+
+// --- UI组件 ---
 
 internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
     val name = ctx.stockDetail?.info?.name ?: "未知"
@@ -530,15 +836,35 @@ internal fun ViewContainer<*, *>.indicatorCard(ctx: StockDetailPage) {
             borderRadius(10f)
         }
 
-        Text {
-            attr {
-                text("技术指标（${ind.tradeDate}）")
-                fontSize(15f)
-                fontWeightBold()
-                color(0xFF333333)
-                marginBottom(8f)
+        View {
+            attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
+            Text {
+                attr {
+                    text("技术指标（${ind.tradeDate}）")
+                    fontSize(15f)
+                    fontWeightBold()
+                    color(0xFF333333)
+                    flex(1f)
+                }
+            }
+            View {
+                attr {
+                    padding(4f, 8f, 4f, 8f)
+                    backgroundColor(if (ctx.klineShowMA) 0xFFE3F2FD else 0xFFF5F5F5)
+                    borderRadius(12f)
+                }
+                event { click { ctx.toggleMA() } }
+                Text {
+                    attr {
+                        text(if (ctx.klineShowMA) "MA 开" else "MA 关")
+                        fontSize(11f)
+                        color(if (ctx.klineShowMA) 0xFF1976D2 else 0xFF999999)
+                    }
+                }
             }
         }
+
+        View { attr { height(8f) } }
 
         indicatorItem("MA5", ind.ma5)
         indicatorItem("MA10", ind.ma10)
@@ -588,7 +914,7 @@ private fun fmtInd(v: Double?): String = if (v == null) "-" else fmt3(v)
 
 internal fun ViewContainer<*, *>.minuteCard(ctx: StockDetailPage) {
     val data = ctx.minuteData ?: return
-    if (data.isEmpty()) return // 无分时数据（iOS/JS 包内无分钟级快照）时整卡隐藏
+    if (data.isEmpty()) return
 
     View {
         attr {
@@ -654,11 +980,11 @@ internal fun ViewContainer<*, *>.orderBookCard(ctx: StockDetailPage) {
         }
 
         book.asks.reversed().forEachIndexed { i, (price, vol) ->
-            orderBookRow("卖${5 - i}", price, vol, 0xFF43A047)
+            orderBookRow(ctx, "卖${5 - i}", price, vol, 0xFF43A047)
         }
         View { attr { height(1f); backgroundColor(0xFFEEEEEE); margin(4f, 0f, 4f, 0f) } }
         book.bids.forEachIndexed { i, (price, vol) ->
-            orderBookRow("买${i + 1}", price, vol, 0xFFE53935)
+            orderBookRow(ctx, "买${i + 1}", price, vol, 0xFFE53935)
         }
 
         book.commissionRatio?.let { ratio ->
@@ -669,19 +995,33 @@ internal fun ViewContainer<*, *>.orderBookCard(ctx: StockDetailPage) {
     }
 }
 
-internal fun ViewContainer<*, *>.orderBookRow(label: String, price: Double?, vol: Double?, color: Long) {
+internal fun ViewContainer<*, *>.orderBookRow(ctx: StockDetailPage, label: String, price: Double?, vol: Double?, color: Long) {
     View {
-        attr { flexDirectionRow(); marginTop(3f) }
+        attr { flexDirectionRow(); marginTop(3f); alignItems(FlexAlign.CENTER) }
         Text { attr { text(label); fontSize(12f); color(0xFF666666); width(40f) } }
         Text { attr { text(fmtOpt(price)); fontSize(12f); color(color); flex(1f) } }
         Text { attr { text(fmtOpt(vol)); fontSize(12f); color(0xFF666666) } }
+        vif({ price != null && price > 0 }) {
+            View {
+                attr {
+                    marginLeft(8f)
+                    padding(2f, 6f, 2f, 6f)
+                    backgroundColor(0xFFF0F2F5)
+                    borderRadius(8f)
+                }
+                event { click { ctx.highlightAIPrice(price!!, label) } }
+                Text { attr { text("标注"); fontSize(10f); color(0xFF666666) } }
+            }
+        }
     }
 }
 
 private fun fmtOpt(v: Double?): String = if (v == null) "-" else fmt2(v)
 
+// --- K线区域：重构为高交互版本 ---
+
 internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
-    val klineData = ctx.stockDetail?.kline
+    val originalKline = ctx.stockDetail?.kline
 
     View {
         attr {
@@ -692,25 +1032,218 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
             borderRadius(10f)
         }
 
-        Text {
-            attr {
-                text("K线走势（近30日）")
-                fontSize(15f)
-                fontWeightBold()
-                color(0xFF333333)
-                marginBottom(6f)
+        // 标题 + 周期切换
+        View {
+            attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginBottom(8f) }
+            Text {
+                attr {
+                    text("K线走势")
+                    fontSize(15f)
+                    fontWeightBold()
+                    color(0xFF333333)
+                    flex(1f)
+                }
+            }
+            Text {
+                attr {
+                    text(ctx.klineInfoText.ifEmpty { "${ctx.getAggregatedKline().size}根 · ${ctx.klineVisibleCount}显示" })
+                    fontSize(10f)
+                    color(0xFF999999)
+                    flex(1f)
+                    textAlignRight()
+                }
+            }
+        }
+
+        // 周期切换
+        View {
+            attr { flexDirectionRow(); marginBottom(8f) }
+            klinePeriodChip(ctx, "D", "日K")
+            klinePeriodChip(ctx, "W", "周K")
+            klinePeriodChip(ctx, "M", "月K")
+            View { attr { flex(1f) } }
+            View {
+                attr {
+                    padding(4f, 8f, 4f, 8f)
+                    backgroundColor(if (ctx.klineShowMA) 0xFFE3F2FD else 0xFFF5F5F5)
+                    borderRadius(10f)
+                    marginRight(6f)
+                }
+                event { click { ctx.toggleMA() } }
+                Text {
+                    attr {
+                        text("MA")
+                        fontSize(11f)
+                        color(if (ctx.klineShowMA) 0xFF1976D2 else 0xFF999999)
+                        fontWeightBold()
+                    }
+                }
+            }
+            View {
+                attr {
+                    padding(4f, 8f, 4f, 8f)
+                    backgroundColor(0xFFF5F5F5)
+                    borderRadius(10f)
+                }
+                event { click { ctx.resetView() } }
+                Text { attr { text("重置"); fontSize(11f); color(0xFF666666) } }
             }
         }
 
         vif({ ctx.isLoading }) {
             klineLoadingView()
         }
-        velseif({ klineData != null && klineData.isNotEmpty() }) {
-            klineChartCanvas(ctx, klineData!!)
-            klineSummary(klineData)
+        velseif({ originalKline != null && originalKline.isNotEmpty() }) {
+            // 缩放平移控制
+            View {
+                attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginBottom(6f) }
+                klineControlBtn(ctx, "◀◀", { ctx.panLeft() })
+                klineControlBtn(ctx, "－", { ctx.zoomIn() })
+                Text {
+                    attr {
+                        text("${ctx.klineVisibleCount}根")
+                        fontSize(11f)
+                        color(0xFF666666)
+                        marginLeft(6f)
+                        marginRight(6f)
+                        width(40f)
+                        textAlignCenter()
+                    }
+                }
+                klineControlBtn(ctx, "＋", { ctx.zoomOut() })
+                klineControlBtn(ctx, "▶▶", { ctx.panRight() })
+                View { attr { flex(1f) } }
+                vif({ ctx.highlightedPrice > 0 }) {
+                    View {
+                        attr {
+                            flexDirectionRow()
+                            alignItems(FlexAlign.CENTER)
+                            backgroundColor(0xFFFFF3E8)
+                            borderRadius(8f)
+                            padding(3f, 8f, 3f, 8f)
+                        }
+                        Text {
+                            attr {
+                                text("${ctx.highlightedPriceLabel} ¥${fmt2(ctx.highlightedPrice)}")
+                                fontSize(11f)
+                                color(0xFFA56100)
+                            }
+                        }
+                        View {
+                            attr { marginLeft(6f); padding(2f, 6f, 2f, 6f); backgroundColor(0xFFFFFFFF); borderRadius(6f) }
+                            event { click { ctx.clearHighlight() } }
+                            Text { attr { text("✕"); fontSize(10f); color(0xFF999999) } }
+                        }
+                    }
+                }
+            }
+
+            klineChartCanvas(ctx, ctx.getAggregatedKline())
+            klineSummary(ctx, ctx.getVisibleKline())
+
+            // AI价位图例
+            vif({ ctx.aiAnalysis != null }) {
+                val levels = parseAIPriceLevels(ctx.aiAnalysis)
+                if (levels.isNotEmpty()) {
+                    View {
+                        attr { flexDirectionRow(); flexWrapWrap(); marginTop(8f) }
+                        levels.forEach { lvl ->
+                            View {
+                                attr {
+                                    flexDirectionRow()
+                                    alignItems(FlexAlign.CENTER)
+                                    marginRight(8f)
+                                    marginBottom(4f)
+                                    padding(3f, 8f, 3f, 8f)
+                                    backgroundColor(
+                                        when (lvl.type) {
+                                            "support" -> 0xFFEAF7EF
+                                            "resistance" -> 0xFFFFF0F0
+                                            "target" -> 0xFFE8F2FF
+                                            else -> 0xFFFFF3E8
+                                        }
+                                    )
+                                    borderRadius(10f)
+                                }
+                                event { click { ctx.highlightAIPrice(lvl.price, lvl.label) } }
+                                View {
+                                    attr {
+                                        width(8f)
+                                        height(8f)
+                                        borderRadius(4f)
+                                        backgroundColor(lvl.color)
+                                        marginRight(4f)
+                                    }
+                                }
+                                Text {
+                                    attr {
+                                        text("${lvl.label} ${fmt2(lvl.price)}")
+                                        fontSize(10f)
+                                        color(lvl.color)
+                                        fontWeightBold()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Text {
+                attr {
+                    text("提示：点击/长按K线查看详情 · 缩放平移查看历史 · 点击下方AI价位联动标注")
+                    fontSize(10f)
+                    color(0xFFBBBBBB)
+                    marginTop(6f)
+                }
+            }
         }
         velse {
             klineErrorView(ctx)
+        }
+    }
+}
+
+internal fun ViewContainer<*, *>.klinePeriodChip(ctx: StockDetailPage, period: String, label: String) {
+    val selected = ctx.klinePeriod == period
+    View {
+        attr {
+            padding(5f, 12f, 5f, 12f)
+            backgroundColor(if (selected) 0xFF1976D2 else 0xFFF5F5F5)
+            borderRadius(14f)
+            marginRight(6f)
+        }
+        event { click { ctx.switchKlinePeriod(period) } }
+        Text {
+            attr {
+                text(label)
+                fontSize(12f)
+                fontWeightBold()
+                color(if (selected) 0xFFFFFFFF else 0xFF666666)
+            }
+        }
+    }
+}
+
+internal fun ViewContainer<*, *>.klineControlBtn(ctx: StockDetailPage, label: String, action: () -> Unit) {
+    View {
+        attr {
+            width(32f)
+            height(28f)
+            backgroundColor(0xFFF5F5F5)
+            borderRadius(8f)
+            alignItems(FlexAlign.CENTER)
+            justifyContent(FlexJustifyContent.CENTER)
+            marginRight(4f)
+        }
+        event { click { action() } }
+        Text {
+            attr {
+                text(label)
+                fontSize(12f)
+                color(0xFF666666)
+                textAlignCenter()
+            }
         }
     }
 }
@@ -770,46 +1303,59 @@ internal fun ViewContainer<*, *>.klineErrorView(ctx: StockDetailPage) {
     }
 }
 
-internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, klineData: List<KLineDataItem>) {
+internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, aggregated: List<KLineDataItem>) {
+    val visible = ctx.getVisibleKline()
+    val aiLevels = parseAIPriceLevels(ctx.aiAnalysis)
+
     Canvas({
         attr {
-            height(344f)
+            height(if (ctx.klineShowVolume) 380f else 300f)
             marginTop(2f)
+            backgroundColor(0xFFFFFFFF)
         }
         event {
             longPress { params ->
-                if (ctx.klineCanvasWidth <= 0f) return@longPress
-                val i = ((params.x / ctx.klineCanvasWidth) * klineData.size)
-                    .toInt().coerceIn(0, klineData.size - 1)
-                ctx.selectedKlineIndex = i
+                ctx.selectKlineAtX(params.x)
+            }
+            click { params ->
+                ctx.selectKlineAtX(params.x)
             }
         }
     }) { context, width, height ->
-        val n = klineData.size
-        if (n == 0 || width <= 0f || height <= 0f) return@Canvas
+        val nTotal = aggregated.size
+        val nVisible = visible.size
+        if (nTotal == 0 || nVisible == 0 || width <= 0f || height <= 0f) return@Canvas
 
         if (ctx.klineCanvasWidth != width) {
             ctx.klineCanvasWidth = width
         }
 
-        val tooltipH = 26f
-        val padT = 30f
-        val volTop = height - 62f
-        val volH = 40f
-        val dateY = height - 12f
+        val tooltipH = 36f
+        val padT = 38f
+        val volTop = if (ctx.klineShowVolume) height - 70f else height - 20f
+        val volH = if (ctx.klineShowVolume) 44f else 0f
+        val dateY = height - 10f
 
-        val all = klineData.flatMap { listOf(it.high, it.low, it.open, it.close) }
-        var minP = all.minOrNull() ?: 0.0
-        var maxP = all.maxOrNull() ?: 1.0
+        // 计算可见区间价格范围，包含AI价位
+        val priceList = visible.flatMap { listOf(it.high, it.low, it.open, it.close) }.toMutableList()
+        aiLevels.forEach { if (it.price > 0) priceList.add(it.price) }
+        if (ctx.highlightedPrice > 0) priceList.add(ctx.highlightedPrice)
+        var minP = priceList.minOrNull() ?: 0.0
+        var maxP = priceList.maxOrNull() ?: 1.0
         if (maxP <= minP) maxP = minP + 1.0
+        // 留出10%边距
+        val pad = (maxP - minP) * 0.08
+        minP -= pad
+        maxP += pad
 
         val chartH = volTop - padT - 6f
         fun py(p: Double): Float = padT + chartH * ((maxP - p) / (maxP - minP)).toFloat()
 
-        val step = width / n
-        val cw = (step * 0.55f).coerceAtLeast(1.5f)
+        val step = width / nVisible.coerceAtLeast(1)
+        val cw = (step * 0.55f).coerceAtLeast(2f).coerceAtMost(14f)
 
-        context.strokeStyle(Color(0xFFEDEDED))
+        // 背景网格
+        context.strokeStyle(Color(0xFFF0F2F5))
         context.lineWidth(1f)
         for (i in 0..4) {
             val gy = padT + chartH * i / 4f
@@ -818,21 +1364,90 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, klineDat
             context.lineTo(width, gy)
             context.stroke()
         }
+        // 垂直网格
+        context.strokeStyle(Color(0xFFFAFAFA))
+        for (i in 0..nVisible step (nVisible / 5).coerceAtLeast(1)) {
+            val cx = step * i + step / 2f
+            context.beginPath()
+            context.moveTo(cx, padT)
+            context.lineTo(cx, volTop)
+            context.stroke()
+        }
 
-        klineData.forEachIndexed { i, k ->
+        // AI价位虚线
+        aiLevels.forEach { lvl ->
+            if (lvl.price in minP..maxP) {
+                val y = py(lvl.price)
+                // 虚线效果：手动分段
+                context.strokeStyle(Color(lvl.color))
+                context.lineWidth(1f)
+                var x = 0f
+                while (x < width) {
+                    context.beginPath()
+                    context.moveTo(x, y)
+                    context.lineTo((x + 6f).coerceAtMost(width), y)
+                    context.stroke()
+                    x += 10f
+                }
+                // 标签
+                context.fillStyle(Color(lvl.color))
+                context.font(9f)
+                context.textAlign(TextAlign.RIGHT)
+                context.fillText("${lvl.label} ${fmt2(lvl.price)}", width - 2f, y - 3f)
+            }
+        }
+
+        // 高亮价位
+        if (ctx.highlightedPrice > 0 && ctx.highlightedPrice in minP..maxP) {
+            val y = py(ctx.highlightedPrice)
+            context.strokeStyle(Color(0xFFFF9800))
+            context.lineWidth(2f)
+            context.beginPath()
+            context.moveTo(0f, y)
+            context.lineTo(width, y)
+            context.stroke()
+            context.fillStyle(Color(0xFFFF9800))
+            context.font(10f)
+            context.textAlign(TextAlign.LEFT)
+            context.fillText("★ ${ctx.highlightedPriceLabel} ${fmt2(ctx.highlightedPrice)}", 4f, y - 4f)
+        }
+
+        // 计算MA
+        val closes = aggregated.map { it.close }
+        fun maAt(index: Int, period: Int): Double? {
+            if (index < period - 1) return null
+            return closes.subList(index - period + 1, index + 1).average()
+        }
+        // 为可见区间准备MA点
+        val visibleStart = ctx.klineStartIndex
+        val ma5Points = mutableListOf<Pair<Float, Float>>()
+        val ma10Points = mutableListOf<Pair<Float, Float>>()
+        val ma20Points = mutableListOf<Pair<Float, Float>>()
+        for (i in 0 until nVisible) {
+            val globalIdx = visibleStart + i
+            val cx = step * i + step / 2f
+            maAt(globalIdx, 5)?.let { ma5Points.add(cx to py(it)) }
+            maAt(globalIdx, 10)?.let { ma10Points.add(cx to py(it)) }
+            maAt(globalIdx, 20)?.let { ma20Points.add(cx to py(it)) }
+        }
+
+        // K线蜡烛
+        visible.forEachIndexed { i, k ->
             val cx = step * i + step / 2f
             val up = k.close >= k.open
             val color = if (up) Color(0xFFE53935) else Color(0xFF43A047)
+            // 影线
             context.strokeStyle(color)
             context.lineWidth(1f)
             context.beginPath()
             context.moveTo(cx, py(k.high))
             context.lineTo(cx, py(k.low))
             context.stroke()
+            // 实体
             val yo = py(k.open)
             val yc = py(k.close)
             val top = minOf(yo, yc)
-            val bh = kotlin.math.abs(yo - yc).coerceAtLeast(1.2f)
+            val bh = abs(yo - yc).coerceAtLeast(1.5f)
             context.fillStyle(color)
             context.beginPath()
             context.moveTo(cx - cw / 2f, top)
@@ -843,91 +1458,178 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, klineDat
             context.fill()
         }
 
-        val maxVol = klineData.maxOf { it.volume }.toFloat().coerceAtLeast(1f)
-        context.strokeStyle(Color(0xFFE0E0E0))
-        context.lineWidth(1f)
-        context.beginPath()
-        context.moveTo(0f, volTop - 5f)
-        context.lineTo(width, volTop - 5f)
-        context.stroke()
-        klineData.forEachIndexed { i, k ->
-            val cx = step * i + step / 2f
-            val up = k.close >= k.open
-            val color = if (up) Color(0xFFE53935) else Color(0xFF43A047)
-            val vh = (volH * (k.volume.toFloat() / maxVol)).coerceAtLeast(1.2f)
-            context.fillStyle(color)
-            context.beginPath()
-            context.moveTo(cx - cw / 2f, volTop + (volH - vh))
-            context.lineTo(cx + cw / 2f, volTop + (volH - vh))
-            context.lineTo(cx + cw / 2f, volTop + volH)
-            context.lineTo(cx - cw / 2f, volTop + volH)
-            context.closePath()
-            context.fill()
+        // MA线
+        if (ctx.klineShowMA) {
+            fun drawMALine(points: List<Pair<Float, Float>>, color: Color) {
+                if (points.size < 2) return
+                context.strokeStyle(color)
+                context.lineWidth(1.2f)
+                context.beginPath()
+                points.forEachIndexed { idx, (x, y) ->
+                    if (idx == 0) context.moveTo(x, y) else context.lineTo(x, y)
+                }
+                context.stroke()
+            }
+            drawMALine(ma5Points, Color(0xFF1976D2))
+            drawMALine(ma10Points, Color(0xFFFF9800))
+            drawMALine(ma20Points, Color(0xFF7B1FA2))
         }
-        context.fillStyle(Color(0xFF999999))
-        context.font(9f)
-        context.textAlign(TextAlign.RIGHT)
-        context.fillText("成交量(手)", width - 2f, volTop - 8f)
 
+        // 成交量
+        if (ctx.klineShowVolume && volH > 0) {
+            val maxVol = visible.maxOf { it.volume }.toFloat().coerceAtLeast(1f)
+            context.strokeStyle(Color(0xFFE0E0E0))
+            context.lineWidth(1f)
+            context.beginPath()
+            context.moveTo(0f, volTop - 5f)
+            context.lineTo(width, volTop - 5f)
+            context.stroke()
+            visible.forEachIndexed { i, k ->
+                val cx = step * i + step / 2f
+                val up = k.close >= k.open
+                val color = if (up) Color(0xFFE53935) else Color(0xFF43A047)
+                val vh = (volH * (k.volume.toFloat() / maxVol)).coerceAtLeast(1.2f)
+                context.fillStyle(color)
+                context.beginPath()
+                context.moveTo(cx - cw / 2f, volTop + (volH - vh))
+                context.lineTo(cx + cw / 2f, volTop + (volH - vh))
+                context.lineTo(cx + cw / 2f, volTop + volH)
+                context.lineTo(cx - cw / 2f, volTop + volH)
+                context.closePath()
+                context.fill()
+            }
+            context.fillStyle(Color(0xFF999999))
+            context.font(9f)
+            context.textAlign(TextAlign.RIGHT)
+            context.fillText("成交量", width - 2f, volTop - 8f)
+        }
+
+        // 价格标签
         context.fillStyle(Color(0xFF999999))
         context.font(10f)
         context.textAlign(TextAlign.LEFT)
         context.fillText(fmt2(maxP), 4f, padT + 9f)
         context.fillText(fmt2(minP), 4f, volTop - 6f)
 
-        val firstDate = klineData.first().tradeDate
-        val lastDate = klineData.last().tradeDate
-        context.font(9f)
-        context.textAlign(TextAlign.LEFT)
-        context.fillText(firstDate, 2f, dateY)
-        context.textAlign(TextAlign.RIGHT)
-        context.fillText(lastDate, width - 2f, dateY)
-
-        val sel = ctx.selectedKlineIndex
-        if (sel >= 0 && sel < n) {
-            val k = klineData[sel]
-            val cx = step * sel + step / 2f
-            context.strokeStyle(Color(0xFF333333))
-            context.lineWidth(1.5f)
-            context.beginPath()
-            context.moveTo(cx - cw / 2f - 1f, py(k.high) - 1f)
-            context.lineTo(cx + cw / 2f + 1f, py(k.high) - 1f)
-            context.lineTo(cx + cw / 2f + 1f, py(k.low) + 1f)
-            context.lineTo(cx - cw / 2f - 1f, py(k.low) + 1f)
-            context.closePath()
-            context.stroke()
-
-            context.fillStyle(Color(0xE6333333))
-            context.beginPath()
-            context.moveTo(0f, 2f)
-            context.lineTo(width, 2f)
-            context.lineTo(width, tooltipH)
-            context.lineTo(0f, tooltipH)
-            context.closePath()
-            context.fill()
-
-            val up = k.close >= k.open
-            val pct = if (k.open != 0.0) (k.close - k.open) / k.open * 100.0 else 0.0
-            val tooltipColor = if (up) Color(0xFFFF8A80) else Color(0xFFA5D6A7)
-            context.font(8f)
+        // 日期标签
+        if (visible.isNotEmpty()) {
+            val firstDate = visible.first().tradeDate
+            val lastDate = visible.last().tradeDate
+            context.font(9f)
             context.textAlign(TextAlign.LEFT)
-            context.fillStyle(Color(0xFFFFFFFF))
-            context.fillText(
-                "${k.tradeDate}  开 ${fmt2(k.open)}  收 ${fmt2(k.close)}" +
-                    "  高 ${fmt2(k.high)}  低 ${fmt2(k.low)}",
-                4f, 10f
-            )
-            context.fillStyle(tooltipColor)
-            context.fillText(
-                "涨跌 ${fmtSignedPct(pct)}   量 ${k.volume.toInt()} 手",
-                4f, 20f
-            )
+            context.fillText(firstDate, 2f, dateY)
+            context.textAlign(TextAlign.RIGHT)
+            context.fillText(lastDate, width - 2f, dateY)
+            // 中间日期
+            if (nVisible > 10) {
+                context.textAlign(TextAlign.CENTER)
+                context.fillText(visible[nVisible / 2].tradeDate, width / 2f, dateY)
+            }
+        }
+
+        // 十字光标
+        val sel = ctx.selectedKlineIndex
+        if (sel >= 0 && sel >= ctx.klineStartIndex && sel < ctx.klineStartIndex + nVisible) {
+            val localIdx = sel - ctx.klineStartIndex
+            if (localIdx in visible.indices) {
+                val k = visible[localIdx]
+                val cx = step * localIdx + step / 2f
+                val cy = py(k.close)
+                // 垂直线
+                context.strokeStyle(Color(0xFF333333))
+                context.lineWidth(1f)
+                var vx = 0f
+                while (vx < height) {
+                    if (vx < padT || vx > volTop) {
+                        // 跳过
+                    } else {
+                        context.beginPath()
+                        context.moveTo(cx, vx)
+                        context.lineTo(cx, (vx + 4f).coerceAtMost(volTop))
+                        context.stroke()
+                    }
+                    vx += 8f
+                }
+                // 水平线
+                var hx = 0f
+                while (hx < width) {
+                    context.beginPath()
+                    context.moveTo(hx, cy)
+                    context.lineTo((hx + 4f).coerceAtMost(width), cy)
+                    context.stroke()
+                    hx += 8f
+                }
+                // 选中框
+                context.strokeStyle(Color(0xFF1976D2))
+                context.lineWidth(1.5f)
+                context.beginPath()
+                context.moveTo(cx - cw / 2f - 2f, py(k.high) - 2f)
+                context.lineTo(cx + cw / 2f + 2f, py(k.high) - 2f)
+                context.lineTo(cx + cw / 2f + 2f, py(k.low) + 2f)
+                context.lineTo(cx - cw / 2f - 2f, py(k.low) + 2f)
+                context.closePath()
+                context.stroke()
+
+                // Tooltip
+                context.fillStyle(Color(0xE622263F))
+                context.beginPath()
+                context.moveTo(0f, 2f)
+                context.lineTo(width, 2f)
+                context.lineTo(width, tooltipH)
+                context.lineTo(0f, tooltipH)
+                context.closePath()
+                context.fill()
+
+                val up = k.close >= k.open
+                val pct = if (k.open != 0.0) (k.close - k.open) / k.open * 100.0 else 0.0
+                val tooltipColor = if (up) Color(0xFFFF8A80) else Color(0xFFA5D6A7)
+                context.font(9f)
+                context.textAlign(TextAlign.LEFT)
+                context.fillStyle(Color(0xFFFFFFFF))
+                context.fillText(
+                    "${k.tradeDate} 开${fmt2(k.open)} 收${fmt2(k.close)} 高${fmt2(k.high)} 低${fmt2(k.low)}",
+                    4f, 12f
+                )
+                context.fillStyle(tooltipColor)
+                context.fillText(
+                    "涨跌 ${fmtSignedPct(pct)} 量${k.volume.toInt()}手 ${if (ctx.klineShowMA) "MA5 ${maAt(sel,5)?.let { fmt2(it) } ?: "-"}" else ""}",
+                    4f, 24f
+                )
+                // 与AI价位距离
+                if (aiLevels.isNotEmpty()) {
+                    val nearest = aiLevels.minByOrNull { abs(it.price - k.close) }
+                    nearest?.let {
+                        val dist = (k.close - it.price) / it.price * 100.0
+                        context.fillStyle(Color(0xFFFFE082))
+                        context.fillText(
+                            "距${it.label} ${fmtSignedPct(dist)}",
+                            4f, 34f
+                        )
+                    }
+                }
+            }
+        }
+
+        // MA图例
+        if (ctx.klineShowMA) {
+            context.font(9f)
+            context.textAlign(TextAlign.LEFT)
+            var lx = 4f
+            listOf(
+                Triple("MA5", Color(0xFF1976D2), ma5Points.lastOrNull()?.second),
+                Triple("MA10", Color(0xFFFF9800), ma10Points.lastOrNull()?.second),
+                Triple("MA20", Color(0xFF7B1FA2), ma20Points.lastOrNull()?.second)
+            ).forEach { (label, color, _) ->
+                context.fillStyle(color)
+                context.fillText(label, lx, padT - 6f)
+                lx += 36f
+            }
         }
     }
 }
 
-internal fun ViewContainer<*, *>.klineSummary(klineData: List<KLineDataItem>) {
-    val latest = klineData.lastOrNull()
+internal fun ViewContainer<*, *>.klineSummary(ctx: StockDetailPage, visible: List<KLineDataItem>) {
+    val latest = visible.lastOrNull() ?: ctx.stockDetail?.kline?.lastOrNull()
     if (latest == null) return
 
     View {
@@ -947,37 +1649,51 @@ internal fun ViewContainer<*, *>.klineSummary(klineData: List<KLineDataItem>) {
         View {
             attr {
                 flexDirectionRow()
+                flexWrapWrap()
             }
 
             Text {
                 attr {
                     text("最新: ${latest.tradeDate}")
-                    fontSize(12f)
+                    fontSize(11f)
                     color(0xFF666666)
                 }
             }
 
             Text {
                 attr {
-                    text("收盘: ${latest.close}")
-                    fontSize(12f)
+                    text("收盘: ${fmt2(latest.close)}")
+                    fontSize(11f)
                     fontWeightBold()
                     color(0xFF333333)
-                    marginLeft(12f)
+                    marginLeft(10f)
                 }
             }
 
             Text {
                 attr {
-                    text("成交量: ${latest.volume.toInt()} 手")
-                    fontSize(12f)
+                    text("量: ${latest.volume.toInt()}手")
+                    fontSize(11f)
                     color(0xFF666666)
-                    marginLeft(12f)
+                    marginLeft(10f)
+                }
+            }
+
+            vif({ ctx.selectedKlineIndex >= 0 }) {
+                Text {
+                    attr {
+                        text("已选 ${ctx.getAggregatedKline().getOrNull(ctx.selectedKlineIndex)?.tradeDate ?: ""}")
+                        fontSize(11f)
+                        color(0xFF1976D2)
+                        marginLeft(10f)
+                    }
                 }
             }
         }
     }
 }
+
+// --- AI分析卡片化重构 ---
 
 internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
     View {
@@ -999,15 +1715,26 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
                     fontSize(15f)
                     fontWeightBold()
                     color(0xFF333333)
+                    flex(1f)
+                }
+            }
+
+            vif({ ctx.aiAnalysis != null }) {
+                Text {
+                    attr {
+                        text("${ctx.aiAnalysis!!.cards.size}张卡片")
+                        fontSize(11f)
+                        color(0xFF999999)
+                        marginRight(8f)
+                    }
                 }
             }
 
             vif({ !ctx.isAnalyzing }) {
                 View {
                     attr {
-                        marginLeft(8f)
-                        padding(top = 4f, left = 8f, bottom = 4f, right = 8f)
-                        backgroundColor(0xFFFFF9C4)
+                        padding(top = 4f, left = 10f, bottom = 4f, right = 10f)
+                        backgroundColor(0xFF1976D2)
                         borderRadius(12f)
                     }
                     event {
@@ -1017,9 +1744,10 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
                     }
                     Text {
                         attr {
-                            text("刷新分析")
+                            text(if (ctx.aiAnalysis == null) "开始分析" else "刷新")
                             fontSize(11f)
-                            color(0xFF666666)
+                            color(0xFFFFFFFF)
+                            fontWeightBold()
                         }
                     }
                 }
@@ -1033,30 +1761,488 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
             notAnalyzedView(ctx)
         }
         velse {
-            renderAnalysisBubble(ctx, ctx.aiAnalysis!!)
+            // 结构化卡片渲染
+            val analysis = ctx.aiAnalysis!!
+            // 按类型分组，固定顺序：趋势、信号、建议、风险、总结
+            val orderedTypes = listOf("trend_card", "signal_card", "suggestion_card", "risk_card", "summary_card")
+            val grouped = analysis.cards.groupBy { it["type"] as? String ?: "unknown" }
+            orderedTypes.forEach { t ->
+                grouped[t]?.forEachIndexed { idx, card ->
+                    renderAIAnalysisCard(ctx, card, "${t}_$idx")
+                }
+            }
+            // 其他未知类型
+            grouped.filterKeys { it !in orderedTypes }.values.flatten().forEachIndexed { idx, card ->
+                renderAIAnalysisCard(ctx, card, "other_$idx")
+            }
+
+            // 联动提示
+            View {
+                attr {
+                    flexDirectionColumn()
+                    marginTop(10f)
+                    padding(10f, 12f, 10f, 12f)
+                    backgroundColor(0xFFF1F7FF)
+                    borderRadius(10f)
+                }
+                Text {
+                    attr {
+                        text("💡 联动交互说明")
+                        fontSize(12f)
+                        fontWeightBold()
+                        color(0xFF1976D2)
+                    }
+                }
+                Text {
+                    attr {
+                        text("· 点击AI价位卡片 → K线标注虚线\n· 点击K线 → 查看与AI价位的距离\n· 设提醒 → 写入自选盯盘，行情刷新时触发\n· 周K/月K → 聚合查看中长期趋势")
+                        fontSize(11f)
+                        color(0xFF666666)
+                        marginTop(4f)
+                        lineHeight(16f)
+                    }
+                }
+            }
         }
     }
 }
 
-internal fun ViewContainer<*, *>.renderAnalysisBubble(ctx: StockDetailPage, analysis: AIAnalysisData) {
-    val text = buildAnalysisMarkdown(analysis)
+internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card: Map<String, Any?>, key: String) {
+    val type = card["type"] as? String ?: "unknown"
+    val title = card["title"] as? String ?: when (type) {
+        "trend_card" -> "趋势研判"
+        "signal_card" -> "技术信号"
+        "suggestion_card" -> "操作建议"
+        "risk_card" -> "风险提示"
+        "summary_card" -> "总结"
+        else -> "分析"
+    }
+    val expanded = ctx.isAIExpanded(key)
 
+    when (type) {
+        "trend_card" -> {
+            val content = card["content"] as? String ?: ""
+            View {
+                attr {
+                    flexDirectionColumn()
+                    marginTop(8f)
+                    backgroundColor(0xFFFFFFFF)
+                    borderRadius(12f)
+                    padding(12f, 14f, 12f, 14f)
+                    border(Border(1f, BorderStyle.SOLID, Color(0xFFE3F2FD)))
+                }
+                View {
+                    attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
+                    View {
+                        attr {
+                            width(4f)
+                            height(16f)
+                            backgroundColor(0xFF1976D2)
+                            borderRadius(2f)
+                            marginRight(8f)
+                        }
+                    }
+                    Text {
+                        attr {
+                            text(title)
+                            fontSize(14f)
+                            fontWeightBold()
+                            color(0xFF1976D2)
+                            flex(1f)
+                        }
+                    }
+                    View {
+                        attr {
+                            padding(3f, 8f, 3f, 8f)
+                            backgroundColor(0xFFE3F2FD)
+                            borderRadius(10f)
+                        }
+                        event { click { ctx.toggleAISection(key) } }
+                        Text {
+                            attr {
+                                text(if (expanded) "收起" else "展开")
+                                fontSize(11f)
+                                color(0xFF1976D2)
+                            }
+                        }
+                    }
+                }
+                Text {
+                    attr {
+                        text(content)
+                        fontSize(13f)
+                        color(0xFF333333)
+                        marginTop(8f)
+                        lineHeight(19f)
+                    }
+                }
+                vif({ expanded }) {
+                    val bias = card["bias"] as? String ?: ""
+                    if (bias.isNotEmpty()) {
+                        View {
+                            attr {
+                                marginTop(8f)
+                                padding(8f, 10f, 8f, 10f)
+                                backgroundColor(0xFFF5F5F5)
+                                borderRadius(8f)
+                            }
+                            Text {
+                                attr {
+                                    text("倾向：$bias")
+                                    fontSize(12f)
+                                    color(0xFF666666)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        "signal_card" -> {
+            val signals = (card["signals"] as? List<*>)?.mapNotNull { it?.toString() } ?: emptyList()
+            View {
+                attr {
+                    flexDirectionColumn()
+                    marginTop(8f)
+                    backgroundColor(0xFFFFF9C4)
+                    borderRadius(12f)
+                    padding(12f, 14f, 12f, 14f)
+                }
+                View {
+                    attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
+                    Text {
+                        attr {
+                            text("📊 $title (${signals.size})")
+                            fontSize(14f)
+                            fontWeightBold()
+                            color(0xFFA56100)
+                            flex(1f)
+                        }
+                    }
+                    View {
+                        attr {
+                            padding(3f, 8f, 3f, 8f)
+                            backgroundColor(0xFFFFFFFF)
+                            borderRadius(10f)
+                        }
+                        event { click { ctx.toggleAISection(key) } }
+                        Text {
+                            attr {
+                                text(if (expanded) "收起" else "展开")
+                                fontSize(11f)
+                                color(0xFFA56100)
+                            }
+                        }
+                    }
+                }
+                // 默认显示2条，展开显示全部
+                val displaySignals = if (expanded) signals else signals.take(2)
+                displaySignals.forEach { sig ->
+                    View {
+                        attr { flexDirectionRow(); marginTop(6f) }
+                        Text {
+                            attr {
+                                text("•")
+                                fontSize(13f)
+                                color(0xFFA56100)
+                                width(14f)
+                            }
+                        }
+                        Text {
+                            attr {
+                                text(sig)
+                                fontSize(12f)
+                                color(0xFF5D4037)
+                                flex(1f)
+                                lineHeight(17f)
+                            }
+                        }
+                    }
+                }
+                if (!expanded && signals.size > 2) {
+                    Text {
+                        attr {
+                            text("还有 ${signals.size - 2} 条信号，点击展开查看")
+                            fontSize(11f)
+                            color(0xFF999999)
+                            marginTop(6f)
+                        }
+                    }
+                }
+            }
+        }
+        "suggestion_card" -> {
+            val suggestion = card["suggestion"] as? String ?: "-"
+            val targetPrice = parseCardPrice(card["target_price"])
+            val stopLoss = parseCardPrice(card["stop_loss"])
+            val support = parseCardPrice(card["support_price"] ?: card["support_value"])
+            val resistance = parseCardPrice(card["resistance_price"] ?: card["resistance_value"])
+            val currentPrice = ctx.stockDetail?.realtime?.price ?: 0.0
+
+            View {
+                attr {
+                    flexDirectionColumn()
+                    marginTop(8f)
+                    backgroundColor(0xFFFFFFFF)
+                    borderRadius(12f)
+                    padding(12f, 14f, 12f, 14f)
+                    border(Border(1.2f, BorderStyle.SOLID, Color(0xFF1976D2)))
+                }
+                View {
+                    attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
+                    Text {
+                        attr {
+                            text("🎯 $title")
+                            fontSize(14f)
+                            fontWeightBold()
+                            color(0xFF1976D2)
+                            flex(1f)
+                        }
+                    }
+                    View {
+                        attr {
+                            padding(4f, 10f, 4f, 10f)
+                            backgroundColor(0xFF1976D2)
+                            borderRadius(12f)
+                        }
+                        event { click { ctx.toggleAISection(key) } }
+                        Text {
+                            attr {
+                                text(if (expanded) "收起详情" else "展开价位")
+                                fontSize(11f)
+                                color(0xFFFFFFFF)
+                                fontWeightBold()
+                            }
+                        }
+                    }
+                }
+                Text {
+                    attr {
+                        text(suggestion)
+                        fontSize(13f)
+                        color(0xFF333333)
+                        marginTop(8f)
+                        lineHeight(19f)
+                    }
+                }
+
+                // 价位网格
+                View {
+                    attr { flexDirectionColumn(); marginTop(10f) }
+                    if (resistance != null) priceLevelRow(ctx, "压力位", resistance, currentPrice, 0xFFD64545, 0)
+                    if (support != null) priceLevelRow(ctx, "支撑位", support, currentPrice, 0xFF2E9E5B, 1)
+                    if (targetPrice != null) priceLevelRow(ctx, "目标价", targetPrice, currentPrice, 0xFF0E67D1, 0)
+                    if (stopLoss != null) priceLevelRow(ctx, "止损价", stopLoss, currentPrice, 0xFFA56100, 1)
+                }
+
+                vif({ expanded }) {
+                    View {
+                        attr {
+                            marginTop(10f)
+                            padding(10f)
+                            backgroundColor(0xFFF5F5F5)
+                            borderRadius(8f)
+                        }
+                        Text {
+                            attr {
+                                text("操作说明：点击价位可在K线标注虚线，设提醒后可在自选页查看触发状态。价格为AI基于历史数据推算，仅供参考。")
+                                fontSize(11f)
+                                color(0xFF888888)
+                                lineHeight(16f)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        "risk_card" -> {
+            val riskLevel = card["risk_level"] as? String ?: ""
+            val risks = (card["risks"] as? List<*>)?.mapNotNull { it?.toString() } ?: emptyList()
+            val content = card["content"] as? String ?: ""
+            View {
+                attr {
+                    flexDirectionColumn()
+                    marginTop(8f)
+                    backgroundColor(0xFFFFEBEE)
+                    borderRadius(12f)
+                    padding(12f, 14f, 12f, 14f)
+                }
+                View {
+                    attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
+                    Text {
+                        attr {
+                            text("⚠️ $title")
+                            fontSize(14f)
+                            fontWeightBold()
+                            color(0xFFD32F2F)
+                            flex(1f)
+                        }
+                    }
+                    if (riskLevel.isNotEmpty()) {
+                        View {
+                            attr {
+                                padding(3f, 8f, 3f, 8f)
+                                backgroundColor(0xFFD32F2F)
+                                borderRadius(10f)
+                            }
+                            Text {
+                                attr {
+                                    text(riskLevel)
+                                    fontSize(11f)
+                                    color(0xFFFFFFFF)
+                                    fontWeightBold()
+                                }
+                            }
+                        }
+                    }
+                }
+                if (content.isNotBlank()) {
+                    Text {
+                        attr {
+                            text(content)
+                            fontSize(12f)
+                            color(0xFF5D4037)
+                            marginTop(6f)
+                            lineHeight(17f)
+                        }
+                    }
+                }
+                risks.forEach { r ->
+                    View {
+                        attr { flexDirectionRow(); marginTop(6f) }
+                        Text { attr { text("•"); fontSize(12f); color(0xFFD32F2F); width(12f) } }
+                        Text { attr { text(r); fontSize(12f); color(0xFF5D4037); flex(1f); lineHeight(17f) } }
+                    }
+                }
+            }
+        }
+        "summary_card" -> {
+            val summary = card["summary"] as? String ?: card["content"] as? String ?: ""
+            View {
+                attr {
+                    flexDirectionColumn()
+                    marginTop(8f)
+                    backgroundColor(0xFFF3E5F5)
+                    borderRadius(12f)
+                    padding(12f, 14f, 12f, 14f)
+                }
+                Text {
+                    attr {
+                        text("📝 $title")
+                        fontSize(14f)
+                        fontWeightBold()
+                        color(0xFF7B1FA2)
+                    }
+                }
+                Text {
+                    attr {
+                        text(summary)
+                        fontSize(13f)
+                        color(0xFF4A148C)
+                        marginTop(6f)
+                        lineHeight(19f)
+                    }
+                }
+            }
+        }
+        else -> {
+            val content = card["content"] as? String ?: card.toString()
+            View {
+                attr {
+                    flexDirectionColumn()
+                    marginTop(8f)
+                    backgroundColor(0xFFFFFFFF)
+                    borderRadius(10f)
+                    padding(12f)
+                }
+                Text { attr { text(title); fontSize(13f); fontWeightBold(); color(0xFF333333) } }
+                Text { attr { text(content); fontSize(12f); color(0xFF666666); marginTop(4f) } }
+            }
+        }
+    }
+}
+
+internal fun parseCardPrice(raw: Any?): Double? {
+    return when (raw) {
+        is Number -> raw.toDouble().takeIf { it.isFinite() && it > 0 }
+        is String -> raw.toDoubleOrNull()?.takeIf { it.isFinite() && it > 0 }
+        else -> null
+    }
+}
+
+internal fun ViewContainer<*, *>.priceLevelRow(
+    ctx: StockDetailPage,
+    label: String,
+    price: Double,
+    currentPrice: Double,
+    color: Long,
+    alertType: Int
+) {
+    val dist = if (currentPrice > 0) (price - currentPrice) / currentPrice * 100.0 else 0.0
+    val distText = if (currentPrice > 0) fmtSignedPct(dist) else ""
     View {
         attr {
             flexDirectionRow()
+            alignItems(FlexAlign.CENTER)
             marginTop(6f)
-            justifyContent(FlexJustifyContent.FLEX_START)
+            padding(8f, 10f, 8f, 10f)
+            backgroundColor(0xFFF7F9FC)
+            borderRadius(8f)
         }
         View {
-            val bubbleW = ctx.pagerData.pageViewWidth - 96f
             attr {
-                flexDirectionColumn()
-                width(bubbleW)
-                backgroundColor(0xFFF1F5FF)
-                borderRadius(12f)
-                padding(left = 12f, top = 10f, right = 12f, bottom = 10f)
+                width(6f)
+                height(6f)
+                borderRadius(3f)
+                backgroundColor(color)
+                marginRight(8f)
             }
-            KuiklyMarkdown(content = sanitizeMarkdownForRender(text), config = chatMarkdownConfig)
+        }
+        Text {
+            attr {
+                text(label)
+                fontSize(12f)
+                color(0xFF666666)
+                width(52f)
+            }
+        }
+        Text {
+            attr {
+                text("¥${fmt2(price)}")
+                fontSize(13f)
+                fontWeightBold()
+                color(color)
+                flex(1f)
+            }
+        }
+        if (distText.isNotEmpty()) {
+            Text {
+                attr {
+                    text(distText)
+                    fontSize(11f)
+                    color(if (dist >= 0) 0xFFE53935 else 0xFF43A047)
+                    marginRight(8f)
+                }
+            }
+        }
+        View {
+            attr {
+                padding(4f, 8f, 4f, 8f)
+                backgroundColor(0xFFE8F2FF)
+                borderRadius(10f)
+                marginRight(4f)
+            }
+            event { click { ctx.highlightAIPrice(price, label) } }
+            Text { attr { text("标注"); fontSize(10f); color(0xFF1976D2); fontWeightBold() } }
+        }
+        View {
+            attr {
+                padding(4f, 8f, 4f, 8f)
+                backgroundColor(Color(color))
+                borderRadius(10f)
+            }
+            event { click { ctx.prepareAlertFromDetail(alertType, price) } }
+            Text { attr { text("设提醒"); fontSize(10f); color(0xFFFFFFFF); fontWeightBold() } }
         }
     }
 }
@@ -1111,14 +2297,15 @@ internal fun buildAnalysisMarkdown(a: AIAnalysisData): String {
     if (sb.isEmpty()) return "AI 分析完成，暂无详细内容。"
     return sb.toString().trimEnd()
 }
+
 internal fun ViewContainer<*, *>.analyzingView(ctx: StockDetailPage) {
     View {
         attr {
             flexDirectionColumn()
             alignItems(FlexAlign.CENTER)
-            padding(top = 14f, left = 16f, bottom = 14f, right = 16f)
+            padding(top = 20f, left = 16f, bottom = 20f, right = 16f)
             backgroundColor(0xFFFFFFFF)
-            borderRadius(10f)
+            borderRadius(12f)
         }
 
         Text {
@@ -1131,10 +2318,30 @@ internal fun ViewContainer<*, *>.analyzingView(ctx: StockDetailPage) {
 
         Text {
             attr {
-                text("请稍候，当前 AI 服务正在生成分析报告")
+                text("正在结合K线、指标与盘口数据生成结构化研判")
                 fontSize(12f)
                 color(0xFF999999)
                 marginTop(6f)
+                textAlignCenter()
+            }
+        }
+
+        View {
+            attr {
+                marginTop(12f)
+                flexDirectionRow()
+            }
+            repeat(3) { i ->
+                View {
+                    attr {
+                        width(8f)
+                        height(8f)
+                        borderRadius(4f)
+                        backgroundColor(0xFF1976D2)
+                        marginLeft(if (i == 0) 0f else 6f)
+                        opacity(if (i == 0) 1f else 0.5f)
+                    }
+                }
             }
         }
     }
@@ -1145,9 +2352,9 @@ internal fun ViewContainer<*, *>.notAnalyzedView(ctx: StockDetailPage) {
         attr {
             flexDirectionColumn()
             alignItems(FlexAlign.CENTER)
-            padding(top = 14f, left = 16f, bottom = 14f, right = 16f)
+            padding(top = 20f, left = 16f, bottom = 20f, right = 16f)
             backgroundColor(0xFFFFFFFF)
-            borderRadius(10f)
+            borderRadius(12f)
         }
 
         Text {
@@ -1158,10 +2365,21 @@ internal fun ViewContainer<*, *>.notAnalyzedView(ctx: StockDetailPage) {
             }
         }
 
+        Text {
+            attr {
+                text("AI 将结合K线走势、技术指标与盘口数据，生成带关键价位的结构化研判，并与K线联动")
+                fontSize(11f)
+                color(0xFF999999)
+                marginTop(6f)
+                textAlignCenter()
+                lineHeight(16f)
+            }
+        }
+
         View {
             attr {
-                marginTop(12f)
-                padding(top = 10f, left = 24f, bottom = 10f, right = 24f)
+                marginTop(14f)
+                padding(top = 10f, left = 28f, bottom = 10f, right = 28f)
                 backgroundColor(0xFF1976D2)
                 borderRadius(20f)
             }
@@ -1179,13 +2397,51 @@ internal fun ViewContainer<*, *>.notAnalyzedView(ctx: StockDetailPage) {
                 }
             }
         }
+    }
+}
 
-        Text {
+internal fun ViewContainer<*, *>.detailAlertConfirmDialog(ctx: StockDetailPage) {
+    View {
+        attr { absolutePositionAllZero(); backgroundColor(0x88000000); allCenter() }
+        View {
+            attr { width(ctx.pagerData.pageViewWidth - 46f); padding(18f); borderRadius(18f); backgroundColor(Color.WHITE) }
+            Text { attr { text("确认创建价格提醒"); fontSize(18f); fontWeightBold(); color(0xFF172A43) } }
+            Text { attr { text("${ctx.pendingAlertName} · ${ctx.pendingAlertCode}"); fontSize(13f); color(0xFF697789); marginTop(9f) } }
+            View { attr { padding(14f); marginTop(12f); borderRadius(12f); backgroundColor(0xFFF4F7FB) }
+                Text { attr { text(if (ctx.pendingAlertType == 1) "价格跌至或低于" else "价格涨至或高于"); fontSize(11f); color(0xFF7A8797) } }
+                Text { attr { text("¥ ${fmt2(ctx.pendingAlertValue)}"); fontSize(23f); fontWeightBold(); color(0xFF173C64); marginTop(4f) } }
+            }
+            Text { attr { text("提醒在行情数据刷新时检查，可能存在延迟。"); fontSize(11f); color(0xFF8A94A1); marginTop(10f) } }
+            View { attr { flexDirectionRow(); marginTop(16f) }
+                View { attr { flex(1f); height(44f); allCenter(); borderRadius(12f); backgroundColor(0xFFF0F2F5) }; event { click { ctx.showAlertConfirm = false } }; Text { attr { text("取消"); fontSize(13f); color(0xFF697586) } } }
+                View { attr { width(10f) } }
+                View { attr { flex(1f); height(44f); allCenter(); borderRadius(12f); backgroundColor(0xFF0E67D1) }; event { click { ctx.confirmAlert() } }; Text { attr { text("确认创建"); fontSize(13f); fontWeightBold(); color(Color.WHITE) } } }
+            }
+        }
+    }
+}
+
+internal fun ViewContainer<*, *>.detailAiToast(ctx: StockDetailPage) {
+    View {
+        attr {
+            absolutePosition(top = 70f, left = 0f, right = 0f)
+            alignItems(FlexAlign.CENTER)
+        }
+        event { click { ctx.aiErrorNotice = "" } }
+        View {
             attr {
-                text("AI 将为您分析趋势、信号、风险并给出操作建议")
-                fontSize(11f)
-                color(0xFF999999)
-                marginTop(8f)
+                maxWidth(ctx.pagerData.pageViewWidth - 60f)
+                backgroundColor(0xE60E67D1)
+                borderRadius(10f)
+                padding(left = 14f, top = 8f, right = 14f, bottom = 8f)
+            }
+            Text {
+                attr {
+                    text(ctx.aiErrorNotice)
+                    fontSize(12f)
+                    color(0xFFFFFFFF)
+                    textAlignCenter()
+                }
             }
         }
     }
