@@ -57,6 +57,23 @@ def test_fail_when_no_indicator():
     assert any("stock_indicator" in i for i in b.collect_quality_issues(c, GOOD_DATE))
 
 
+def test_index_warn_when_missing():
+    c = dict(GOOD_COUNTS)  # 无指数 key，视为 0 行
+    warns = b.collect_index_warnings(c)
+    assert any("index_realtime" in i for i in warns)
+    assert any("index_daily_kline" in i for i in warns)
+
+
+def test_index_warn_quiet_when_ok():
+    c = dict(GOOD_COUNTS, index_realtime=300, index_daily_kline=500)
+    assert b.collect_index_warnings(c) == []
+
+
+def test_index_missing_does_not_block_publish():
+    # 指数缺失只告警：硬门槛函数不受影响（仍通过）
+    assert b.collect_quality_issues(GOOD_COUNTS, GOOD_DATE) == []
+
+
 if __name__ == "__main__":
     fns = [(k, v) for k, v in globals().items() if k.startswith("test_") and callable(v)]
     for name, fn in fns:
