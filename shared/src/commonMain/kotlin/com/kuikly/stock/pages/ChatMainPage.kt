@@ -22,6 +22,9 @@ import com.tencent.kuikly.core.reactive.handler.observable
 import com.tencent.kuikly.core.reactive.handler.observableList
 import com.kuikly.stock.base.splitBreaks
 import com.kuikly.stock.data.copyTextToClipboard
+import com.kuikly.stock.data.exportTimestampString
+import com.kuikly.stock.data.saveTextToDownloads
+import com.kuikly.stock.data.shareText
 import com.kuikly.stock.data.DataSourceManager
 import com.kuikly.stock.data.LocalDataService
 import com.kuikly.stock.data.StockDb
@@ -428,7 +431,7 @@ class ChatMainPage : Pager() {
         DataSourceManager.setMode(
             if (online) DataSourceManager.Mode.ONLINE else DataSourceManager.Mode.OFFLINE
         )
-        val notice = if (online) "✅ 已切换到在线模式" else "✅ 已切换到离线模式"
+        val notice = if (onlin else "✅ 已切换到离线模式"
         modeSwitchNotice = notice
         lifecycleScope.launch {
             delay(3000)
@@ -479,6 +482,66 @@ class ChatMainPage : Pager() {
         renameTargetId = sessionOpsTargetId
         renameInputText = target.title
         showRenameDialog = true
+    }
+
+    internal fun openExportDialog() {
+        if (sessions.none { it.id == sessionOpsTargetId }) return
+        exportTargetId = sessionOpsTargetId
+        showExportDialog = true
+    }
+
+    private fun exportTarget(): ChatSession? {
+        val id = if (exportTargetId.isNotEmpty()) exportTargetId else sessionOpsTargetId
+        val s = sessions.firstOrNull { it.id == id } ?: return null
+        // 导出当前会话时带上内存中最新的消息（含正在进行的回复）。
+        return if (id == activeSessionId) s.copy(messages = messages.toList()) else s
+    }
+
+    /**
+     * 执行导出：0 分享 Markdown，1 保存 .md 到下载文件夹，2 复制 Markdown 全文，3 分享 JSON（备份）。
+     */
+    internal fun performExport(kind: Int) {
+        val target = exportTarget()
+        showExportDialog = false
+        if (target == null || target.messages.isEmpty()) {
+            toastExport("该会话暂无消息，无需导出")
+            return
+        }
+        val exportedAt = exportTimestampString(System.currentTimeMillis())
+        val title = target.title.ifBlank { "AI 问答" }
+        when (kind) {
+            3 -> {
+                val json = exportSessionJson(target, exportedAt)
+                if (!shareText(title, json)) {
+                    copyTextToClipboard(json)
+                    toastExport("系统分享不可用，已复制 JSON 全文")
+                }
+            }
+            1 -> {
+                val md = exportSessionMarkdown(target, exportedAt)
+                val saved = saveTextToDownloads(exportFileBase(target.title) + ".md", md, "text/markdown")
+                toastExport(if (saved != null) "已保存到下载文件夹：$saved" else "保存失败，请改用分享或复制")
+            }
+            2 -> {
+                copyTextToClipboard(exportSessionMarkdown(target, exportedAt))
+                toastExport("已复制全文（Markdown）")
+            }
+            else -> {
+                val md = exportSessionMarkdown(target, exportedAt)
+                if (!shareText(title, md)) {
+                    copyTextToClipboard(md)
+                    toastExport("系统分享不可用，已复制全文")
+                }
+            }
+        }
+    }
+
+    private fun toastExport(msg: String) {
+        aiErrorNotice = msg
+        lifecycleScope.launch {
+            delay(2500)
+            if (aiErrorNotice == msg) aiErrorNotice = ""
+        }
     }
 
     internal fun renameSession() {
@@ -2049,6 +2112,106 @@ internal fun ViewContainer<*, *>.renameDialog(ctx: ChatMainPage) {
         }
     }
 }
+internal fun ViewContainer<*, *>.exportDialog(ctx: ChatMainPage) {
+    val target = ctx.sessions.firstOrNull { it.id == ctx.exportTargetId }
+    val title = target?.title?.ifBlank { "当前会话" } ?: "当前会话"
+    val count = target?.messages?.size ?: 0
+    View {
+        attr {
+            absolutePositionAllZero()
+            backgroundColor(0x88000000)
+            alignItems(FlexAlign.CENTER)
+            justifyContent(FlexJustifyContent.CENTER)
+        }
+        event { click { ctx.showExportDialog = false } }
+
+        View {
+            attr {
+                width(ctx.pagerData.pageViewWidth - 64f)
+                flexDirectionColumn()
+                backgroundColor(0xFFFFFFFF)
+                borderRadius(12f)
+                padding(left = 20f, top = 20f, right = 20f, bottom = 20f)
+            }
+
+            Text {
+                attr {
+                    text("导出会话")
+                    fontSize(17f)
+                    fontWeightBold()
+                    color(0xFF333333)
+                }
+            }
+            Text {
+                attr {
+                    text("「" + title + "」· " + count + " 条消息")
+                    fontSize(13f)
+                    color(0xFF999999)
+                    marginTop(6f)
+                }
+            }
+
+            exportOption(ctx, "📤 分享 Markdown", "调起系统分享面板，可发送到微信、邮件等", 0)
+            exportOption(ctx, "💾 保存 .md 到下载文件夹", "生成 Markdown 文件，方便归档与二次编辑", 1)
+            exportOption(ctx, "📋 复制全文", "复制 Markdown 到剪贴板", 2)
+            exportOption(ctx, "🧾 分享 JSON（备份）", "完整数据，可用于备份与恢复", 3)
+
+            View {
+                attr {
+                    flexDirectionRow()
+                    marginTop(16f)
+                }
+                View {
+                    attr {
+                        flex(1f)
+                        height(40f)
+                        backgroundColor(0xFFF5F5F5)
+                        borderRadius(20f)
+                        alignItems(FlexAlign.CENTER)
+                        justifyContent(FlexJustifyContent.CENTER)
+                    }
+                    event { click { ctx.showExportDialog = false } }
+                    Text {
+                        attr {
+                            text("取消")
+                            fontSize(15f)
+                            color(0xFF666666)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+internal fun ViewContainer<*, *>.exportOption(ctx: ChatMainPage, label: String, desc: String, kind: Int) {
+    View {
+        attr {
+            marginTop(10f)
+            backgroundColor(0xFFF5F5F5)
+            borderRadius(10f)
+            padding(left = 14f, top = 10f, right = 14f, bottom = 10f)
+        }
+        event { click { ctx.performExport(kind) } }
+        Text {
+            attr {
+                text(label)
+                fontSize(15f)
+                fontWeightBold()
+                color(0xFF333333)
+            }
+        }
+        Text {
+            attr {
+                text(desc)
+                fontSize(12f)
+                color(0xFF999999)
+                marginTop(2f)
+            }
+        }
+    }
+}
+
 internal fun ViewContainer<*, *>.statusDialog(ctx: ChatMainPage) {
     View {
         attr {
@@ -2510,4 +2673,6 @@ data class ChatSession(
     val messages: List<ChatMessageItem>,
     val updatedAt: Long,
     val pinned: Boolean = false
+)
+   val pinned: Boolean = false
 )

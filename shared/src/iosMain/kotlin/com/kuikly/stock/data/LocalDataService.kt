@@ -17,3 +17,15 @@ internal actual fun appPrefsSet(key: String, value: String) {
 
 internal actual fun copyTextToClipboard(text: String) {
 }
+
+internal actual fun exportTimestampString(epochMs: Long): String = try {
+    val fmt = NSDateFormatter()
+    fmt.dateFormat = "yyyy-MM-dd HH:mm"
+    fmt.stringFromDate(NSDate.dateWithTimeIntervalSince1970(epochMs / 1000.0))
+} catch (e: Throwable) {
+    ""
+}
+
+internal actual fun shareText(title: String, text: String): Boolean = false
+
+internal actual fun saveTextToDownloads(fileName: String, text: String, mimeType: String): String? = null
