@@ -187,7 +187,7 @@ class ChatMainPage : Pager() {
                     attr {
                         showActionSheet(ctx.showSessionOps)
                         descriptionOfActions("会话操作")
-                        actionButtons("取消", "置顶", "重命名", "删除")
+                        actionButtons("取消", "置顶", "重命名", "导出", "删除")
                     }
                     event {
                         clickActionButton { index ->
@@ -195,7 +195,8 @@ class ChatMainPage : Pager() {
                             when (index) {
                                 1 -> ctx.togglePinSession()
                                 2 -> ctx.openRenameDialog()
-                                3 -> ctx.deleteSession()
+                                3 -> ctx.openExportDialog()
+                                4 -> ctx.deleteSession()
                             }
                         }
                     }
@@ -211,6 +212,10 @@ class ChatMainPage : Pager() {
 
                 vif({ ctx.showAlertConfirm }) {
                     alertConfirmDialog(ctx)
+                }
+
+                vif({ ctx.showExportDialog }) {
+                    exportDialog(ctx)
                 }
             }
         }
