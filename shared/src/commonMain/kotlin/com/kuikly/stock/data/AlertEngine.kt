@@ -85,10 +85,10 @@ private fun incDec(s: String): String {
             i--
         } else {
             c[i] = c[i] + 1
-            return String(c)
+            return c.concatToString()
         }
     }
-    return "1" + String(c)
+    return "1" + c.concatToString()
 }
 
 internal fun fmt0(v: Double): String = fmtFixed(v, 0)

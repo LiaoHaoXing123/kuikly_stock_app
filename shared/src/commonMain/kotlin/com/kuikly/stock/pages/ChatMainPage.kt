@@ -44,6 +44,7 @@ import com.kuikly.stock.ai.config.AiRuntimeConfig
 import com.tencent.kuikly.core.coroutines.delay
 import com.tencent.kuikly.core.coroutines.launch
 import com.kuikly.stock.data.fmt2
+import com.kuikly.stock.data.nowMillis
 
 @Page("chat_main")
 class ChatMainPage : Pager() {
@@ -241,7 +242,7 @@ class ChatMainPage : Pager() {
     internal fun newChat() {
         stopResponse()
         val id = createSessionId()
-        sessions.add(ChatSession(id = id, title = "新对话", messages = emptyList(), updatedAt = System.currentTimeMillis()))
+        sessions.add(ChatSession(id = id, title = "新对话", messages = emptyList(), updatedAt = nowMillis()))
         switchToSession(id, persist = false)
         aiErrorNotice = "已新建对话，可点击右上角查看历史对话"
     }
@@ -268,7 +269,7 @@ class ChatMainPage : Pager() {
         val title = if (s.title.isBlank() || s.title == "新对话") {
             msgs.firstOrNull { it.isUser }?.content?.take(14) ?: "新对话"
         } else s.title
-        sessions[idx] = s.copy(messages = msgs, title = title, updatedAt = System.currentTimeMillis())
+        sessions[idx] = s.copy(messages = msgs, title = title, updatedAt = nowMillis())
         activeTitle = if (title.isBlank()) "AI 智能助手" else title
     }
 
@@ -277,7 +278,7 @@ class ChatMainPage : Pager() {
         persistAllSessions()
     }
 
-    private fun createSessionId(): String = "s" + System.currentTimeMillis()
+    private fun createSessionId(): String = "s" + nowMillis()
 
     internal fun sendQuickQuestion() {
         if (quickQuestion.isEmpty()) return
@@ -436,7 +437,7 @@ class ChatMainPage : Pager() {
         inputText = ""
         quoteText = ""
         val id = createSessionId()
-        sessions.add(ChatSession(id = id, title = "新对话", messages = emptyList(), updatedAt = System.currentTimeMillis()))
+        sessions.add(ChatSession(id = id, title = "新对话", messages = emptyList(), updatedAt = nowMillis()))
         activeSessionId = id
         activeTitle = "AI 智能助手"
         persistAllSessions()
@@ -522,7 +523,7 @@ class ChatMainPage : Pager() {
             toastExport("该会话暂无消息，无需导出")
             return
         }
-        val exportedAt = exportTimestampString(System.currentTimeMillis())
+        val exportedAt = exportTimestampString(nowMillis())
         val title = target.title.ifBlank { "AI 问答" }
         when (kind) {
             3 -> {

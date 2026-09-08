@@ -3,6 +3,7 @@ package com.kuikly.stock.home
 import com.kuikly.stock.data.AlertEngine
 import com.kuikly.stock.data.StockDb
 import com.kuikly.stock.data.WatchStore
+import com.kuikly.stock.data.nowMillis
 
 internal data class DashboardBrief(
     val headline: String,
@@ -108,7 +109,7 @@ internal object HomeDashboardService {
     }
 
     fun snapshot(force: Boolean = false): HomeDashboardSnapshot {
-        val now = System.currentTimeMillis()
+        val now = nowMillis()
         cached?.takeIf { !force && now - cachedAt < CACHE_MS }?.let { return it }
 
         val overview = runCatching { StockDb.marketOverview() }.getOrNull()

@@ -2,8 +2,9 @@ package com.kuikly.stock.ai.config
 
 import com.tencent.kuikly.core.nvi.serialization.json.JSONArray
 import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
+import com.kuikly.stock.data.nowMillis
 
-internal fun defaultAiProfiles(now: Long = System.currentTimeMillis()): List<AiProviderProfile> = listOf(
+internal fun defaultAiProfiles(now: Long = nowMillis()): List<AiProviderProfile> = listOf(
     AiProviderProfile(
         id = "agentrouter",
         name = "AgentRouter",

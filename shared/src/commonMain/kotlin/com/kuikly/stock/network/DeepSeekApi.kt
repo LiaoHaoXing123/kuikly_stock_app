@@ -36,6 +36,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import com.kuikly.stock.data.nowMillis
 
 private const val TAG_JSON = "```json"
 
@@ -105,14 +106,14 @@ object DeepSeekApi {
     }
 
     private suspend fun postChat(config: AiRequestConfig, body: JsonObject): JsonObject {
-        val startedAt = System.currentTimeMillis()
+        val startedAt = nowMillis()
         val resp = ApiClient.client.post(config.endpoint) {
             contentType(ContentType.Application.Json)
             header("Authorization", "Bearer ${config.apiKey}")
             setBody(body.toString())
         }
-        val text = resp.bodyAsText(Charsets.UTF_8)
-        val elapsedMs = System.currentTimeMillis() - startedAt
+        val text = resp.bodyAsText()
+        val elapsedMs = nowMillis() - startedAt
         if (resp.status.value !in 200..299) {
             println("[AI] provider=${config.providerName} model=${config.model} status=${resp.status.value} elapsedMs=$elapsedMs")
             throw AiProviderException(resp.status.value, providerErrorMessage(resp.status.value))
@@ -128,7 +129,7 @@ object DeepSeekApi {
     private fun extractContent(m: JsonObject): String? = m["content"]?.jsonPrimitive?.content
 
     internal suspend fun testConnection(profile: AiProviderProfile, apiKey: String): AiConnectionResult {
-        val startedAt = System.currentTimeMillis()
+        val startedAt = nowMillis()
         return try {
             val config = resolveAiRequestConfig(profile, apiKey)
             val body = chatBody(
@@ -145,7 +146,7 @@ object DeepSeekApi {
                 success = true,
                 providerName = profile.name,
                 model = profile.model,
-                elapsedMs = System.currentTimeMillis() - startedAt,
+                elapsedMs = nowMillis() - startedAt,
                 message = "连接成功",
             )
         } catch (error: Throwable) {
@@ -153,7 +154,7 @@ object DeepSeekApi {
                 success = false,
                 providerName = profile.name,
                 model = profile.model,
-                elapsedMs = System.currentTimeMillis() - startedAt,
+                elapsedMs = nowMillis() - startedAt,
                 message = error.message ?: "无法连接 AI 服务",
             )
         }
