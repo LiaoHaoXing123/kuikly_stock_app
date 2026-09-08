@@ -1,5 +1,6 @@
 package com.kuikly.stock.pages
 
+import com.tencent.kuikly.core.directives.vif
 import com.tencent.kuikly.core.base.Color
 import com.tencent.kuikly.core.base.Border
 import com.tencent.kuikly.core.base.BorderStyle
@@ -87,6 +88,7 @@ internal fun ViewContainer<*, *>.pageTitleBar(
     ctx: Pager,
     title: String,
     subtitle: String,
+    refreshing: () -> Boolean = { false },
     trailingAction: (() -> Unit)? = null,
 ) {
     View {
@@ -108,11 +110,39 @@ internal fun ViewContainer<*, *>.pageTitleBar(
             Text { attr { text(subtitle); fontSize(10f); color(0xFF8792A1); marginTop(1f) } }
         }
         if (trailingAction != null) {
-            View {
-                attr { minWidth(44f); height(44f); allCenter(); accessibility("刷新$title"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }
-                event { click { trailingAction() } }
-                Text { attr { text("刷新"); fontSize(12f); fontWeightBold(); color(0xFF0E67D1) } }
-            }
+            refreshButton(refreshing, { "刷新$title" }, action = trailingAction)
         }
+    }
+}
+
+
+internal fun ViewContainer<*, *>.refreshButton(refreshing: () -> Boolean, label: () -> String = { "刷新" }, foreground: Long = 0xFF0E67D1, action: () -> Unit) {
+    View {
+        attr { minWidth(64f); height(44f); allCenter(); accessibility(if (refreshing()) "正在刷新" else label()); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(!refreshing(), false) }
+        event { click { if (!refreshing()) action() } }
+        Text { attr { text(if (refreshing()) "刷新中…" else "刷新"); fontSize(12f); fontWeightBold(); color(if (refreshing()) 0xFF8792A1 else foreground) } }
+    }
+}
+
+internal fun ViewContainer<*, *>.statusFeedback(message: () -> String, isError: () -> Boolean = { false }) {
+    vif({ message().isNotEmpty() }) {
+        View {
+            attr { padding(12f); margin(8f); borderRadius(10f); backgroundColor(if (isError()) 0xFFFFF0F0 else 0xFFE8F2FF) }
+            Text { attr { text(message()); fontSize(12f); lineHeight(18f); color(if (isError()) 0xFFC34C4C else 0xFF165D9E) } }
+        }
+    }
+}
+
+internal fun ViewContainer<*, *>.selectionChip(label: String, selected: () -> Boolean, action: () -> Unit) {
+    View {
+        attr {
+            marginRight(6f); marginBottom(6f); minHeight(44f); allCenter()
+            padding(left = 10f, top = 4f, right = 10f, bottom = 4f)
+            backgroundColor(if (selected()) 0xFF1976D2 else 0xFFE3F2FD); borderRadius(13f)
+            accessibility("$label${if (selected()) "，已选择" else ""}")
+            accessibilityRole(AccessibilityRole.CHECKBOX); accessibilityInfo(true, false)
+        }
+        event { click { action() } }
+        Text { attr { text(label); fontSize(12f); fontWeightBold(); color(if (selected()) 0xFFFFFFFF else 0xFF1976D2) } }
     }
 }

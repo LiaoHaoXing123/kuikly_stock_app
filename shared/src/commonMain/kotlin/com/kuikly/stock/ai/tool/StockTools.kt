@@ -73,7 +73,7 @@ object StockTools {
 
     private fun kline(args: JsonObject): JsonObject {
         val code = args["code"]?.jsonPrimitive?.content ?: ""
-        val days = args["days"]?.jsonPrimitive?.content?.toIntOrNull() ?: 10
+        val days = (args["days"]?.jsonPrimitive?.content?.toIntOrNull() ?: 10).coerceIn(1, 120)
         val kline = StockDb.stockDetail(code)?.kline.orEmpty().takeLast(days)
         return buildJsonObject {
             put("code", code)

@@ -341,7 +341,8 @@ data class ChatResult(
     val text: String,
     val cards: List<Map<String, Any?>>? = null,
     val suggestions: List<String>? = null,
-    val errorNotice: String? = null
+    val errorNotice: String? = null,
+    val failed: Boolean = false,
 )
 
 internal expect fun loadAssetText(path: String): String?

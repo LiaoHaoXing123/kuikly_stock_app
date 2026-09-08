@@ -128,13 +128,17 @@ internal object HomeDashboardService {
                 .firstOrNull()
         }.getOrNull().orEmpty()
 
+        // 卡片计数：自选股总数（每只都在监控信号）+ 已启用的价格提醒总数（含未触发的）
+        val watchTotal = runCatching { WatchStore.list().size }.getOrDefault(0)
+        val alertTotal = runCatching { WatchStore.alerts().count { it.enabled } }.getOrDefault(0)
+
         val brief = buildDashboardBrief(
             total = overview?.total ?: 0,
             up = overview?.up ?: 0,
             down = overview?.down ?: 0,
             flat = overview?.flat ?: 0,
-            watchSignals = watchSignals.size,
-            alertCount = alerts.size,
+            watchSignals = watchTotal,
+            alertCount = alertTotal,
             dataDate = compactDate(dataDate),
         )
         return HomeDashboardSnapshot(

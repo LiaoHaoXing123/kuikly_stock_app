@@ -2,6 +2,8 @@
 
 package com.kuikly.stock.data
 
+import com.kuikly.stock.ai.chat.*
+import kotlinx.coroutines.CancellationException
 import com.kuikly.stock.network.ApiClient
 import com.kuikly.stock.network.DeepSeekApi
 import com.kuikly.stock.ai.config.AiRuntimeConfig
@@ -70,50 +72,69 @@ object StockRepository {
         }
     }
 
-    suspend fun chat(message: String): ChatResult {
-        val result = chatImpl(message)
-        val compare = try { CompareCards.maybeBuild(message) } catch (e: Throwable) { null }
-        if (compare == null) return result
-        val merged = (compare + (result.cards ?: emptyList())).ifEmpty { null }
-        return result.copy(cards = merged)
+    suspend fun chat(
+        message: String,
+        history: List<Pair<String, String>> = emptyList(),
+        onText: suspend (String) -> Unit = {},
+        onStage: suspend (String) -> Unit = {},
+    ): ChatResult {
+        val context = boundedHistory(history)
+        onStage("正在识别股票与追问…")
+        val mentioned = resolveFocus(message, context) { input ->
+            val aliases = mapOf("茅台" to "贵州茅台", "宁德" to "宁德时代")
+            val expanded = input + aliases.filterKeys { it in input }.values.joinToString(" ", prefix = " ")
+            runCatching { StockDb.detectMentioned(expanded) }.getOrDefault(emptyList())
+        }
+        val result = chatImpl(message, mentioned, context, onText, onStage)
+        val compare = runCatching { CompareCards.maybeBuild(message) }.getOrNull().orEmpty()
+        // Render charts only from our own price history, never from generated prices.
+        val requestedCharts = result.cards.orEmpty().filter { it["type"] == "chart_card" }
+        val wantsChart = listOf("走势", "趋势", "图", "K线", "k线", "成交量").any { it in message }
+        val codes = (requestedCharts.mapNotNull { it["code"] as? String } +
+            if (wantsChart || requestedCharts.isNotEmpty()) mentioned.map { it.code } else emptyList()).distinct().take(2)
+        val charts = codes.mapNotNull { code ->
+            val detail = runCatching { StockDb.stockDetail(code) }.getOrNull() ?: return@mapNotNull null
+            val bars = detail.kline.orEmpty().takeLast(60)
+            val volume = "成交量" in message || requestedCharts.any { it["code"] == code && it["chart_type"] == "bar" }
+            buildLocalChart(code, detail.info?.name ?: code, bars, volume)
+        }
+        val notice = if ((wantsChart || requestedCharts.isNotEmpty()) && charts.isEmpty()) "暂无可用的本地 K 线，未生成走势图" else null
+        return result.copy(
+            cards = (compare + result.cards.orEmpty().filter { it["type"] != "chart_card" } + charts).ifEmpty { null },
+            errorNotice = listOfNotNull(result.errorNotice, notice).joinToString("；").ifBlank { null },
+        )
     }
 
-    private suspend fun chatImpl(message: String): ChatResult {
-        if (!DataSourceManager.isOnline) {
-            val mock = LocalDataService.mockChat(message)
-            return mock.copy(
-                text = "【AI 已关闭，以下为本地模板回答】\n\n" + mock.text,
-                errorNotice = "AI 已关闭：回答基于本地数据"
-            )
-        }
-        if (!AiRuntimeConfig.isConfigured()) {
-            val mock = LocalDataService.mockChat(message)
-            return mock.copy(
-                text = "未配置 AI 服务，请在“我的 → API 配置”中填写密钥。\n\n以下为本地模板回答：\n\n" + mock.text,
-                errorNotice = "请先配置 API Key"
+    private suspend fun chatImpl(
+        message: String,
+        mentioned: List<StockListItem>,
+        history: List<Pair<String, String>>,
+        onText: suspend (String) -> Unit,
+        onStage: suspend (String) -> Unit,
+    ): ChatResult {
+        if (!DataSourceManager.isOnline || !AiRuntimeConfig.isConfigured()) {
+            val reason = if (!DataSourceManager.isOnline) "AI 已关闭" else "请先在我的 → API 配置中填写密钥"
+            val fallback = LocalDataService.mockChat(message)
+            return fallback.copy(
+                text = "【本地模板回答，非 AI 生成】\n" + fallback.text,
+                errorNotice = reason,
+                failed = true,
             )
         }
         return try {
-            val mentioned = StockDb.detectMentioned(message)
             withTimeout(95000) {
-                DeepSeekApi.chat(message, mentioned) {
+                DeepSeekApi.chat(message, mentioned, history, onText, onStage) {
                     DeepSeekApi.buildChatContext(message, mentioned)
                 }
             }
         } catch (e: TimeoutCancellationException) {
-            ApiClient.recreate()
-            val mock = LocalDataService.mockChat(message)
-            mock.copy(
-                text = " AI 响应超时（已重置连接，请重试）\n\n以下为本地模板回答，非真实 AI：\n\n" + mock.text,
-                errorNotice = "AI 响应超时（已重置连接，请重试）"
-            )
+            throw IllegalStateException("AI 响应超时，请重试", e)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: ChatProtocolException) {
+            throw e
         } catch (e: Throwable) {
-            val mock = LocalDataService.mockChat(message)
-            val reason = friendlyAiError(e.message)
-            mock.copy(
-                text = " $reason\n以下为本地模板回答，非真实 AI：\n\n" + mock.text,
-                errorNotice = reason
-            )
+            throw IllegalStateException(friendlyAiError(e.message), e)
         }
     }
 

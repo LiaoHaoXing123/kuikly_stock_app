@@ -272,17 +272,7 @@ internal fun ViewContainer<*, *>.navigationBar(ctx: StockListPage) {
             }
         }
 
-        View {
-            attr { padding(10f, 12f, 12f, 12f) }
-            event { click { ctx.refreshData() } }
-            Text {
-                attr {
-                    text("刷新")
-                    fontSize(13f)
-                    color(0xFFFFFFFF)
-                }
-            }
-        }
+        refreshButton({ ctx.isLoading }, foreground = 0xFFFFFFFF) { ctx.refreshData() }
     }
 }
 
@@ -384,12 +374,7 @@ internal fun ViewContainer<*, *>.sortBar(ctx: StockListPage) {
         }
 
         listOf("默认", "涨幅", "跌幅", "成交量").forEach { option ->
-            vif({ ctx.sortOption == option }) {
-                sortChipView(ctx, option, selected = true)
-            }
-            vif({ ctx.sortOption != option }) {
-                sortChipView(ctx, option, selected = false)
-            }
+            selectionChip(option, { ctx.sortOption == option }) { ctx.applySort(option) }
         }
 
         View { attr { flex(1f) } }
@@ -440,28 +425,6 @@ internal fun ViewContainer<*, *>.listHeaderRow() {
         Text { attr { text("最新价"); fontSize(11f); color(0xFF999999); width(68f); textAlignRight() } }
         Text { attr { text("涨跌额"); fontSize(11f); color(0xFF999999); width(56f); textAlignRight() } }
         Text { attr { text("涨跌幅"); fontSize(11f); color(0xFF999999); width(64f); textAlignRight() } }
-    }
-}
-
-internal fun ViewContainer<*, *>.sortChipView(ctx: StockListPage, option: String, selected: Boolean) {
-    View {
-        attr {
-            marginRight(8f)
-            padding(left = 10f, top = 4f, right = 10f, bottom = 4f)
-            backgroundColor(if (selected) 0xFF1976D2 else 0xFFE3F2FD)
-            borderRadius(12f)
-        }
-        event {
-            click { ctx.applySort(option) }
-        }
-        Text {
-            attr {
-                text(option)
-                fontSize(12f)
-                fontWeightBold()
-                color(if (selected) 0xFFFFFFFF else 0xFF1976D2)
-            }
-        }
     }
 }
 

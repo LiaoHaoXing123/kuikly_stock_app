@@ -55,3 +55,7 @@ data-pipeline/venv
 
 # Local visual brainstorming previews
 .superpowers/
+
+# 本地构建/测试日志（不入库）
+/chat-build.log
+/chat-test.log

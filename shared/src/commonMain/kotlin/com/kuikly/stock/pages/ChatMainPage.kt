@@ -29,6 +29,10 @@ import com.kuikly.stock.data.StockRepository
 import com.kuikly.stock.data.DataUpdater
 import com.kuikly.stock.data.ConclusionAlertFactory
 import com.kuikly.stock.data.WatchStore
+import com.kuikly.stock.ai.chat.*
+import kotlinx.serialization.json.Json
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import com.kuikly.stock.ai.config.AiRuntimeConfig
 import com.tencent.kuikly.core.coroutines.delay
 import com.tencent.kuikly.core.coroutines.launch
@@ -53,6 +57,40 @@ class ChatMainPage : Pager() {
     internal var devModeOnline by observable(DataSourceManager.isOnline)
 
     internal var isThinking by observable(false)
+    internal var streamingText by observable("")
+    internal var requestStage by observable("")
+    private var requestVersion = 0
+    private var requestJob: Job? = null
+    private var pendingQuestion = ""
+
+    override fun pageWillDestroy() {
+        requestVersion++
+        requestJob?.cancel()
+        super.pageWillDestroy()
+    }
+
+    internal fun stopResponse() {
+        if (!isThinking) return
+        requestVersion++
+        requestJob?.cancel()
+        requestJob = null
+        messages.add(ChatMessageItem("assistant", streamingText.ifBlank { "已停止生成" } + "\n\n（回答未完成）", false, failed = true, retryQuestion = pendingQuestion))
+        streamingText = ""
+        isThinking = false
+        onMessagesChanged()
+    }
+
+    internal fun retryMessage(message: ChatMessageItem) {
+        if (isThinking || message.retryQuestion.isBlank()) return
+        if (messages.lastOrNull() == message) {
+            messages.removeAt(messages.lastIndex)
+            if (messages.lastOrNull()?.let { it.isUser && it.content == message.retryQuestion } == true) messages.removeAt(messages.lastIndex)
+        }
+        quoteText = ""
+        inputText = message.retryQuestion
+        sendMessage()
+    }
+
 
     internal var aiStatusLines: ObservableList<String> by observableList()
 
@@ -86,7 +124,7 @@ class ChatMainPage : Pager() {
     internal var quoteText by observable("")
 
     internal var activeProviderLabel by observable("API 未配置")
-    internal var expandedEvidenceCodes: ObservableList<String> by observableList()
+    internal var expandedEvidenceKey by observable("")
     internal var showAlertConfirm by observable(false)
     internal var pendingAlertCode by observable("")
     internal var pendingAlertName by observable("")
@@ -183,6 +221,7 @@ class ChatMainPage : Pager() {
     }
 
     internal fun newChat() {
+        stopResponse()
         val id = createSessionId()
         sessions.add(ChatSession(id = id, title = "新对话", messages = emptyList(), updatedAt = System.currentTimeMillis()))
         switchToSession(id, persist = false)
@@ -190,6 +229,7 @@ class ChatMainPage : Pager() {
     }
 
     internal fun switchToSession(id: String, persist: Boolean = true) {
+        stopResponse()
         val target = sessions.firstOrNull { it.id == id } ?: return
         saveActiveMessages()
         activeSessionId = id
@@ -279,13 +319,10 @@ class ChatMainPage : Pager() {
                 obj.put("role", m.role)
                 obj.put("content", m.content)
                 obj.put("isUser", m.isUser)
+                obj.put("failed", m.failed)
+                obj.put("retryQuestion", m.retryQuestion)
                 m.cards?.let { cards ->
-                    val ca = JSONArray()
-                    for (c in cards) {
-                        val co = JSONObject()
-                        for ((k, v) in c) co.put(k, v)
-                        ca.put(co)
-                    }
+                    val ca = JSONArray(nativeToJson(cards).toString())
                     obj.put("cards", ca)
                 }
                 m.suggestions?.let { sugs ->
@@ -339,9 +376,9 @@ class ChatMainPage : Pager() {
                             buildList {
                                 for (k in 0 until ca.length()) {
                                     val co = ca.optJSONObject(k) ?: continue
-                                    val map = mutableMapOf<String, Any?>()
-                                    for (kk in co.keySet()) map[kk] = co.opt(kk)
-                                    add(map)
+                                    @Suppress("UNCHECKED_CAST")
+                                    val map = Json.parseToJsonElement(co.toString()).toNativeValue() as? Map<String, Any?>
+                                    if (map != null) add(map)
                                 }
                             }
                         }
@@ -353,7 +390,7 @@ class ChatMainPage : Pager() {
                             }
                         }
                         if (content.isNotEmpty()) {
-                            add(ChatMessageItem(role, content, isUser, cards, suggestions))
+                            add(ChatMessageItem(role, content, isUser, cards, suggestions, obj.optBoolean("failed", false), obj.optString("retryQuestion", "")))
                         }
                     }
                 }
@@ -377,6 +414,9 @@ class ChatMainPage : Pager() {
     }
 
     private fun createDefaultSession() {
+        messages.clear()
+        inputText = ""
+        quoteText = ""
         val id = createSessionId()
         sessions.add(ChatSession(id = id, title = "新对话", messages = emptyList(), updatedAt = System.currentTimeMillis()))
         activeSessionId = id
@@ -417,6 +457,7 @@ class ChatMainPage : Pager() {
     }
 
     internal fun deleteSession() {
+        if (activeSessionId == sessionOpsTargetId) stopResponse()
         val idx = sessions.indexOfFirst { it.id == sessionOpsTargetId }
         if (idx < 0) return
         val removed = sessions[idx]
@@ -522,62 +563,83 @@ class ChatMainPage : Pager() {
     }
 
     internal fun sendMessage() {
-        val quote = quoteText.trim()
+        if (isThinking) return
         val typed = inputText.trim()
         if (typed.isEmpty()) return
-        val finalText = if (quote.isNotEmpty()) {
-            val quoted = quote.split("\n").joinToString("\n") { "> $it" }
-            quoted + "\n\n" + typed
-        } else typed
-
+        if (typed.length + quoteText.length > 6000) {
+            aiErrorNotice = "问题过长，请缩短到 6000 字以内"
+            return
+        }
+        val finalText = if (quoteText.isNotBlank()) quoteText.split("\n").joinToString("\n") { "> $it" } + "\n\n" + typed else typed
+        val history = boundedHistory(messages.filter { !it.failed }.map { message ->
+            val references = message.cards.orEmpty().mapNotNull { card ->
+                (card["code"] as? String)?.let { code -> "${card["name"] ?: "股票"}($code)" }
+            }.distinct().joinToString(" ")
+            message.role to (message.content + if (references.isBlank()) "" else "\n涉及股票：$references")
+        })
         requestScrollToLatestOnce()
-        messages.add(ChatMessageItem(role = "user", content = finalText, isUser = true))
+        messages.add(ChatMessageItem("user", finalText, true))
         onMessagesChanged()
         quoteText = ""
-
         inputText = ""
         inputRef.view?.setText("")
         inputRef.view?.blur()
+        pendingQuestion = finalText
         isThinking = true
-        lifecycleScope.launch {
+        streamingText = ""
+        aiErrorNotice = ""
+        requestStage = "正在准备会话上下文…"
+        val version = ++requestVersion
+        val session = activeSessionId
+        val job = Job()
+        requestJob = job
+        lifecycleScope.launch(context = job) {
             try {
-                val reply = StockRepository.chat(finalText)
-                delay(0)
-                messages.add(
-                    ChatMessageItem(
-                        role = "assistant",
-                        content = reply.text,
-                        isUser = false,
-                        cards = reply.cards,
-                        suggestions = reply.suggestions
+                val reply = pageResult {
+                    StockRepository.chat(finalText, history,
+                        onText = { text ->
+                            pageResult { Unit }
+                            if (version == requestVersion && session == activeSessionId) streamingText = text
+                        },
+                        onStage = { stage ->
+                            pageResult { Unit }
+                            if (version == requestVersion && session == activeSessionId) requestStage = stage
+                        },
                     )
-                )
-                onMessagesChanged()
-                val notice = reply.errorNotice
-                if (notice != null && notice.isNotEmpty()) {
-                    aiErrorNotice = notice
-                    delay(5000)
-                    if (aiErrorNotice == notice) aiErrorNotice = ""
                 }
+                if (version != requestVersion || session != activeSessionId) return@launch
+                messages.add(ChatMessageItem("assistant", reply.text, false, reply.cards, reply.suggestions,
+                    failed = reply.failed, retryQuestion = if (reply.errorNotice != null) finalText else ""))
+                aiErrorNotice = reply.errorNotice.orEmpty()
+                onMessagesChanged()
             } catch (e: Throwable) {
-                delay(0)
-                messages.add(
-                    ChatMessageItem(
-                        role = "assistant",
-                        content = "⚠️ AI 助手暂时无法回答：" + (e.message ?: "未知错误") +
-                            "\n\n排查：①是否联网 ②“我的 → API 配置”中的地址、模型和密钥是否有效",
-                        isUser = false
-                    )
-                )
+                pageResult { Unit }
+                if (version != requestVersion || session != activeSessionId) return@launch
+                val reason = if (e is CancellationException) "生成已停止" else e.message ?: "请求失败，请重试"
+                messages.add(ChatMessageItem("assistant", reason, false, failed = true, retryQuestion = finalText))
                 onMessagesChanged()
             } finally {
-                isThinking = false
+                if (version == requestVersion) {
+                    streamingText = ""
+                    requestStage = ""
+                    isThinking = false
+                    requestJob = null
+                    job.complete()
+                }
             }
         }
     }
 
     internal fun toggleEvidence(key: String) {
-        if (expandedEvidenceCodes.contains(key)) expandedEvidenceCodes.remove(key) else expandedEvidenceCodes.add(key)
+        expandedEvidenceKey = if (expandedEvidenceKey == key) "" else key
+        // vfor 列表项不追踪页面级 observable：原位替换消息项，触发列表重渲染
+        val idx = messages.indexOfFirst { m ->
+            m.cards?.any { c ->
+                c["type"] == "conclusion_card" &&
+                    ((c["code"] as? String ?: "") + "_" + (c["one_liner"] as? String ?: "")).take(80) == key
+            } == true
+        }
+        if (idx >= 0) messages[idx] = messages[idx].copy()
     }
 
     internal fun prepareAlert(code: String, name: String, type: Int, value: Double) {
@@ -710,7 +772,7 @@ internal fun ViewContainer<*, *>.messageList(ctx: ChatMainPage) {
         }
 
         vif({ ctx.isThinking }) {
-            thinkingBubble()
+            thinkingBubble(ctx)
         }
     }
 }
@@ -741,26 +803,15 @@ internal fun ViewContainer<*, *>.aiErrorToast(ctx: ChatMainPage) {
     }
 }
 
-internal fun ViewContainer<*, *>.thinkingBubble() {
+internal fun ViewContainer<*, *>.thinkingBubble(ctx: ChatMainPage) {
     View {
-        attr {
-            flexDirectionRow()
-            marginTop(8f)
-            justifyContent(FlexJustifyContent.FLEX_START)
-        }
+        attr { marginTop(8f); padding(12f); borderRadius(12f); backgroundColor(0xFFFFFFFF) }
+        Text { attr { text(ctx.requestStage); fontSize(12f); color(0xFF65758B) } }
+        Text { attr { text(ctx.streamingText); fontSize(15f); lineHeight(23f); color(0xFF26384D); marginTop(6f) } }
         View {
-            attr {
-                backgroundColor(0xFFFFFFFF)
-                borderRadius(12f)
-                padding(left = 12f, top = 10f, right = 12f, bottom = 10f)
-            }
-            Text {
-                attr {
-                    text("AI 正在思考…")
-                    fontSize(14f)
-                    color(0xFF888888)
-                }
-            }
+            attr { height(44f); allCenter(); accessibility("停止生成"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }
+            event { click { ctx.stopResponse() } }
+            Text { attr { text("停止生成"); fontSize(12f); color(0xFF0E67D1) } }
         }
     }
 }
@@ -811,6 +862,13 @@ internal fun ViewContainer<*, *>.chatBubble(
             }
 
             with(bubble) {
+                if (message.retryQuestion.isNotBlank()) {
+                    View {
+                        attr { height(44f); allCenter(); accessibility("重试回答"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }
+                        event { click { ctx.retryMessage(message) } }
+                        Text { attr { text("重试回答"); fontSize(13f); color(0xFF0E67D1) } }
+                    }
+                }
                 message.cards?.forEach { card -> renderCard(ctx, card) }
                 message.suggestions?.forEach { suggestion -> suggestionChip(ctx, suggestion) }
             }
@@ -974,7 +1032,7 @@ internal fun ViewContainer<*, *>.conclusionCard(
     val action = card["action"] as? String ?: ""
     val footnote = card["footnote"] as? String ?: "仅供参考，不构成投资建议"
     val evidenceKey = (code + "_" + oneLiner).take(80)
-    val evidenceExpanded = ctx.expandedEvidenceCodes.contains(evidenceKey)
+    val evidenceExpanded = ctx.expandedEvidenceKey == evidenceKey
 
     val isUp = changePercent.contains("+")
     val upColor = 0xFFD64545
@@ -1068,7 +1126,7 @@ internal fun ViewContainer<*, *>.conclusionCard(
 
         if (signals.isNotEmpty()) {
             View {
-                attr { minHeight(44f); flexDirectionRow(); alignItems(FlexAlign.CENTER); marginTop(8f); accessibility(if (evidenceExpanded) "收起技术依据" else "展开技术依据"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }
+                attr { minHeight(44f); flexDirectionRow(); alignItems(FlexAlign.CENTER); marginTop(8f); borderRadius(9f); backgroundColor(0xFFF4F7FB); accessibility(if (evidenceExpanded) "收起技术依据" else "展开技术依据"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }
                 event { click { ctx.toggleEvidence(evidenceKey) } }
                 Text { attr { text(if (evidenceExpanded) "收起技术依据" else "展开技术依据（${signals.size}）"); fontSize(12f); fontWeightBold(); color(0xFF0E67D1); flex(1f) } }
                 Text { attr { text(if (evidenceExpanded) "⌃" else "⌄"); fontSize(17f); color(0xFF0E67D1) } }
@@ -1251,7 +1309,7 @@ internal fun ViewContainer<*, *>.stockCard(
 ) {
     val code = card["code"] as? String ?: ""
     val name = card["name"] as? String ?: ""
-    val price = card["price"] as? String ?: "-"
+    val price = (card["price"] as? Number)?.let { fmtCardNumber(it.toDouble()) } ?: card["price"] as? String ?: "-"
     val changePercent = (card["change_percent"] as? String)
         ?: (card["changePercent"] as? String) ?: "-"
 
@@ -1341,49 +1399,6 @@ internal fun ViewContainer<*, *>.aiCard(
                     View {
                         attr { marginTop(2f) }
                         renderInlineBold(line, fontSize = 13f, color = 0xFF555555)
-                    }
-                }
-            }
-        }
-    }
-}
-
-internal fun ViewContainer<*, *>.chartCard(card: Map<String, Any?>) {
-    val title = card["title"] as? String ?: "图表"
-    val chartType = (card["chart_type"] as? String)
-        ?: (card["chartType"] as? String) ?: "line"
-    val data = card["data"] as? List<*> ?: emptyList<Any?>()
-
-    View {
-        attr {
-            flexDirectionColumn()
-            marginTop(8f)
-            padding(left = 12f, top = 10f, right = 12f, bottom = 10f)
-            backgroundColor(0xFFE8F5E9)
-            borderRadius(8f)
-        }
-
-        Text {
-            attr {
-                text(title + "（" + chartType + " · " + data.size + " 条数据）")
-                fontSize(13f)
-                fontWeightBold()
-                color(0xFF2E7D32)
-            }
-        }
-
-        View {
-            attr {
-                flexDirectionColumn()
-                marginTop(4f)
-            }
-            "[图表数据加载中...]\n实际项目中应集成 MPAndroidChart 或其他图表库".split("\n").forEach { line ->
-                Text {
-                    attr {
-                        text(line)
-                        fontSize(12f)
-                        color(0xFF666666)
-                        marginTop(2f)
                     }
                 }
             }
@@ -2406,7 +2421,9 @@ data class ChatMessageItem(
     val content: String,
     val isUser: Boolean,
     val cards: List<Map<String, Any?>>? = null,
-    val suggestions: List<String>? = null
+    val suggestions: List<String>? = null,
+    val failed: Boolean = false,
+    val retryQuestion: String = "",
 )
 
 data class ChatSession(

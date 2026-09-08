@@ -496,5 +496,5 @@ return ctx.getSharedPreferences(WATCH_PREFS, Context.MODE_PRIVATE).getString(key
 
 internal actual fun appPrefsSet(key: String, value: String) {
 val ctx = appContext ?: return
-ctx.getSharedPreferences(WATCH_PREFS, Context.MODE_PRIVATE).edit().putString(key, value).apply()
+ctx.getSharedPreferences(WATCH_PREFS, Context.MODE_PRIVATE).edit().putString(key, value).commit()
 }

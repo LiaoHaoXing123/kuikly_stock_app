@@ -1,13 +1,19 @@
 package com.kuikly.stock.pages
 
+import com.kuikly.stock.data.DataUpdater
+import com.kuikly.stock.data.WatchStore
 import com.kuikly.stock.home.DashboardFocusItem
 import com.kuikly.stock.home.HomeDashboardService
 import com.tencent.kuikly.core.annotations.Page
+import com.tencent.kuikly.core.coroutines.launch
 import com.tencent.kuikly.core.base.Color
+import com.tencent.kuikly.core.base.Border
+import com.tencent.kuikly.core.base.BorderStyle
 import com.tencent.kuikly.core.base.ViewBuilder
 import com.tencent.kuikly.core.base.ViewContainer
 import com.tencent.kuikly.core.base.attr.AccessibilityRole
 import com.tencent.kuikly.core.directives.vfor
+import com.tencent.kuikly.core.directives.vif
 import com.tencent.kuikly.core.layout.FlexAlign
 import com.tencent.kuikly.core.layout.FlexJustifyContent
 import com.tencent.kuikly.core.layout.FlexWrap
@@ -30,22 +36,55 @@ class HomeDashboardPage : Pager() {
     internal var dataDate by observable("待更新")
     internal var watchSignals by observable(0)
     internal var alertCount by observable(0)
+    internal var watchSubtitle by observable("0 个信号 · 0 个提醒")
     internal var focusItems: ObservableList<DashboardFocusItem> by observableList()
+    internal var refreshing by observable(false)
+    internal var refreshMessage by observable("")
+    internal var refreshIsError by observable(false)
 
     override fun didInit() {
         super.didInit()
         reload(force = false)
     }
 
+    override fun pageDidAppear() {
+        super.pageDidAppear()
+        reload(force = false)
+    }
+
     internal fun reload(force: Boolean) {
-        val snapshot = HomeDashboardService.snapshot(force)
+        if (refreshing) return
+        refreshing = true
+        refreshMessage = ""
+        lifecycleScope.launch {
+            try {
+                applySnapshot()
+                if (force) {
+                    val updated = pageResult { DataUpdater.refreshNow() }
+                    applySnapshot()
+                    refreshMessage = if (updated) "行情数据已更新" else "数据已是最新"
+                } else refreshMessage = "本地摘要已刷新"
+                refreshIsError = false
+            } catch (e: Throwable) {
+                refreshIsError = true
+                refreshMessage = "刷新失败，请重试"
+            } finally {
+                refreshing = false
+            }
+        }
+    }
+
+    private fun applySnapshot() {
+        HomeDashboardService.invalidate()
+        val snapshot = HomeDashboardService.snapshot(force = true)
         headline = snapshot.brief.headline
         summary = snapshot.brief.summary
         marketLabel = snapshot.brief.marketLabel
         breadth = "上涨 ${snapshot.brief.up}  ·  下跌 ${snapshot.brief.down}  ·  平盘 ${snapshot.brief.flat}"
         dataDate = snapshot.brief.dataDate
-        watchSignals = snapshot.brief.watchSignals
-        alertCount = snapshot.brief.alertCount
+        watchSignals = runCatching { WatchStore.list().size }.getOrDefault(snapshot.brief.watchSignals)
+        alertCount = runCatching { WatchStore.alerts().count { it.enabled } }.getOrDefault(snapshot.brief.alertCount)
+        watchSubtitle = "${watchSignals} 个信号 · ${alertCount} 个提醒"
         focusItems.clear()
         focusItems.addAll(snapshot.focusItems)
     }
@@ -64,6 +103,7 @@ class HomeDashboardPage : Pager() {
                     backgroundColor(0xFFF4F7FB)
                 }
                 homeTopBar(ctx)
+                statusFeedback({ ctx.refreshMessage }, { ctx.refreshIsError })
                 Scroller {
                     attr {
                         flex(1f)
@@ -121,20 +161,7 @@ private fun ViewContainer<*, *>.homeTopBar(ctx: HomeDashboardPage) {
                 }
             }
         }
-        View {
-            attr {
-                minWidth(44f)
-                height(44f)
-                allCenter()
-                backgroundColor(0xFFF0F5FC)
-                borderRadius(22f)
-                accessibility("刷新首页行情摘要")
-                accessibilityRole(AccessibilityRole.BUTTON)
-                accessibilityInfo(true, false)
-            }
-            event { click { ctx.reload(force = true) } }
-            Text { attr { text("刷新"); fontSize(12f); color(0xFF0E67D1); fontWeightBold() } }
-        }
+        refreshButton({ ctx.refreshing }) { ctx.reload(force = true) }
     }
 }
 
@@ -202,18 +229,31 @@ private fun ViewContainer<*, *>.sectionTitle(title: String, note: String) {
 
 private fun ViewContainer<*, *>.researchGrid(ctx: HomeDashboardPage) {
     View {
-        attr { flexDirectionRow(); flexWrap(FlexWrap.WRAP); justifyContent(FlexJustifyContent.SPACE_BETWEEN) }
-        researchModule(ctx, "AI 研究室", "带本地行情上下文提问", "AI", 0xFFE8F2FF, 0xFF0E67D1, AppRoutes.CHAT)
-        researchModule(ctx, "组合风险", "仓位、行业与回撤", "盾", 0xFFFFF1E6, 0xFFB85C00, AppRoutes.RISK)
-        researchModule(ctx, "全市场", "搜索与涨跌幅排序", "势", 0xFFEAF8F0, 0xFF17834E, AppRoutes.MARKET)
-        researchModule(ctx, "自选盯盘", "${ctx.watchSignals} 个信号 · ${ctx.alertCount} 个提醒", "盯", 0xFFF2EDFF, 0xFF6650A4, AppRoutes.WATCHLIST)
+        attr {
+            flexDirectionColumn()
+            accessibility("研究工作台，四个入口")
+        }
+        // 第一行：AI研究室 + 组合风险
+        View {
+            attr { flexDirectionRow(); marginBottom(12f) }
+            researchModule(ctx, "AI 研究室", { "带本地行情上下文提问" }, "AI", 0xFFE8F2FF, 0xFF0E67D1, AppRoutes.CHAT)
+            View { attr { width(12f) } }
+            researchModule(ctx, "组合风险", { "仓位、行业与回撤" }, "盾", 0xFFFFF1E6, 0xFFB85C00, AppRoutes.RISK)
+        }
+        // 第二行：全市场 + 自选盯盘
+        View {
+            attr { flexDirectionRow(); marginBottom(12f) }
+            researchModule(ctx, "全市场", { "搜索与涨跌幅排序" }, "势", 0xFFEAF8F0, 0xFF17834E, AppRoutes.MARKET)
+            View { attr { width(12f) } }
+            researchModule(ctx, "自选盯盘", { ctx.watchSubtitle }, "盯", 0xFFF2EDFF, 0xFF6650A4, AppRoutes.WATCHLIST)
+        }
     }
 }
 
 private fun ViewContainer<*, *>.researchModule(
     ctx: HomeDashboardPage,
     title: String,
-    subtitle: String,
+    subtitle: () -> String,
     mark: String,
     tint: Long,
     accent: Long,
@@ -221,13 +261,13 @@ private fun ViewContainer<*, *>.researchModule(
 ) {
     View {
         attr {
-            width((ctx.pagerData.pageViewWidth - 44f) / 2f)
-            minHeight(126f)
-            marginBottom(10f)
+            flex(1f)
+            minHeight(132f)
             padding(14f)
-            borderRadius(15f)
+            borderRadius(16f)
             backgroundColor(Color.WHITE)
-            accessibility("打开$title，$subtitle")
+            border(Border(1f, BorderStyle.SOLID, Color(0xFFE9EEF5)))
+            accessibility("打开$title，${subtitle()}")
             accessibilityRole(AccessibilityRole.BUTTON)
             accessibilityInfo(true, false)
         }
@@ -237,7 +277,7 @@ private fun ViewContainer<*, *>.researchModule(
             Text { attr { text(mark); fontSize(if (mark == "AI") 12f else 15f); fontWeightBold(); color(accent) } }
         }
         Text { attr { text(title); fontSize(15f); fontWeightBold(); color(0xFF172A43); marginTop(12f) } }
-        Text { attr { text(subtitle); fontSize(11f); lineHeight(16f); color(0xFF788494); marginTop(4f) } }
+        Text { attr { text(subtitle()); fontSize(11f); lineHeight(16f); color(0xFF788494); marginTop(4f) } }
     }
 }
 

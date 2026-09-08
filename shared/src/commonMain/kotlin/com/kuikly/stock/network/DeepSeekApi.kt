@@ -2,6 +2,7 @@
 
 package com.kuikly.stock.network
 
+import com.kuikly.stock.ai.chat.*
 import com.kuikly.stock.ai.config.DeepSeekConfig
 import com.kuikly.stock.ai.config.AiConnectionResult
 import com.kuikly.stock.ai.config.AiProviderException
@@ -307,20 +308,21 @@ $indicatorText
             ?.takeIf { it.isFinite() && it > 0.0 }
     }
 
-        suspend fun chat(
+    internal suspend fun chat(
         message: String,
         mentioned: List<StockListItem>,
+        history: List<Pair<String, String>>,
+        onText: suspend (String) -> Unit,
+        onStage: suspend (String) -> Unit,
         buildContext: () -> ChatPromptContext,
     ): ChatResult {
+        onStage("正在读取本地行情…")
         val context = buildContext()
-        val messages = buildChatPrompt(message, context)
-                val raw = try {
-            chatWithTools(messages)
-        } catch (e: Throwable) {
-        println("[AI] tools path unavailable; using context fallback")
-        chat(messages)
-        }
-        return parseChatReply(raw, mentioned)
+        val prompt = buildChatPrompt(message, context)
+        val messages = listOf(prompt.first()) + boundedHistory(history) + prompt.last()
+        val raw = ChatTransport.generate(AiRuntimeConfig.current(), messages, onText, onStage)
+        onStage("正在校验卡片与图表…")
+        return decodeChatReply(raw)
     }
 
     private fun buildChatPrompt(message: String, context: ChatPromptContext): List<Pair<String, String>> {
@@ -340,39 +342,7 @@ $indicatorText
 - 列举项目用 - 列表
 - 全文中文字数控制在 200-400 字
 
-回复格式（JSON，卡片字段一律用 snake_case）：
-{
-  "text": "Markdown格式的补充说明（可较简短，核心结论放进 conclusion_card）",
-  "cards": [
-    {
-      "type": "conclusion_card",
-      "name": "股票名称",
-      "code": "6位代码",
-      "change_percent": "涨跌幅，如 +2.40%",
-      "bias": "偏强|偏弱|中性",
-      "bias_note": "一个简短提示，如 短线留意回踩",
-      "one_liner": "一句话结论：方向+关键提醒",
-      "resistance": "压力位，如 1338 元",
-      "support": "MA5 支撑位，如 1305 元",
-      "resistance_value": 1338.0,
-      "support_value": 1305.0,
-      "data_date": "行情数据日期",
-      "indicator_date": "指标计算日期",
-      "signals": "每行一条技术信号，用\\n分隔，最多3条",
-      "action": "观察动作：给出触发条件和应对，如 等待放量突破压力，或回踩 MA5 后再评估",
-      "footnote": "数据截至 MM-DD · 仅供参考，不构成投资建议"
-    }
-  ],
-  "suggestions": ["推荐的后续问题1", "推荐的后续问题2"]
-}
-
-排版硬性要求（面向移动端「结论优先」）：
-- 只要问题涉及某只具体股票，cards 第一个必须是 conclusion_card，先给方向和关键价位，再给信号。
-- conclusion_card 的所有字段都是纯字符串；signals 用 \n 分隔多条，不要用数组。
-- 价位、涨跌幅只能引用「相关股票数据」中的真实数字；缺失的字段留空字符串，不要编造。
-- text 作为补充，不要重复 conclusion_card 已表达的全部内容。
-- 若问题不针对具体个股（如大盘、概念），可不给 conclusion_card。
-- 字段名必须用 change_percent / chart_type；suggestions 给 2-3 个。"""
+$CHAT_PROTOCOL_PROMPT"""
 
         val user = if (!context.hasData) {
             "用户问题：$message\n\n请根据以上信息给出专业、准确的回答。"
@@ -386,60 +356,8 @@ ${context.render()}
         return listOf("system" to system, "user" to user)
     }
 
-    private fun parseChatReply(raw: String, mentioned: List<StockListItem>): ChatResult {
-        var text = raw
-        var cards: List<Map<String, Any?>>? = null
-        var suggestions: List<String>? = null
-
-    val obj = parseJsonObjectLoose(raw)
-    if (obj.isNotEmpty()) {
-        obj["text"]?.let { text = it.toString() }
-        (obj["cards"] as? List<*>)?.let {
-        cards = it.mapNotNull { c ->
-    @Suppress("UNCHECKED_CAST")
-    val m = c as? Map<String, Any?> ?: return@mapNotNull null
-    normalizeCard(m)
-                }.ifEmpty { null }
-            }
-        (obj["suggestions"] as? List<*>)?.let {
-            suggestions = it.map { x -> x?.toString() ?: "" }.ifEmpty { null }
-            }
-        }
-
-        if (cards == null && mentioned.isNotEmpty()) {
-    val auto = mutableListOf<Map<String, Any?>>()
-    for (s in mentioned.take(2)) {
-        auto.add(mapOf(
-                    "type" to "stock_card",
-                    "code" to s.code,
-                    "name" to (s.name ?: s.code),
-                    "price" to (s.price?.let { "%.2f".format(it) } ?: "-"),
-                    "change_percent" to (s.changePercent?.let { "%+.2f%%".format(it) } ?: "-"),
-                ))
-            }
-            cards = auto
-        }
-        if (suggestions == null) {
-            suggestions = listOf("查看技术指标分析？", "对比同行业表现？", "了解最新市场动态？")
-        }
-        return ChatResult(text = normalizeBreaks(text), cards = cards, suggestions = suggestions)
-    }
-
-    private fun normalizeCard(m: Map<String, Any?>): Map<String, Any?> {
-val mapping = mapOf("changePercent" to "change_percent", "chartType" to "chart_type")
-return m.entries.associate { (k, v) ->
-    val key = mapping[k] ?: k
-        val value = when (v) {
-        is List<*> -> v.joinToString("\n") { it?.toString() ?: "" }
-            is String -> normalizeBreaks(v)
-            else -> v
-            }
-    key to value
-        }
-    }
-
 fun buildChatContext(message: String, mentioned: List<StockListItem>): ChatPromptContext {
-if (mentioned.isEmpty()) return ChatPromptContext.empty(message, mentioned)
+
 val stockLines = mutableListOf<String>()
 val marketLines = mutableListOf<String>()
 for (s in mentioned) {

@@ -7,6 +7,8 @@ import com.kuikly.stock.data.fmt2
 import com.kuikly.stock.risk.HoldingRiskLine
 import com.kuikly.stock.risk.HoldingSnapshot
 import com.kuikly.stock.risk.PortfolioRiskCalculator
+import com.tencent.kuikly.core.coroutines.launch
+import com.tencent.kuikly.core.coroutines.delay
 import com.tencent.kuikly.core.annotations.Page
 import com.tencent.kuikly.core.base.Color
 import com.tencent.kuikly.core.base.ViewBuilder
@@ -24,6 +26,9 @@ import com.tencent.kuikly.core.views.View
 
 @Page(AppRoutes.RISK)
 class RiskCenterPage : Pager() {
+    internal var refreshing by observable(false)
+    internal var refreshMessage by observable("")
+    internal var refreshIsError by observable(false)
     internal var marketValue by observable("--")
     internal var pnl by observable("--")
     internal var pnlColor by observable(0xFF627083L)
@@ -40,29 +45,59 @@ class RiskCenterPage : Pager() {
         reload()
     }
 
+    override fun pageDidAppear() {
+        super.pageDidAppear()
+        reload()
+    }
+
+    internal fun refreshPage() {
+        if (refreshing) return
+        refreshing = true
+        refreshMessage = ""
+        lifecycleScope.launch {
+            try {
+                delay(0)
+                reload()
+                // reload reports computation errors without discarding existing rows.
+            } catch (e: Throwable) {
+                refreshIsError = true
+                refreshMessage = "刷新失败，请重试"
+            } finally {
+                refreshing = false
+            }
+        }
+    }
+
     internal fun reload() {
-        val snapshots = WatchStore.list().map { holding ->
-            val detail = runCatching { StockDb.stockDetail(holding.code) }.getOrNull()
-            HoldingSnapshot(
-                code = holding.code,
-                name = holding.name.ifBlank { detail?.info?.name ?: holding.code },
-                industry = detail?.info?.industry ?: "未分类",
-                shares = holding.shares,
-                cost = holding.cost,
-                currentPrice = detail?.realtime?.price,
-            )
-        }.filter { it.shares > 0.0 }
-        val result = PortfolioRiskCalculator.calculate(snapshots)
-        emptyState = snapshots.isEmpty()
-        unavailable = result.unavailableCount
-        marketValue = if (result.pricedCount > 0) "¥ ${fmt2(result.marketValue)}" else "--"
-        pnl = if (result.pricedCount > 0) signedMoney(result.pnl) + "  " + signedPercent(result.pnlRate) else "--"
-        pnlColor = if (result.pnl > 0.0) 0xFFD84343 else if (result.pnl < 0.0) 0xFF188B57 else 0xFF627083
-        stockWeight = if (result.pricedCount > 0) percent(result.maxStockWeight) else "--"
-        industryWeight = if (result.pricedCount > 0) percent(result.maxIndustryWeight) else "--"
-        lines.clear(); lines.addAll(result.lines)
-        riskMessages.clear(); riskMessages.addAll(result.riskMessages)
-        alertMessages.clear(); alertMessages.addAll(runCatching { AlertEngine.hits().map { it.second } }.getOrDefault(emptyList()))
+        try {
+            val snapshots = WatchStore.list().map { holding ->
+                val detail = runCatching { StockDb.stockDetail(holding.code) }.getOrNull()
+                HoldingSnapshot(
+                    code = holding.code,
+                    name = holding.name.ifBlank { detail?.info?.name ?: holding.code },
+                    industry = detail?.info?.industry ?: "未分类",
+                    shares = holding.shares,
+                    cost = holding.cost,
+                    currentPrice = detail?.realtime?.price,
+                )
+            }.filter { it.shares > 0.0 }
+            val result = PortfolioRiskCalculator.calculate(snapshots)
+            emptyState = snapshots.isEmpty()
+            unavailable = result.unavailableCount
+            marketValue = if (result.pricedCount > 0) "¥ ${fmt2(result.marketValue)}" else "--"
+            pnl = if (result.pricedCount > 0) signedMoney(result.pnl) + "  " + signedPercent(result.pnlRate) else "--"
+            pnlColor = if (result.pnl > 0.0) 0xFFD84343 else if (result.pnl < 0.0) 0xFF188B57 else 0xFF627083
+            stockWeight = if (result.pricedCount > 0) percent(result.maxStockWeight) else "--"
+            industryWeight = if (result.pricedCount > 0) percent(result.maxIndustryWeight) else "--"
+            lines.clear(); lines.addAll(result.lines)
+            riskMessages.clear(); riskMessages.addAll(result.riskMessages)
+            alertMessages.clear(); alertMessages.addAll(runCatching { AlertEngine.hits().map { it.second } }.getOrDefault(emptyList()))
+            refreshIsError = false
+            refreshMessage = "组合风险已重新计算"
+        } catch (e: Throwable) {
+            refreshIsError = true
+            refreshMessage = "刷新失败，请重试"
+        }
     }
 
     override fun body(): ViewBuilder {
@@ -70,7 +105,8 @@ class RiskCenterPage : Pager() {
         return {
             View {
                 attr { flex(1f); flexDirectionColumn(); backgroundColor(0xFFF4F7FB) }
-                pageTitleBar(ctx, "组合风险", "基于本地持仓与行情计算") { ctx.reload() }
+                pageTitleBar(ctx, "组合风险", "基于本地持仓与行情计算", { ctx.refreshing }) { ctx.refreshPage() }
+                statusFeedback({ ctx.refreshMessage }, { ctx.refreshIsError })
                 Scroller {
                     attr { flex(1f); flexDirectionColumn(); scrollEnable(true); padding(16f) }
                     riskOverview(ctx)

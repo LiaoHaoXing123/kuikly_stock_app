@@ -25,10 +25,16 @@ class ProfilePage : Pager() {
     internal var aiStatus by observable("未配置")
     internal var dataStatus by observable("检查中")
     internal var refreshing by observable(false)
+    internal var refreshIsError by observable(false)
     internal var refreshMessage by observable("")
 
     override fun didInit() {
         super.didInit()
+        reloadStatus()
+    }
+
+    override fun pageDidAppear() {
+        super.pageDidAppear()
         reloadStatus()
     }
 
@@ -49,11 +55,18 @@ class ProfilePage : Pager() {
         refreshing = true
         refreshMessage = "正在更新本地行情…"
         lifecycleScope.launch {
-            val ok = runCatching { DataUpdater.refreshNow() }.getOrDefault(false)
-            refreshMessage = if (ok) "行情数据已更新" else "更新失败，请稍后重试"
-            refreshing = false
-            HomeDashboardService.invalidate()
-            reloadStatus()
+            try {
+                val updated = pageResult { DataUpdater.refreshNow() }
+                HomeDashboardService.invalidate()
+                reloadStatus()
+                refreshIsError = false
+                refreshMessage = if (updated) "行情数据已更新" else "数据已是最新"
+            } catch (e: Throwable) {
+                refreshIsError = true
+                refreshMessage = "更新失败，请稍后重试"
+            } finally {
+                refreshing = false
+            }
         }
     }
 
@@ -62,17 +75,15 @@ class ProfilePage : Pager() {
         return {
             View {
                 attr { flex(1f); flexDirectionColumn(); backgroundColor(0xFFF4F7FB) }
-                pageTitleBar(ctx, "我的", "配置、数据与隐私") { ctx.reloadStatus() }
+                pageTitleBar(ctx, "我的", "配置、数据与隐私", { ctx.refreshing }) { ctx.refreshData() }
                 Scroller {
                     attr { flex(1f); flexDirectionColumn(); scrollEnable(true); padding(16f) }
                     profileHero(ctx)
                     profileSection("服务")
-                    profileRow("API 配置", ctx.aiStatus, true) { ctx.openApi() }
-                    profileRow("行情数据", ctx.dataStatus, false) { }
-                    profileRow("立即更新数据", if (ctx.refreshing) "更新中" else "手动刷新", true) { ctx.refreshData() }
-                    if (ctx.refreshMessage.isNotEmpty()) {
-                        Text { attr { text(ctx.refreshMessage); fontSize(12f); color(0xFF0E67D1); margin(top = 8f, left = 4f) } }
-                    }
+                    profileRow("API 配置", { ctx.aiStatus }, true) { ctx.openApi() }
+                    profileRow("行情数据", { ctx.dataStatus }, false) { }
+                    profileRow("立即更新数据", { if (ctx.refreshing) "更新中" else "手动刷新" }, true) { ctx.refreshData() }
+                    statusFeedback({ ctx.refreshMessage }, { ctx.refreshIsError })
                     profileSection("安全与说明")
                     profileInfo("API Key 仅在本机使用 Android Keystore 加密保存，不写入聊天历史、源码或日志。")
                     profileInfo("行情来源：$STOCK_DATA_BASE\n应用不会在首页自动调用付费 AI。")
@@ -97,12 +108,12 @@ private fun ViewContainer<*, *>.profileHero(ctx: ProfilePage) {
 
 private fun ViewContainer<*, *>.profileSection(title: String) { Text { attr { text(title); fontSize(13f); fontWeightBold(); color(0xFF617086); margin(top = 20f, left = 4f, bottom = 8f) } } }
 
-private fun ViewContainer<*, *>.profileRow(title: String, value: String, clickable: Boolean, action: () -> Unit) {
+private fun ViewContainer<*, *>.profileRow(title: String, value: () -> String, clickable: Boolean, action: () -> Unit) {
     View {
-        attr { minHeight(56f); padding(left = 15f, right = 15f); marginBottom(1f); backgroundColor(Color.WHITE); flexDirectionRow(); alignItems(FlexAlign.CENTER); accessibility("$title，$value"); if (clickable) { accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) } }
+        attr { minHeight(56f); padding(left = 15f, right = 15f); marginBottom(1f); backgroundColor(Color.WHITE); flexDirectionRow(); alignItems(FlexAlign.CENTER); accessibility("$title，${value()}"); if (clickable) { accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) } }
         if (clickable) event { click { action() } }
         Text { attr { text(title); fontSize(14f); color(0xFF1D3048); flex(1f) } }
-        Text { attr { text(value); fontSize(11f); color(0xFF7E8998); marginLeft(10f) } }
+        Text { attr { text(value()); fontSize(11f); color(0xFF7E8998); marginLeft(10f) } }
         if (clickable) Text { attr { text("  ›"); fontSize(20f); color(0xFF9EA7B2) } }
     }
 }

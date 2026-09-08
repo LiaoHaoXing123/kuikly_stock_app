@@ -66,10 +66,16 @@ internal object WatchStore {
         appPrefsSet(KEY_ALERT, encodeAlerts(items))
     }
 
-    fun upsertAlert(rule: PriceAlertRule) {
+    fun upsertAlert(rule: PriceAlertRule): Boolean {
         val cur = alerts().filterNot { it.code == rule.code }.toMutableList()
         cur.add(rule)
         saveAlerts(cur)
+        return alerts().any {
+            it.code == rule.code &&
+                it.type == rule.type &&
+                it.threshold == rule.threshold &&
+                it.enabled == rule.enabled
+        }
     }
 
     fun removeAlert(code: String) {

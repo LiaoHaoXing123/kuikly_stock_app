@@ -35,7 +35,8 @@ internal fun resolveAiRequestConfig(
         profileId = profile.id,
         providerName = profile.name,
         endpoint = profile.chatCompletionsUrl(),
-        model = profile.model.trim(),
+        model = profile.model.split(",").firstOrNull { it.isNotBlank() }?.trim()
+            ?: throw AiConfigurationException("请输入模型 ID"),
         apiKey = apiKey,
         toolsEnabled = profile.toolsEnabled,
     )

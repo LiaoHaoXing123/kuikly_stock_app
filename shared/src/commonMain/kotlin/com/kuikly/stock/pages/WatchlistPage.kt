@@ -40,9 +40,15 @@ class WatchlistPage : Pager() {
     internal var editCostText by observable("")
     internal var editAlertType by observable(-1)
     internal var editThresholdText by observable("")
+    internal var saveMessage by observable("")
 
     override fun didInit() {
         super.didInit()
+        reload()
+    }
+
+    override fun pageDidAppear() {
+        super.pageDidAppear()
         reload()
     }
 
@@ -56,6 +62,7 @@ class WatchlistPage : Pager() {
                     backgroundColor(0xFFF5F5F5)
                 }
                 watchlistNavBar(ctx)
+                statusFeedback({ ctx.saveMessage }, { ctx.saveMessage.contains("失败") })
                 vif({ ctx.rows.isNotEmpty() }) {
                     watchSummary(ctx)
                 }
@@ -86,20 +93,29 @@ class WatchlistPage : Pager() {
         }
     }
 
-    internal fun reload() {
+    internal fun reload(showFeedback: Boolean = false) {
         if (isLoading) return
         isLoading = true
-        rows.clear()
         lifecycleScope.launch {
-            val watch = WatchStore.list()
-            val built = mutableListOf<WatchRowData>()
-            for (h in watch) {
-                val row = buildRow(h)
-                if (row != null) built.add(row)
+            try {
+                val built = pageResult {
+                    val watch = WatchStore.list()
+                    val built = mutableListOf<WatchRowData>()
+                    for (h in watch) {
+                        val row = buildRow(h)
+                        if (row != null) built.add(row)
+                    }
+                    built
+                }
+                rows.clear()
+                rows.addAll(built)
+                summaryLine = buildSummary(built)
+                if (showFeedback) saveMessage = "自选已刷新，共 ${built.size} 只"
+            } catch (e: Throwable) {
+                saveMessage = "刷新失败，请重试"
+            } finally {
+                isLoading = false
             }
-            rows.addAll(built)
-            summaryLine = buildSummary(built)
-            isLoading = false
         }
     }
 
@@ -180,11 +196,12 @@ class WatchlistPage : Pager() {
         val cost = editCostText.trim().toDoubleOrNull() ?: 0.0
         if (shares < 0 || cost < 0) return
         WatchStore.updateHolding(WatchHolding(editCode, editName, shares, cost))
+        var alertSaved = true
         val type = editAlertType
         if (type >= 0) {
             val threshold = editThresholdText.trim().toDoubleOrNull() ?: 0.0
             if (threshold > 0) {
-                WatchStore.upsertAlert(PriceAlertRule(editCode, editName, type, threshold, true))
+                alertSaved = WatchStore.upsertAlert(PriceAlertRule(editCode, editName, type, threshold, true))
             } else {
                 WatchStore.removeAlert(editCode)
             }
@@ -192,6 +209,7 @@ class WatchlistPage : Pager() {
             WatchStore.removeAlert(editCode)
         }
         showEdit = false
+        saveMessage = if (alertSaved) "已保存自选与提醒" else "提醒保存失败，请重试"
         reload()
     }
 
@@ -271,17 +289,7 @@ internal fun ViewContainer<*, *>.watchlistNavBar(ctx: WatchlistPage) {
             }
         }
         View { attr { flex(1f) } }
-        View {
-            attr { padding(left = 10f, top = 12f, right = 14f, bottom = 12f) }
-            event { click { ctx.reload() } }
-            Text {
-                attr {
-                    text("刷新")
-                    fontSize(13f)
-                    color(0xFFFFFFFF)
-                }
-            }
-        }
+        refreshButton({ ctx.isLoading }, foreground = 0xFFFFFFFF) { ctx.reload(showFeedback = true) }
     }
 }
 
@@ -737,29 +745,5 @@ internal fun ViewContainer<*, *>.watchEditDialog(ctx: WatchlistPage) {
 }
 
 internal fun ViewContainer<*, *>.watchAlertChip(ctx: WatchlistPage, type: Int, label: String) {
-    val selected = ctx.editAlertType == type
-    View {
-        attr {
-            marginRight(6f)
-            marginBottom(6f)
-            minHeight(44f)
-            padding(left = 10f, top = 4f, right = 10f, bottom = 4f)
-            backgroundColor(if (selected) 0xFF1976D2 else 0xFFE3F2FD)
-            borderRadius(13f)
-            accessibility("提醒类型$label${if (selected) "，已选择" else ""}")
-            accessibilityRole(AccessibilityRole.CHECKBOX)
-            accessibilityInfo(true, false)
-        }
-        event {
-            click { ctx.editAlertType = type }
-        }
-        Text {
-            attr {
-                text(label)
-                fontSize(12f)
-                fontWeightBold()
-                color(if (selected) 0xFFFFFFFF else 0xFF1976D2)
-            }
-        }
-    }
+    selectionChip(label, { ctx.editAlertType == type }) { ctx.editAlertType = type }
 }
