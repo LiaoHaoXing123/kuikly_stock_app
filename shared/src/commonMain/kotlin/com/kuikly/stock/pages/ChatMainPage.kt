@@ -121,6 +121,9 @@ class ChatMainPage : Pager() {
     internal var renameInputText by observable("")
     internal var renameInputRef: com.tencent.kuikly.core.views.InputView? = null
 
+    internal var showExportDialog by observable(false)
+    internal var exportTargetId by observable("")
+
     internal var keyboardHeight by observable(0f)
 
     internal var msgScrollerRef: ViewRef<ScrollerView<*, *>>? = null
@@ -437,7 +440,7 @@ class ChatMainPage : Pager() {
         DataSourceManager.setMode(
             if (online) DataSourceManager.Mode.ONLINE else DataSourceManager.Mode.OFFLINE
         )
-        val notice = if (onlin else "✅ 已切换到离线模式"
+        val notice = if (online) "✅ 已切换到在线模式" else "✅ 已切换到离线模式"
         modeSwitchNotice = notice
         lifecycleScope.launch {
             delay(3000)
@@ -2563,6 +2566,4 @@ data class ChatSession(
     val messages: List<ChatMessageItem>,
     val updatedAt: Long,
     val pinned: Boolean = false
-)
-   val pinned: Boolean = false
 )
