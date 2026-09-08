@@ -25,15 +25,15 @@ internal fun exportSessionMarkdown(session: ChatSession, exportedAt: String): St
         .append(" · 共 ").append(session.messages.size).append(" 条消息\n\n")
     session.messages.forEach { msg ->
         if (msg.isUser) {
-            sb.append("## 🙋 我\n\n").append(msg.content.trim()).append("\n\n")
+            sb.append("## 我\n\n").append(msg.content.trim()).append("\n\n")
         } else {
-            sb.append("## 🤖 AI 助手\n\n")
-            if (msg.failed) sb.append("> ⚠️ 该条回复发送失败，内容可能不完整。\n\n")
+            sb.append("## AI 助手\n\n")
+            if (msg.failed) sb.append("> 注意：该条回复发送失败，内容可能不完整。\n\n")
             sb.append(msg.content.trim()).append("\n\n")
             appendCardsMarkdown(sb, msg.cards.orEmpty())
             val suggestions = msg.suggestions.orEmpty().filter { it.isNotBlank() }
             if (suggestions.isNotEmpty()) {
-                sb.append("> 💡 追问：").append(suggestions.joinToString(" ／ ") { it.trim() }).append("\n\n")
+                sb.append("> 追问：").append(suggestions.joinToString("、") { it.trim() }).append("\n\n")
             }
         }
     }

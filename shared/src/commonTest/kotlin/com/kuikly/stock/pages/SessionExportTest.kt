@@ -6,6 +6,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class SessionExportTest {
@@ -51,8 +52,8 @@ class SessionExportTest {
         val md = exportSessionMarkdown(sampleSession(), "2026-09-08 12:00")
         assertTrue(md.contains("# 贵州茅台怎么看？"))
         assertTrue(md.contains("2026-09-08 12:00"))
-        assertTrue(md.contains("## 🙋 我"))
-        assertTrue(md.contains("## 🤖 AI 助手"))
+        assertTrue(md.contains("## 我\n"))
+        assertTrue(md.contains("## AI 助手\n"))
         assertTrue(md.contains("[个股] 贵州茅台(600519)"))
         assertTrue(md.contains("+1.23%"))
         assertTrue(md.contains("[结论] 偏强"))
@@ -76,6 +77,14 @@ class SessionExportTest {
             updatedAt = 0L
         )
         assertTrue(exportSessionMarkdown(s, "").contains("发送失败"))
+    }
+
+    @Test
+    fun markdownHasNoEmojiSymbols() {
+        val md = exportSessionMarkdown(sampleSession(), "2026-09-08 12:00")
+        listOf("🙋", "🤖", "💡", "⚠️", "📤", "💾", "📋", "🧾").forEach {
+            assertFalse(md.contains(it), "markdown should not contain $it")
+        }
     }
 
     @Test
