@@ -4,13 +4,15 @@
 
 package com.kuikly.stock.ai.config
 
-import kotlinx.cinterop.COpaquePointerVar
+import kotlinx.cinterop.ByteVar
+import kotlinx.cinterop.CPointed
+import kotlinx.cinterop.CPointer
+import kotlinx.cinterop.CPointerVarOf
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.cstr
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.readBytes
 import kotlinx.cinterop.reinterpret
-import platform.CoreFoundation.CFBridgingRelease
 import platform.CoreFoundation.CFDataCreate
 import platform.CoreFoundation.CFDictionaryAddValue
 import platform.CoreFoundation.CFDictionaryCreateMutable
@@ -19,6 +21,7 @@ import platform.CoreFoundation.CFRelease
 import platform.CoreFoundation.CFStringCreateWithCString
 import platform.CoreFoundation.kCFBooleanTrue
 import platform.CoreFoundation.kCFStringEncodingUTF8
+import platform.Foundation.CFBridgingRelease
 import platform.Foundation.NSData
 import platform.Security.SecItemAdd
 import platform.Security.SecItemCopyMatching
@@ -30,7 +33,6 @@ import platform.Security.kSecClass
 import platform.Security.kSecClassGenericPassword
 import platform.Security.kSecReturnData
 import platform.Security.kSecValueData
-import kotlinx.cinterop.ByteVar
 
 private const val KEYCHAIN_SERVICE = "com.kuikly.stock.apikey"
 
@@ -43,7 +45,7 @@ internal actual object SecureSecretStore {
             val query = buildQuery(profileId) ?: return null
             try {
                 CFDictionaryAddValue(query, kSecReturnData, kCFBooleanTrue)
-                val result = alloc<COpaquePointerVar>()
+                val result = alloc<CPointerVarOf<CPointer<out CPointed>>>()
                 val status = SecItemCopyMatching(query, result.ptr)
                 if (status != errSecSuccess) return null
                 val nsData = CFBridgingRelease(result.value) as? NSData ?: return null
@@ -92,8 +94,9 @@ internal actual object SecureSecretStore {
 
     private fun buildQuery(profileId: String, secret: String? = null): CFDictionaryRef? {
         val query = CFDictionaryCreateMutable(null, 5, null, null) ?: return null
-        val service = CFStringCreateWithCString(null, KEYCHAIN_SERVICE.cstr, kCFStringEncodingUTF8)
-        val account = CFStringCreateWithCString(null, profileId.cstr, kCFStringEncodingUTF8)
+        // const char * 参数直接传 Kotlin String（自动转 UTF-8 C 字符串）
+        val service = CFStringCreateWithCString(null, KEYCHAIN_SERVICE, kCFStringEncodingUTF8)
+        val account = CFStringCreateWithCString(null, profileId, kCFStringEncodingUTF8)
         CFDictionaryAddValue(query, kSecClass, kSecClassGenericPassword)
         CFDictionaryAddValue(query, kSecAttrService, service)
         CFDictionaryAddValue(query, kSecAttrAccount, account)
