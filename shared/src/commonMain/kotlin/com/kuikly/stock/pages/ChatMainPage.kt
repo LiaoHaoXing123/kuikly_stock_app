@@ -43,6 +43,7 @@ import kotlinx.coroutines.CancellationException
 import com.kuikly.stock.ai.config.AiRuntimeConfig
 import com.tencent.kuikly.core.coroutines.delay
 import com.tencent.kuikly.core.coroutines.launch
+import com.kuikly.stock.data.fmt2
 
 @Page("chat_main")
 class ChatMainPage : Pager() {
@@ -1295,7 +1296,7 @@ private fun cardNumber(value: Any?): Double? = when (value) {
     else -> value?.toString()?.toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 }
 }
 
-private fun fmtCardNumber(value: Double): String = String.format("%.2f", value)
+private fun fmtCardNumber(value: Double): String = fmt2(value)
 
 internal fun ViewContainer<*, *>.conclusionAction(label: String, action: () -> Unit) {
     View {

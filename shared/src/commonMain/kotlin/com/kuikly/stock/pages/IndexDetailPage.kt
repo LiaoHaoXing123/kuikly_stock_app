@@ -22,6 +22,10 @@ import com.kuikly.stock.data.StockRepository
 import com.tencent.kuikly.core.coroutines.delay
 import com.tencent.kuikly.core.coroutines.launch
 import com.tencent.kuiklybase.KuiklyMarkdown
+import com.kuikly.stock.data.fmt0
+import com.kuikly.stock.data.fmt2
+import com.kuikly.stock.data.fmtSigned2
+import com.kuikly.stock.data.fmtSignedPct
 
 @Page("index_detail")
 class IndexDetailPage : Pager() {
@@ -286,13 +290,13 @@ internal fun ViewContainer<*, *>.indexRealtimeCard(ctx: IndexDetailPage) {
             }
 
             indexQuoteColumn("最新点位",
-                realtime.price?.let { String.format("%.2f", it) } ?: "-",
+                realtime.price?.let { fmt2(it) } ?: "-",
                 26f, priceColor)
             indexQuoteColumn("涨跌点",
-                realtime.change?.let { String.format("%+.2f", it) } ?: "-",
+                realtime.change?.let { fmtSigned2(it) } ?: "-",
                 15f, priceColor)
             indexQuoteColumn("涨跌幅",
-                realtime.changePercent?.let { String.format("%+.2f%%", it) } ?: "-",
+                realtime.changePercent?.let { fmtSignedPct(it) } ?: "-",
                 15f, priceColor)
         }
 
@@ -344,7 +348,7 @@ internal fun ViewContainer<*, *>.indexQuoteItem(
 
         Text {
             attr {
-                text(value?.let { format?.invoke(it) ?: String.format("%.2f", it) } ?: "-")
+                text(value?.let { format?.invoke(it) ?: fmt2(it) } ?: "-")
                 fontSize(13f)
                 fontWeightBold()
                 color(0xFF333333)
@@ -386,15 +390,15 @@ internal fun ViewContainer<*, *>.indexQuoteColumn(
 }
 
 internal fun fmtIndexVolume(v: Double): String = when {
-    v >= 100000000 -> String.format("%.2f亿股", v / 100000000)
-    v >= 10000 -> String.format("%.2f万股", v / 10000)
-    else -> String.format("%.0f股", v)
+    v >= 100000000 -> fmt2(v / 100000000) + "亿股"
+    v >= 10000 -> fmt2(v / 10000) + "万股"
+    else -> fmt0(v) + "股"
 }
 
 internal fun fmtIndexAmount(v: Double): String = when {
-    v >= 100000000 -> String.format("%.2f亿元", v / 100000000)
-    v >= 10000 -> String.format("%.2f万元", v / 10000)
-    else -> String.format("%.0f元", v)
+    v >= 100000000 -> fmt2(v / 100000000) + "亿元"
+    v >= 10000 -> fmt2(v / 10000) + "万元"
+    else -> fmt0(v) + "元"
 }
 
 internal fun ViewContainer<*, *>.indexDataSourceFooter(ctx: IndexDetailPage) {
@@ -599,8 +603,8 @@ internal fun ViewContainer<*, *>.indexKlineChartCanvas(ctx: IndexDetailPage, kli
         context.fillStyle(Color(0xFF999999))
         context.font(10f)
         context.textAlign(TextAlign.LEFT)
-        context.fillText(String.format("%.2f", maxP), 4f, padT + 9f)
-        context.fillText(String.format("%.2f", minP), 4f, volTop - 6f)
+        context.fillText(fmt2(maxP), 4f, padT + 9f)
+        context.fillText(fmt2(minP), 4f, volTop - 6f)
 
         val firstDate = klineData.first().tradeDate
         val lastDate = klineData.last().tradeDate
@@ -640,13 +644,13 @@ internal fun ViewContainer<*, *>.indexKlineChartCanvas(ctx: IndexDetailPage, kli
             context.textAlign(TextAlign.LEFT)
             context.fillStyle(Color(0xFFFFFFFF))
             context.fillText(
-                "${k.tradeDate}  开 ${String.format("%.2f", k.open)}  收 ${String.format("%.2f", k.close)}" +
-                    "  高 ${String.format("%.2f", k.high)}  低 ${String.format("%.2f", k.low)}",
+                "${k.tradeDate}  开 ${fmt2(k.open)}  收 ${fmt2(k.close)}" +
+                    "  高 ${fmt2(k.high)}  低 ${fmt2(k.low)}",
                 4f, 10f
             )
             context.fillStyle(tooltipColor)
             context.fillText(
-                "涨跌 ${String.format("%+.2f%%", pct)}   量 ${fmtIndexVolume(k.volume)}",
+                "涨跌 ${fmtSignedPct(pct)}   量 ${fmtIndexVolume(k.volume)}",
                 4f, 20f
             )
         }

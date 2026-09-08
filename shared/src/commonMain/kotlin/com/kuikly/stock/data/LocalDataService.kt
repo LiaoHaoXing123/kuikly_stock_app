@@ -431,7 +431,6 @@ object LocalDataService {
     }
 
     private fun round2(v: Double) = kotlin.math.round(v * 100.0) / 100.0
-    private fun fmt2(v: Double): String = String.format("%.2f", v)
     private fun randomFactor(lo: Double, hi: Double) = kotlin.random.Random.nextDouble() * (hi - lo) + lo
     private fun randomDouble(lo: Double, hi: Double) = kotlin.random.Random.nextDouble() * (hi - lo) + lo
 

@@ -23,6 +23,10 @@ import com.kuikly.stock.data.WatchStore
 import com.tencent.kuikly.core.coroutines.delay
 import com.tencent.kuikly.core.coroutines.launch
 import com.tencent.kuiklybase.KuiklyMarkdown
+import com.kuikly.stock.data.fmt2
+import com.kuikly.stock.data.fmt3
+import com.kuikly.stock.data.fmtSigned2
+import com.kuikly.stock.data.fmtSignedPct
 
 @Page("stock_detail")
 class StockDetailPage : Pager() {
@@ -383,13 +387,13 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
             }
 
             quoteColumn(ctx, "最新价",
-                realtime.price?.let { String.format("%.2f", it) } ?: "-",
+                realtime.price?.let { fmt2(it) } ?: "-",
                 26f, priceColor)
             quoteColumn(ctx, "涨跌额",
-                realtime.change?.let { String.format("%+.2f", it) } ?: "-",
+                realtime.change?.let { fmtSigned2(it) } ?: "-",
                 15f, priceColor)
             quoteColumn(ctx, "涨跌幅",
-                realtime.changePercent?.let { String.format("%+.2f%%", it) } ?: "-",
+                realtime.changePercent?.let { fmtSignedPct(it) } ?: "-",
                 15f, priceColor)
         }
 
@@ -443,7 +447,7 @@ internal fun ViewContainer<*, *>.quoteItem(
 
         Text {
             attr {
-                text(value?.let { String.format("%.2f", it) } ?: "-$suffix")
+                text(value?.let { fmt2(it) } ?: "-$suffix")
                 fontSize(13f)
                 fontWeightBold()
                 color(0xFF333333)
@@ -580,10 +584,11 @@ internal fun ViewContainer<*, *>.indicatorItem(label: String, value: Double?) {
     }
 }
 
-private fun fmtInd(v: Double?): String = if (v == null) "-" else String.format("%.3f", v)
+private fun fmtInd(v: Double?): String = if (v == null) "-" else fmt3(v)
 
 internal fun ViewContainer<*, *>.minuteCard(ctx: StockDetailPage) {
     val data = ctx.minuteData ?: return
+    if (data.isEmpty()) return // 无分时数据（iOS/JS 包内无分钟级快照）时整卡隐藏
 
     View {
         attr {
@@ -608,7 +613,7 @@ internal fun ViewContainer<*, *>.minuteCard(ctx: StockDetailPage) {
                 Text { attr { text("最新分时"); fontSize(12f); color(0xFF666666); width(72f) } }
                 Text {
                     attr {
-                        text("${latest.time}  价 ${String.format("%.2f", latest.price)}  均价 ${fmtOpt(latest.avgPrice)}")
+                        text("${latest.time}  价 ${fmt2(latest.price)}  均价 ${fmtOpt(latest.avgPrice)}")
                         fontSize(12f); color(0xFF333333)
                     }
                 }
@@ -658,7 +663,7 @@ internal fun ViewContainer<*, *>.orderBookCard(ctx: StockDetailPage) {
 
         book.commissionRatio?.let { ratio ->
             Text {
-                attr { text("委比 ${String.format("%.2f", ratio)}%"); fontSize(12f); color(0xFF666666); marginTop(6f) }
+                attr { text("委比 ${fmt2(ratio)}%"); fontSize(12f); color(0xFF666666); marginTop(6f) }
             }
         }
     }
@@ -673,7 +678,7 @@ internal fun ViewContainer<*, *>.orderBookRow(label: String, price: Double?, vol
     }
 }
 
-private fun fmtOpt(v: Double?): String = if (v == null) "-" else String.format("%.2f", v)
+private fun fmtOpt(v: Double?): String = if (v == null) "-" else fmt2(v)
 
 internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
     val klineData = ctx.stockDetail?.kline
@@ -867,8 +872,8 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, klineDat
         context.fillStyle(Color(0xFF999999))
         context.font(10f)
         context.textAlign(TextAlign.LEFT)
-        context.fillText(String.format("%.2f", maxP), 4f, padT + 9f)
-        context.fillText(String.format("%.2f", minP), 4f, volTop - 6f)
+        context.fillText(fmt2(maxP), 4f, padT + 9f)
+        context.fillText(fmt2(minP), 4f, volTop - 6f)
 
         val firstDate = klineData.first().tradeDate
         val lastDate = klineData.last().tradeDate
@@ -908,13 +913,13 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, klineDat
             context.textAlign(TextAlign.LEFT)
             context.fillStyle(Color(0xFFFFFFFF))
             context.fillText(
-                "${k.tradeDate}  开 ${String.format("%.2f", k.open)}  收 ${String.format("%.2f", k.close)}" +
-                    "  高 ${String.format("%.2f", k.high)}  低 ${String.format("%.2f", k.low)}",
+                "${k.tradeDate}  开 ${fmt2(k.open)}  收 ${fmt2(k.close)}" +
+                    "  高 ${fmt2(k.high)}  低 ${fmt2(k.low)}",
                 4f, 10f
             )
             context.fillStyle(tooltipColor)
             context.fillText(
-                "涨跌 ${String.format("%+.2f%%", pct)}   量 ${k.volume.toInt()} 手",
+                "涨跌 ${fmtSignedPct(pct)}   量 ${k.volume.toInt()} 手",
                 4f, 20f
             )
         }

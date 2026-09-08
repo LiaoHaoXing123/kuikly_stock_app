@@ -123,8 +123,8 @@ class UserGuidePage : Pager() {
                     }
                     guideSection(ctx, "data", "七", "数据更新与离线模式", "本地行情库") {
                         guidePara("应用内置一份本地 A 股行情库，首页、行情页、离线问答都读它：")
-                        guideBullet("手动更新：首页右上角刷新，或我的 → 立即更新数据。")
-                        guideBullet("自动更新：联网时后台会定期检查并下载最新快照。")
+                        guideBullet("手动更新（Android）：首页右上角刷新，或我的 → 立即更新数据；iOS 版行情随 App 版本更新。")
+                        guideBullet("自动更新（Android）：联网时后台会定期检查并下载最新快照。")
                         guideBullet("离线模式：断网或想省额度时用，行情照查，AI 解读换成低配本地模板。")
                     }
                     guideSection(ctx, "faq", "八", "常见问题", "先看这里") {

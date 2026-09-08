@@ -233,11 +233,11 @@ object StockRepository {
 
     suspend fun checkAiService(): String {
         val dbOk = try { StockDb.isAvailable() } catch (e: Throwable) { false }
-        val dataLine = if (dbOk) " 本地 SQLite：已就绪" else " 本地 SQLite：未就绪（检查 assets/stock.db）"
+        val dataLine = if (dbOk) " 本地行情库：已就绪" else " 本地行情库：未就绪"
         val active = AiRuntimeConfig.activeProfile()
         val aiLine = if (!DataSourceManager.isOnline) "AI：已关闭（当前为离线模式）"
         else if (!AiRuntimeConfig.isConfigured()) "AI：${active.name} / ${active.model}（未配置密钥）"
         else "AI：${active.name} / ${active.model}（密钥已配置）"
-        return "$dataLine\n$aiLine\n行情来自本地 SQLite，AI 使用用户选择的服务商"
+        return "$dataLine\n$aiLine\n行情来自本地行情库，AI 使用用户选择的服务商"
     }
 }

@@ -5,6 +5,8 @@ import com.tencent.kuikly.core.base.Color
 import com.tencent.kuikly.core.base.ViewContainer
 import com.tencent.kuikly.core.views.*
 import kotlin.math.abs
+import com.kuikly.stock.data.fmt1
+import com.kuikly.stock.data.fmt2
 
 /** Shared Canvas renderer; at most 120 points, no platform chart dependencies. */
 internal fun ViewContainer<*, *>.chartCard(card: Map<String, Any?>) {
@@ -67,7 +69,7 @@ internal fun ViewContainer<*, *>.chartCard(card: Map<String, Any?>) {
 }
 
 private fun chartNumber(value: Double): String = when {
-    abs(value) >= 100000000 -> String.format("%.1f亿", value / 100000000)
-    abs(value) >= 10000 -> String.format("%.1f万", value / 10000)
-    else -> String.format("%.2f", value)
+    abs(value) >= 100000000 -> fmt1(value / 100000000) + "亿"
+    abs(value) >= 10000 -> fmt1(value / 10000) + "万"
+    else -> fmt2(value)
 }
