@@ -28,7 +28,9 @@ Kotlin-js-store
 !default.perspectivev3
 **/xcuserdata/**
 **/*.xcuserdatad/**
-**/xcshareddata/
+**/xcshareddata/**
+!**/xcshareddata/xcschemes/
+!**/xcshareddata/xcschemes/**
 **/IDEWorkspaceChecks.plist
 
 ## Other
