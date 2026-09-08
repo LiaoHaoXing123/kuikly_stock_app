@@ -37,6 +37,7 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import com.kuikly.stock.data.nowMillis
+import com.kuikly.stock.data.fmt3
 
 private const val TAG_JSON = "```json"
 
@@ -502,7 +503,7 @@ val keywords = listOf("大盘", "行情", "市场", "指数", "涨幅榜", "跌�
 return keywords.any { message.contains(it) }
     }
 
-private fun fmt(v: Double?): String = if (v == null) "-" else "%.3f".format(v)
+private fun fmt(v: Double?): String = if (v == null) "-" else fmt3(v)
 
 private fun parseJsonObjectLoose(raw: String): Map<String, Any?> {
 val jsonStr = extractJsonBlock(raw) ?: return emptyMap()

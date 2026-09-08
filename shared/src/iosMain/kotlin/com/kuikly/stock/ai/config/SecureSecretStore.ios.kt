@@ -1,25 +1,25 @@
+@file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+
 // iOS 安全密钥存储：系统 Keychain（kSecClassGenericPassword），无需额外 entitlement。
 
 package com.kuikly.stock.ai.config
 
-import platform.CoreFoundation.CFDataCreate
-import kotlinx.cinterop.CFTypeRefVar
+import kotlinx.cinterop.COpaquePointerVar
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.cstr
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.readBytes
 import kotlinx.cinterop.reinterpret
-import platform.CoreFoundation.CFDataGetBytePtr
-import platform.CoreFoundation.CFDataGetLength
-import platform.CoreFoundation.CFDataRef
+import platform.CoreFoundation.CFBridgingRelease
+import platform.CoreFoundation.CFDataCreate
 import platform.CoreFoundation.CFDictionaryAddValue
 import platform.CoreFoundation.CFDictionaryCreateMutable
 import platform.CoreFoundation.CFDictionaryRef
 import platform.CoreFoundation.CFRelease
 import platform.CoreFoundation.CFStringCreateWithCString
-import platform.CoreFoundation.__CFData
 import platform.CoreFoundation.kCFBooleanTrue
 import platform.CoreFoundation.kCFStringEncodingUTF8
+import platform.Foundation.NSData
 import platform.Security.SecItemAdd
 import platform.Security.SecItemCopyMatching
 import platform.Security.SecItemDelete
@@ -30,6 +30,7 @@ import platform.Security.kSecClass
 import platform.Security.kSecClassGenericPassword
 import platform.Security.kSecReturnData
 import platform.Security.kSecValueData
+import kotlinx.cinterop.ByteVar
 
 private const val KEYCHAIN_SERVICE = "com.kuikly.stock.apikey"
 
@@ -42,16 +43,11 @@ internal actual object SecureSecretStore {
             val query = buildQuery(profileId) ?: return null
             try {
                 CFDictionaryAddValue(query, kSecReturnData, kCFBooleanTrue)
-                val result = alloc<CFTypeRefVar>()
+                val result = alloc<COpaquePointerVar>()
                 val status = SecItemCopyMatching(query, result.ptr)
                 if (status != errSecSuccess) return null
-                val dataRef: CFDataRef? = result.value?.reinterpret<__CFData>()
-                val bytes = if (dataRef == null) {
-                    null
-                } else {
-                    CFDataGetBytePtr(dataRef)?.readBytes(CFDataGetLength(dataRef).toInt())
-                }
-                CFRelease(result.value)
+                val nsData = CFBridgingRelease(result.value) as? NSData ?: return null
+                val bytes = nsData.bytes?.reinterpret<ByteVar>()?.readBytes(nsData.length.toInt())
                 bytes?.decodeToString()
             } finally {
                 CFRelease(query)
