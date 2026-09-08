@@ -85,7 +85,7 @@
 
 ### P1 · 协议与渲染口径不一致（✅ 已决策：方案 B，零改动）
 
-`ChatProtocol.validCard` 只放行 **5 种**卡（`stock / conclusion / signal / risk / chart`），而渲染层支持 9 种。 consequence：AI 若输出 `trend_card` / `suggestion_card` / `summary_card`，经聊天通道会被隐藏并提示"卡片格式无效"。这三种卡目前只活在不走聊天协议的旁路（离线 mock 直出、详情页 AI 分析）。`compare_card` 为本地构建、不受协议限制，不受影响。
+`ChatProtocol.validCard` 只放行 **6 种**卡（`stock / conclusion / signal / risk / chart / index`），而渲染层支持 10 种。 consequence：AI 若输出 `trend_card` / `suggestion_card` / `summary_card`，经聊天通道会被隐藏并提示"卡片格式无效"。这三种卡目前只活在不走聊天协议的旁路（离线 mock 直出、详情页 AI 分析）。`compare_card` 为本地构建、不受协议限制，不受影响。
 
 **已决策（2026-09-08，作者确认）：采用方案 B，不改代码。统一对外口径为——聊天链路 7 种可用卡（6 协议卡：个股/结论/信号/风险/图表/指数 + 1 本地构建：多股对比卡）；趋势/建议/总结三卡仅详情页 AI 分析与离线模板路径可用。评审问答时按此口径回答。（2026-09-08 指数落地后由 6 卡更新为 7 卡）**
 
@@ -101,7 +101,7 @@
 ### P3 · 可选打磨（不影响评审结论）
 
 - 复跑构建 + 单测，把证据落盘（注意 log 文件被 gitignore，如需留存改名存放到 `docs/` 或 CI 产物）。
-- 如需补"指数详情页"：新增 `index_detail` 路由 + 指数数据源/识别分支，工作量中等；任务只要求"至少一个"，不补也达标。
+- ~~补"指数详情页"~~ ✅ 已完成（2026-09-08）：`index_detail` 路由 + 指数数据源 + 识别分支均已落地。
 
 ---
 
