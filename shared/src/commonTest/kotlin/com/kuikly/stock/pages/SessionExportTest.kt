@@ -88,6 +88,33 @@ class SessionExportTest {
     }
 
     @Test
+    fun stringPriceAndPctAreKept() {
+        val card = mapOf(
+            "type" to "stock_card", "name" to "平安银行", "code" to "000001",
+            "price" to "11.78", "changePercent" to "+0.68%"
+        )
+        assertEquals("[个股] 平安银行(000001) 现价 11.78元 +0.68%", summarizeCard(card))
+    }
+
+    @Test
+    fun indexCardUsesDianUnit() {
+        val card = mapOf(
+            "type" to "index_card", "name" to "上证指数", "code" to "000001",
+            "price" to 3940.55, "change_percent" to "+0.20%"
+        )
+        assertEquals("[指数] 上证指数(000001) 现价 3940.55点 +0.20%", summarizeCard(card))
+    }
+
+    @Test
+    fun dashPlaceholdersAreOmitted() {
+        val card = mapOf(
+            "type" to "stock_card", "name" to "X", "code" to "600000",
+            "price" to "-", "changePercent" to "-"
+        )
+        assertEquals("[个股] X(600000)", summarizeCard(card))
+    }
+
+    @Test
     fun fileBaseSanitizes() {
         assertEquals("chat", exportFileBase("   "))
         assertEquals("AB", exportFileBase("A/B:C"))

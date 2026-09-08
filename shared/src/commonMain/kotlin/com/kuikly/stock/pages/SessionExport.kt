@@ -87,8 +87,15 @@ internal fun summarizeCard(card: Map<String, Any?>): String {
     return when (type) {
         "stock_card", "index_card" -> {
             val label = if (type == "index_card") "指数" else "个股"
-            val price = num("price")?.let { " 现价 " + fmt2(it) + "元" }.orEmpty()
-            val pct = num("changePercent", "change_percent")?.let { " " + fmtSignedPct(it) }.orEmpty()
+            val unit = if (type == "index_card") "点" else "元"
+            // 卡片协议里 price / change_percent 可能是数字也可能是字符串（如 "+0.68%"、"-"），两种都接受
+            val priceStr = num("price")?.let { fmt2(it) }
+                ?: (card["price"] as? String)?.takeIf { it.isNotBlank() && it != "-" }
+            val price = priceStr?.let { " 现价 $it$unit" }.orEmpty()
+            val pctStr = num("changePercent", "change_percent")?.let { fmtSignedPct(it) }
+                ?: (card["changePercent"] as? String)?.takeIf { it.isNotBlank() && it != "-" }
+                ?: (card["change_percent"] as? String)?.takeIf { it.isNotBlank() && it != "-" }
+            val pct = pctStr?.let { " $it" }.orEmpty()
             "[$label] ${str("name")}(${str("code")})$price$pct".trim()
         }
         "conclusion_card" -> {
