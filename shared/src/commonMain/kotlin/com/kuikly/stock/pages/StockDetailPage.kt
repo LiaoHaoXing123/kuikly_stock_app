@@ -22,6 +22,7 @@ import com.kuikly.stock.data.StockRepository
 import com.kuikly.stock.data.WatchStore
 import com.tencent.kuikly.core.coroutines.delay
 import com.tencent.kuikly.core.coroutines.launch
+import com.tencent.kuiklybase.KuiklyMarkdown
 
 @Page("stock_detail")
 class StockDetailPage : Pager() {
@@ -1050,7 +1051,7 @@ internal fun ViewContainer<*, *>.renderAnalysisBubble(ctx: StockDetailPage, anal
                 borderRadius(12f)
                 padding(left = 12f, top = 10f, right = 12f, bottom = 10f)
             }
-            renderMarkdown(text)
+            KuiklyMarkdown(content = sanitizeMarkdownForRender(text), config = chatMarkdownConfig)
         }
     }
 }
@@ -1324,4 +1325,6 @@ data class AIAnalysisData(
     val name: String?,
     val analysis: Map<String, Any?>,
     val cards: List<Map<String, Any?>>
+)
+Map<String, Any?>>
 )

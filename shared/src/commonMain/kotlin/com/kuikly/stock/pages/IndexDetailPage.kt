@@ -21,6 +21,7 @@ import com.tencent.kuikly.core.views.TextAlign
 import com.kuikly.stock.data.StockRepository
 import com.tencent.kuikly.core.coroutines.delay
 import com.tencent.kuikly.core.coroutines.launch
+import com.tencent.kuiklybase.KuiklyMarkdown
 
 @Page("index_detail")
 class IndexDetailPage : Pager() {
@@ -561,8 +562,7 @@ internal fun ViewContainer<*, *>.indexKlineChartCanvas(ctx: IndexDetailPage, kli
             val top = minOf(yo, yc)
             val bh = kotlin.math.abs(yo - yc).coerceAtLeast(1.2f)
             context.fillStyle(color)
-            context.beginPath()
-            context.moveTo(cx - cw / 2f, top)
+    xt.moveTo(cx - cw / 2f, top)
             context.lineTo(cx + cw / 2f, top)
             context.lineTo(cx + cw / 2f, top + bh)
             context.lineTo(cx - cw / 2f, top + bh)
@@ -783,7 +783,7 @@ internal fun ViewContainer<*, *>.indexAnalysisBubble(ctx: IndexDetailPage, analy
                 borderRadius(12f)
                 padding(left = 12f, top = 10f, right = 12f, bottom = 10f)
             }
-            renderMarkdown(text)
+            KuiklyMarkdown(content = sanitizeMarkdownForRender(text), config = chatMarkdownConfig)
         }
     }
 }
