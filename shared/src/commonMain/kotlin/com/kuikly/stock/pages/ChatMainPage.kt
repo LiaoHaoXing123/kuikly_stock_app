@@ -2151,10 +2151,10 @@ internal fun ViewContainer<*, *>.exportDialog(ctx: ChatMainPage) {
                 }
             }
 
-            exportOption(ctx, "📤 分享 Markdown", "调起系统分享面板，可发送到微信、邮件等", 0)
-            exportOption(ctx, "💾 保存 .md 到下载文件夹", "生成 Markdown 文件，方便归档与二次编辑", 1)
-            exportOption(ctx, "📋 复制全文", "复制 Markdown 到剪贴板", 2)
-            exportOption(ctx, "🧾 分享 JSON（备份）", "完整数据，可用于备份与恢复", 3)
+            exportOption(ctx, "分享 Markdown", "调起系统分享面板，可发送到微信、邮件等", 0)
+            exportOption(ctx, "保存 .md 到下载文件夹", "生成 Markdown 文件，方便归档与二次编辑", 1)
+            exportOption(ctx, "复制全文", "复制 Markdown 到剪贴板", 2)
+            exportOption(ctx, "分享 JSON（备份）", "完整数据，可用于备份与恢复", 3)
 
             View {
                 attr {
