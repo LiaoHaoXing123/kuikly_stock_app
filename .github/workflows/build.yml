@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -28,8 +28,30 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Gradle distribution fallback
+        run: |
+          if ! curl -sI -m 15 https://mirrors.cloud.tencent.com/gradle/gradle-8.5-bin.zip | head -n 1 | grep -q 200; then
+            sed -i.bak 's|https://mirrors.cloud.tencent.com/gradle/|https://services.gradle.org/distributions/|' gradle/wrapper/gradle-wrapper.properties
+            rm -f gradle/wrapper/gradle-wrapper.properties.bak
+            echo "Tencent Gradle mirror unreachable, fell back to services.gradle.org"
+          fi
+
       - name: Build
-        run: ./gradlew :androidApp:assembleDebug :shared:compileKotlinJs --stacktrace --console=plain
+        run: |
+          set -o pipefail
+          ./gradlew :androidApp:assembleDebug :shared:compileKotlinJs --stacktrace --console=plain 2>&1 | tee build-android.log
+
+      - name: Report errors
+        if: failure()
+        run: |
+          grep -E "^e:|error:|FAILED|Execution failed|What went wrong|Caused by" build-android.log | head -n 30 | while IFS= read -r line; do echo "::error::$line"; done || true
+
+      - name: Upload full log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-android
+          path: build-android.log
 
   ios:
     name: iOS Kotlin + Xcode build
@@ -40,7 +62,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -53,8 +75,18 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Gradle distribution fallback
+        run: |
+          if ! curl -sI -m 15 https://mirrors.cloud.tencent.com/gradle/gradle-8.5-bin.zip | head -n 1 | grep -q 200; then
+            sed -i.bak 's|https://mirrors.cloud.tencent.com/gradle/|https://services.gradle.org/distributions/|' gradle/wrapper/gradle-wrapper.properties
+            rm -f gradle/wrapper/gradle-wrapper.properties.bak
+            echo "Tencent Gradle mirror unreachable, fell back to services.gradle.org"
+          fi
+
       - name: Compile shared for iOS targets
-        run: ./gradlew :shared:compileKotlinIosArm64 :shared:compileKotlinIosSimulatorArm64 :shared:compileKotlinIosX64 --stacktrace --console=plain
+        run: |
+          set -o pipefail
+          ./gradlew :shared:compileKotlinIosArm64 :shared:compileKotlinIosSimulatorArm64 :shared:compileKotlinIosX64 --stacktrace --console=plain 2>&1 | tee build-ios.log
 
       - name: Cache CocoaPods
         uses: actions/cache@v4
@@ -65,14 +97,26 @@ jobs:
 
       - name: Pod install
         run: |
-          cd iosApp
-          pod install
+          set -o pipefail
+          (cd iosApp && pod install) 2>&1 | tee -a build-ios.log
 
       - name: Xcode build (simulator, no signing)
         run: |
-          cd iosApp
-          xcodebuild -workspace iosApp.xcworkspace \
+          set -o pipefail
+          (cd iosApp && xcodebuild -workspace iosApp.xcworkspace \
             -scheme iosApp \
             -configuration Debug \
             -destination 'generic/platform=iOS Simulator' \
-            build CODE_SIGNING_ALLOWED=NO
+            build CODE_SIGNING_ALLOWED=NO) 2>&1 | tee -a build-ios.log
+
+      - name: Report errors
+        if: failure()
+        run: |
+          grep -E "^e:|error:|FAILED|Execution failed|What went wrong|Caused by|error " build-ios.log | head -n 30 | while IFS= read -r line; do echo "::error::$line"; done || true
+
+      - name: Upload full log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-ios
+          path: build-ios.log
