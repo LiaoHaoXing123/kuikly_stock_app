@@ -21,6 +21,7 @@ internal object AppRoutes {
     const val PROFILE = "profile"
     const val RISK = "risk_center"
     const val API_CONFIG = "api_config"
+    const val GUIDE = "user_guide"
 }
 
 private data class AppNavItem(val route: String, val icon: String, val label: String)

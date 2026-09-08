@@ -114,6 +114,7 @@ class HomeDashboardPage : Pager() {
                     marketBriefCard(ctx)
                     sectionTitle("研究工作台", "把重要动作拆开，减少首页拥挤")
                     researchGrid(ctx)
+                    guideEntryCard(ctx)
                     sectionTitle("今日关注", "提醒优先，其次是自选信号")
                     vfor({ ctx.focusItems }) { item ->
                         focusRow(item)
@@ -278,6 +279,33 @@ private fun ViewContainer<*, *>.researchModule(
         }
         Text { attr { text(title); fontSize(15f); fontWeightBold(); color(0xFF172A43); marginTop(12f) } }
         Text { attr { text(subtitle()); fontSize(11f); lineHeight(16f); color(0xFF788494); marginTop(4f) } }
+    }
+}
+
+private fun ViewContainer<*, *>.guideEntryCard(ctx: HomeDashboardPage) {
+    View {
+        attr {
+            marginTop(2f)
+            padding(14f)
+            borderRadius(16f)
+            backgroundColor(0xFF0B2B50)
+            flexDirectionRow()
+            alignItems(FlexAlign.CENTER)
+            accessibility("打开使用指南，功能介绍、提问示例与常见问题")
+            accessibilityRole(AccessibilityRole.BUTTON)
+            accessibilityInfo(true, false)
+        }
+        event { click { ctx.open(AppRoutes.GUIDE) } }
+        View {
+            attr { size(34f, 34f); borderRadius(10f); allCenter(); backgroundColor(0xFF154875) }
+            Text { attr { text("?"); fontSize(17f); fontWeightBold(); color(0xFFD7EAFF) } }
+        }
+        View {
+            attr { flex(1f); marginLeft(12f) }
+            Text { attr { text("使用指南"); fontSize(15f); fontWeightBold(); color(Color.WHITE) } }
+            Text { attr { text("功能介绍 · 提问示例 · 常见问题"); fontSize(11f); color(0xFF9EC8F5); marginTop(3f) } }
+        }
+        Text { attr { text("›"); fontSize(26f); color(0xFF9EC8F5) } }
     }
 }
 
