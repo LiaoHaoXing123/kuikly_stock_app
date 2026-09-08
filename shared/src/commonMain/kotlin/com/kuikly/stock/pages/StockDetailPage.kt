@@ -1326,5 +1326,3 @@ data class AIAnalysisData(
     val analysis: Map<String, Any?>,
     val cards: List<Map<String, Any?>>
 )
-Map<String, Any?>>
-)

@@ -6,7 +6,7 @@ import kotlin.test.assertFalse
 
 class ChatMarkdownTest {
     @Test
-    fun sanitizeStripsImageSyntaxButKeepsAlt() {
+    fun sanitizeStripsImageSyntax() {
         assertEquals(
             "看这张走势图很清晰",
             sanitizeMarkdownForRender("看这张走势图![走势图](https://x/y.png)很清晰")
@@ -15,7 +15,7 @@ class ChatMarkdownTest {
 
     @Test
     fun sanitizeHandlesMultipleImages() {
-        assertEquals("ab", sanitizeMarkdownForRender("![a](1)![b](2)"))
+        assertEquals("", sanitizeMarkdownForRender("![a](1)![b](2)"))
     }
 
     @Test

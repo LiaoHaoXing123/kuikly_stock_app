@@ -562,7 +562,7 @@ internal fun ViewContainer<*, *>.indexKlineChartCanvas(ctx: IndexDetailPage, kli
             val top = minOf(yo, yc)
             val bh = kotlin.math.abs(yo - yc).coerceAtLeast(1.2f)
             context.fillStyle(color)
-    xt.moveTo(cx - cw / 2f, top)
+            context.moveTo(cx - cw / 2f, top)
             context.lineTo(cx + cw / 2f, top)
             context.lineTo(cx + cw / 2f, top + bh)
             context.lineTo(cx - cw / 2f, top + bh)

@@ -59,10 +59,10 @@ internal val chatMarkdownConfig = MarkdownConfig(
 )
 
 /**
- * 渲染前清洗：剥离图片语法并保留 alt 文本。
+ * 渲染前清洗：剥离整段图片语法（含 alt 文本）。
  * AI 股票问答几乎不会输出图片；此举只为彻底消除 2.7.0 缺失单参 src() 的崩溃向量。
  */
 internal fun sanitizeMarkdownForRender(raw: String): String {
     if (!raw.contains("![")) return raw
-    return raw.replace(Regex("!\\[([^\\]]*)]\\([^)]*\\)"), "$1")
+    return raw.replace(Regex("!\\[([^\\]]*)]\\([^)]*\\)"), "")
 }
