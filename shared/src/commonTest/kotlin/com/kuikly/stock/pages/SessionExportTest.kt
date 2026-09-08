@@ -90,7 +90,7 @@ class SessionExportTest {
     @Test
     fun fileBaseSanitizes() {
         assertEquals("chat", exportFileBase("   "))
-        assertEquals("AB", exportFileBase("A/B:C"))
+        assertEquals("ABC", exportFileBase("A/B:C"))
         assertTrue(exportFileBase("很长很长很长很长很长很长很长很长很长的标题").length <= 24)
     }
 
