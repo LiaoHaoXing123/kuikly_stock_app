@@ -12,8 +12,15 @@ import com.kuikly.stock.ai.config.AiRuntimeConfig
 import com.kuikly.stock.ai.config.providerErrorMessage
 import com.kuikly.stock.ai.config.resolveAiRequestConfig
 import com.kuikly.stock.ai.prompt.ChatPromptContext
+import com.kuikly.stock.ai.protocol.DetailProtocolV2
+import com.kuikly.stock.ai.protocol.ValidateReport
+import com.kuikly.stock.ai.protocol.VerdictSynthesizer
+import com.kuikly.stock.ai.protocol.anyToStringMap
+import com.kuikly.stock.ai.protocol.validateCards
+import com.kuikly.stock.ai.protocol.validateObject
 import com.kuikly.stock.ai.tool.StockTools
 import com.kuikly.stock.base.normalizeBreaks
+import com.kuikly.stock.data.AIVerdict
 import com.kuikly.stock.data.ChatResult
 import com.kuikly.stock.data.StockDb
 import com.kuikly.stock.pages.AIAnalysisData
@@ -165,16 +172,126 @@ object DeepSeekApi {
     suspend fun analyzeStock(detail: StockDetailData): AIAnalysisData {
         val messages = buildAnalysisPrompt(detail)
         val raw = chat(messages)
+        val klineDates = detail.kline.orEmpty().map { it.tradeDate }.toSet()
+        val generatedAt = System.currentTimeMillis()
+        val dataDate = detail.kline?.lastOrNull()?.tradeDate ?: detail.indicator?.tradeDate.orEmpty()
+
+        // ---------- L1: 严格 v2 ----------
+        parseAnalysisV2(raw, detail, klineDates, generatedAt, dataDate)?.let {
+            println("[AI] v2 ok, degraded=${it.degraded}, note=${it.validateNote}")
+            return it
+        }
+
+        // ---------- L2: 旧宽松协议 ----------
+        runCatching { parseLegacyAnalysis(raw, detail, generatedAt, dataDate) }
+            .getOrNull()
+            ?.let { legacy ->
+                println("[AI] fallback to legacy")
+                val synth = VerdictSynthesizer.fromLegacy(legacy.analysis) { numericLevel(it) }
+                return legacy.copy(
+                    verdict = AIVerdict.fromSynth(synth),
+                    protocolVersion = 1,
+                    degraded = true,
+                    validateNote = "AI 返回格式偏离协议 v2，已降级解析",
+                )
+            }
+
+        // ---------- L3: 抛出异常让 StockRepository 走离线模板 ----------
+        throw IllegalStateException("AI 返回的分析不完整，请重试")
+    }
+
+    private fun parseLegacyAnalysis(
+        raw: String, detail: StockDetailData, generatedAt: Long, dataDate: String,
+    ): AIAnalysisData {
         val analysis = parseJsonObjectLoose(raw)
-        require(analysis["trend"] is String || analysis["summary"] is String) { "AI 返回的分析不完整，请重试" }
+        require(analysis["trend"] is String || analysis["summary"] is String) { "legacy: missing trend/summary" }
         val cards = buildAnalysisCards(detail, analysis)
         return AIAnalysisData(
             code = detail.info?.code ?: "",
             name = detail.info?.name,
             analysis = analysis.mapValues { it.value?.toString() ?: "" },
             cards = cards,
+            generatedAt = generatedAt,
+            dataDate = dataDate,
         )
     }
+
+    private fun parseAnalysisV2(
+        raw: String,
+        detail: StockDetailData,
+        klineDates: Set<String>,
+        generatedAt: Long,
+        dataDate: String,
+    ): AIAnalysisData? {
+        val root = try {
+            strictJson.parseToJsonElement(stripCodeFence(raw)).toNativeValue() as? Map<String, Any?>
+        } catch (_: Exception) { null } ?: return null
+        if ((root["version"] as? Number)?.toInt() != DetailProtocolV2.VERSION) return null
+
+        val report = ValidateReport()
+
+        val verdictMap = anyToStringMap(root["verdict"]) ?: return null
+        val verdictBody = validateObject(
+            verdictMap,
+            DetailProtocolV2.VERDICT_REQUIRED,
+            DetailProtocolV2.VERDICT_OPTIONAL,
+            strippedOut = report.strippedFields,
+            prefix = "verdict.",
+        ) ?: return null
+        val verdict = AIVerdict.from(verdictBody)
+
+        var cards = validateCards(
+            raw = root["cards"] as? List<Any?>,
+            registry = DetailProtocolV2.registry(klineDates),
+            report = report,
+            maxCards = DetailProtocolV2.MAX_CARDS,
+        )
+        // 同类型只保留第一张
+        cards = cards.distinctBy { it["type"] }
+
+        if (cards.isEmpty()) return null
+
+        // 保留固定的"数据来源"卡
+        cards = cards + sourceFooterCard(dataDate)
+
+        // 兼容：analysis 字段仍填充，供历史记录/搜索等旧逻辑使用
+        val flat = linkedMapOf<String, Any?>(
+            "trend" to (cards.firstOrNull { it["type"] == "trend_card" }?.get("content")),
+            "summary" to (cards.firstOrNull { it["type"] == "summary_card" }?.get("summary")),
+            "suggestion" to (cards.firstOrNull { it["type"] == "level_card" }?.get("action")),
+            "risk_level" to (cards.firstOrNull { it["type"] == "risk_card" }?.get("risk_level")),
+            "support_price" to verdict.supportValue?.toString(),
+            "resistance_price" to verdict.resistanceValue?.toString(),
+            "target_price" to verdict.targetValue?.toString(),
+            "stop_loss" to verdict.stopLossValue?.toString(),
+        )
+
+        return AIAnalysisData(
+            code = detail.info?.code ?: "",
+            name = detail.info?.name,
+            analysis = flat,
+            cards = cards,
+            source = "DeepSeek",
+            generatedAt = generatedAt,
+            dataDate = dataDate,
+            verdict = verdict,
+            protocolVersion = 2,
+            degraded = report.hasIssue(),
+            validateNote = report.toString(),
+        )
+    }
+
+    private fun stripCodeFence(s: String): String {
+        val t = s.trim()
+        if (!t.startsWith("```")) return t
+        return t.removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+    }
+
+    private fun sourceFooterCard(dataDate: String): Map<String, Any?> = mapOf(
+        "type" to "summary_card",
+        "summary" to "数据来源：真实行情 API；AI 结论仅供参考，不构成投资建议。数据日期 $dataDate",
+        "footer" to true,
+    )
 
     suspend fun analyzeIndex(detail: StockDetailData): AIAnalysisData {
         val messages = buildIndexAnalysisPrompt(detail)
@@ -305,30 +422,11 @@ $klineText
 
         val system = """你是一位专业的股票分析师，请对以下股票进行全面的综合分析。
 
-请从以下维度进行分析，并以 JSON 格式返回：
-1. 趋势判断 (trend): 短期/中期/长期趋势如何？用一句话描述
-2. 技术信号 (signals): 是否有明显的买入/卖出信号？列出所有发现的信号（如均线金叉/死叉、MACD形态等）
-3. 支撑压力位 (support_price, resistance_price): 关键的支撑位和压力位在哪里？
-4. 风险评估 (risk_level, risks): 当前风险等级（低/中/高）？需要注意哪些风险因素？
-5. 操作建议 (suggestion): 买入/卖出/持有/观望？目标价位和止损位？
-6. 总结 (summary): 一句话总结当前该股的投资价值和风险
+${DetailProtocolV2.PROMPT}"""
 
-请额外提供 evidence 数组，最多6项，每项包含 date（必须是下面提供的某个K线日期）和 reason（该日行情如何支持你的判断）。无法定位时返回空数组，不得编造日期或数值。
-
-JSON 格式示例：
-{
-  "trend": "趋势描述",
-  "signals": ["信号1", "信号2"],
-  "evidence": [],
-  "support_price": "支撑位价格",
-  "resistance_price": "压力位价格",
-  "risk_level": "低|中|高",
-  "risks": ["风险因素1", "风险因素2"],
-  "suggestion": "买入|卖出|持有|观望",
-  "target_price": "目标价位",
-  "stop_loss": "止损价位",
-  "summary": "一句话总结"
-}"""
+        val datePool = if (kline.isNotEmpty()) {
+            "\n\n【可选K线日期池】（日期字段必须选自下列集合，禁止编造）：\n${kline.map { it.tradeDate }.joinToString(", ")}"
+        } else ""
 
         val user = """请分析以下股票：
 
@@ -340,6 +438,7 @@ $realtimeText
 
 ## 近期K线数据（最近10个交易日）
 $klineText
+$datePool
 
 ## 最新技术指标（程序计算，非AI生成）
 $indicatorText
@@ -396,7 +495,7 @@ $indicatorText
         return cards
     }
 
-    private fun numericLevel(value: Any?): Double? = when (value) {
+    internal fun numericLevel(value: Any?): Double? = when (value) {
         is Number -> value.toDouble().takeIf { it.isFinite() && it > 0.0 }
         else -> Regex("""\d+(?:\.\d+)?""").find(value?.toString().orEmpty())
             ?.value

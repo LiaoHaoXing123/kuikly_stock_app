@@ -1,10 +1,13 @@
 package com.kuikly.stock.ai.chat
 
+import com.kuikly.stock.ai.protocol.ChatProtocolV1
+import com.kuikly.stock.ai.protocol.ValidateReport
+import com.kuikly.stock.ai.protocol.validateCards
 import com.kuikly.stock.data.ChatResult
 import kotlinx.serialization.json.*
 
 internal class ChatProtocolException(message: String) : IllegalArgumentException(message)
-private val strictJson = Json { isLenient = false }
+internal val strictJson = Json { isLenient = false }
 
 internal const val CHAT_PROTOCOL_PROMPT = """
 必须仅输出一个合法 JSON 对象，不要代码围栏或 JSON 外的解释。协议版本为 1。
@@ -34,15 +37,28 @@ internal fun decodeChatReply(raw: String): ChatResult {
         ?: throw ChatProtocolException("AI 回复缺少有效正文")
     val cards = root["cards"] as? JsonArray ?: throw ChatProtocolException("cards 必须为数组")
     val suggestions = root["suggestions"] as? JsonArray ?: throw ChatProtocolException("suggestions 必须为数组")
-    if (cards.size > 8 || suggestions.size > 3 || suggestions.any { it !is JsonPrimitive || !it.isString || it.content.length !in 1..160 })
+    if (suggestions.size > 3 || suggestions.any { it !is JsonPrimitive || !it.isString || it.content.length !in 1..160 })
         throw ChatProtocolException("AI 回复超出协议限制")
-    var rejected = 0
-    val valid = cards.mapNotNull {
-        val card = it as? JsonObject
-        if (card == null || !validCard(card)) { rejected++; null } else card.mapValues { entry -> entry.value.toNativeValue() }
+
+    // 用共享校验层替代原 validCard，支持字段级降级
+    val report = ValidateReport()
+    val validCards = validateCards(
+        raw = cards.map { it.toNativeValue() },
+        registry = ChatProtocolV1.registry,
+        report = report,
+        maxCards = ChatProtocolV1.MAX_CARDS,
+    )
+
+    val notice = when {
+        report.droppedCards > 0 -> "${report.droppedCards} 张卡片格式无效，已隐藏；可重试生成"
+        else -> null
     }
-    return ChatResult(text, valid.ifEmpty { null }, suggestions.map { it.jsonPrimitive.content },
-        if (rejected > 0) "$rejected 张卡片格式无效，已隐藏；可重试生成" else null)
+    return ChatResult(
+        text = text,
+        cards = validCards.ifEmpty { null },
+        suggestions = suggestions.map { it.jsonPrimitive.content },
+        errorNotice = notice,
+    )
 }
 
 /** Strip markdown fences and surrounding prose so a single imperfect reply can still parse. */
