@@ -72,6 +72,13 @@ class StockDetailPage : Pager() {
     internal var highlightedPriceLabel by observable("")
     internal var klineInfoText by observable("")
 
+    // --- P1 K线交互状态 ---
+    internal val crosshair = CrosshairController()
+    internal var crosshairX by observable(-1f)  // 当前十字光标 x 像素（-1=不显示）
+    internal var crosshairY by observable(-1f)  // 当前十字光标 y 像素
+    internal var rangeStats: RangeStats? by observable(null)  // 区间统计结果
+    internal var isRangeSelecting by observable(false)  // 是否正在框选区间
+
     // --- 分时增强 ---
     internal var selectedMinuteIndex by observable(-1)
     internal var minuteCanvasWidth by observable(0f)
@@ -402,6 +409,105 @@ class StockDetailPage : Pager() {
         clearChartSelection()
         val total = getAggregatedKline().size
         klineStartIndex = (klineStartIndex + 5).coerceAtMost((total - klineVisibleCount).coerceAtLeast(0))
+    }
+
+    /** P1: 以指定 x 像素为锚点缩放 */
+    internal fun zoomAtX(anchorX: Float, factor: Float) {
+        clearChartSelection()
+        val agg = getAggregatedKline()
+        if (agg.isEmpty() || klineCanvasWidth <= 0f) return
+        val mapper = ChartCoordinateMapper(
+            visibleStartIdx = klineStartIndex,
+            visibleCount = klineVisibleCount,
+            priceMin = 0.0, priceMax = 1.0,
+            chartWidth = klineCanvasWidth, chartTop = 0f, chartHeight = 0f,
+        )
+        val (newStart, newCount) = mapper.zoomAt(anchorX, factor, agg.size)
+        klineVisibleCount = newCount
+        klineStartIndex = newStart
+    }
+
+    /** P1: 拖拽平移，deltaX 为像素位移 */
+    internal fun panByPixel(deltaX: Float) {
+        if (klineCanvasWidth <= 0f || klineVisibleCount <= 0) return
+        val deltaIdx = (deltaX / klineCanvasWidth * klineVisibleCount).toInt()
+        if (deltaIdx != 0) {
+            val total = getAggregatedKline().size
+            klineStartIndex = (klineStartIndex - deltaIdx).coerceIn(0, (total - klineVisibleCount).coerceAtLeast(0))
+        }
+    }
+
+    /** P1: 更新十字光标位置并计算统计 */
+    internal fun updateCrosshair(x: Float, y: Float) {
+        crosshairX = x
+        crosshairY = y
+        val agg = getAggregatedKline()
+        if (agg.isEmpty() || klineCanvasWidth <= 0f) return
+        val globalIdx = (klineStartIndex + chartHitIndex(x, klineCanvasWidth, getVisibleKline().size)).coerceIn(0, agg.size - 1)
+        crosshair.onMove(globalIdx)
+        val k = agg.getOrNull(globalIdx)
+        if (k != null) {
+            val changePct = if (k.open != 0.0) (k.close - k.open) / k.open * 100.0 else 0.0
+            klineInfoText = "${k.tradeDate} 开${fmt2(k.open)} 收${fmt2(k.close)} 高${fmt2(k.high)} 低${fmt2(k.low)} ${fmtSignedPct(changePct)}"
+        }
+    }
+
+    /** P1: 点击十字光标（锁定/解锁） */
+    internal fun tapCrosshair(x: Float) {
+        val agg = getAggregatedKline()
+        if (agg.isEmpty() || klineCanvasWidth <= 0f) return
+        val globalIdx = (klineStartIndex + chartHitIndex(x, klineCanvasWidth, getVisibleKline().size)).coerceIn(0, agg.size - 1)
+        crosshair.onTap(globalIdx)
+        selectedKlineIndex = if (crosshair.state is InteractionState.Locked) globalIdx else -1
+        crosshairX = if (crosshair.state is InteractionState.Locked) x else -1f
+        if (crosshair.state !is InteractionState.Locked) {
+            klineInfoText = ""
+            rangeStats = null
+        }
+    }
+
+    /** P1: 开始区间选择 */
+    internal fun beginRangeSelect(x: Float) {
+        val agg = getAggregatedKline()
+        if (agg.isEmpty() || klineCanvasWidth <= 0f) return
+        val globalIdx = (klineStartIndex + chartHitIndex(x, klineCanvasWidth, getVisibleKline().size)).coerceIn(0, agg.size - 1)
+        crosshair.onRangeStart(globalIdx)
+        isRangeSelecting = true
+        crosshairX = x
+    }
+
+    /** P1: 更新区间选择 */
+    internal fun updateRangeSelect(x: Float) {
+        if (!isRangeSelecting) return
+        val agg = getAggregatedKline()
+        if (agg.isEmpty() || klineCanvasWidth <= 0f) return
+        val globalIdx = (klineStartIndex + chartHitIndex(x, klineCanvasWidth, getVisibleKline().size)).coerceIn(0, agg.size - 1)
+        crosshair.onRangeUpdate(globalIdx)
+        crosshairX = x
+        val rs = crosshair.state
+        if (rs is InteractionState.RangeSelect) {
+            rangeStats = summarizeRange(agg, rs.startGlobalIdx, rs.endGlobalIdx)
+        }
+    }
+
+    /** P1: 结束区间选择 */
+    internal fun endRangeSelect() {
+        crosshair.onRangeEnd()
+        isRangeSelecting = false
+        if (crosshair.state is InteractionState.Locked) {
+            val idx = (crosshair.state as InteractionState.Locked).globalIdx
+            selectedKlineIndex = idx
+        }
+    }
+
+    /** P1: 清除所有交互状态 */
+    internal fun clearInteraction() {
+        crosshair.reset()
+        crosshairX = -1f
+        crosshairY = -1f
+        rangeStats = null
+        isRangeSelecting = false
+        clearChartSelection()
     }
 
     internal fun resetView() {
@@ -2107,7 +2213,7 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                 }
             }
 
-            vfor({ ObservableList(mutableListOf(listOf(ctx.getAggregatedKline(), ctx.klineStartIndex, ctx.klineVisibleCount, ctx.selectedKlineIndex, ctx.aiAnalysis, ctx.highlightedPrice, ctx.highlightedPriceLabel, ctx.klineShowMA, ctx.klineShowVolume, ctx.klinePeriod, ctx.effectiveVerdict, ctx.verdictExpanded, ctx.isAnalyzing))) }) { _ ->
+            vfor({ ObservableList(mutableListOf(listOf(ctx.getAggregatedKline(), ctx.klineStartIndex, ctx.klineVisibleCount, ctx.selectedKlineIndex, ctx.aiAnalysis, ctx.highlightedPrice, ctx.highlightedPriceLabel, ctx.klineShowMA, ctx.klineShowVolume, ctx.klinePeriod, ctx.effectiveVerdict, ctx.verdictExpanded, ctx.isAnalyzing, ctx.crosshairX, ctx.crosshairY, ctx.rangeStats, ctx.isRangeSelecting))) }) { _ ->
             View {
                 attr { flexDirectionColumn() }
                 event { layoutFrameDidChange { ctx.klineSectionY = it.y } }
@@ -2289,10 +2395,10 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, aggregat
         }
         event {
             longPress { params ->
-                ctx.selectKlineAtX(params.x)
+                ctx.beginRangeSelect(params.x)
             }
             click { params ->
-                ctx.selectKlineAtX(params.x)
+                ctx.tapCrosshair(params.x)
             }
         }
     }) { context, width, height ->
@@ -2501,39 +2607,80 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, aggregat
             }
         }
 
-        // 十字光标
-        val sel = ctx.selectedKlineIndex
-        if (sel >= 0 && sel >= ctx.klineStartIndex && sel < ctx.klineStartIndex + nVisible) {
-            val localIdx = sel - ctx.klineStartIndex
-            if (localIdx in visible.indices) {
-                val k = visible[localIdx]
-                val cx = step * localIdx + step / 2f
-                val cy = py(k.close)
-                // 垂直线
-                context.strokeStyle(Color(0xFF333333))
-                context.lineWidth(1f)
-                var vx = 0f
-                while (vx < height) {
-                    if (vx < padT || vx > volTop) {
-                        // 跳过
-                    } else {
-                        context.beginPath()
-                        context.moveTo(cx, vx)
-                        context.lineTo(cx, (vx + 4f).coerceAtMost(volTop))
-                        context.stroke()
-                    }
-                    vx += 8f
-                }
-                // 水平线
-                var hx = 0f
-                while (hx < width) {
-                    context.beginPath()
-                    context.moveTo(hx, cy)
-                    context.lineTo((hx + 4f).coerceAtMost(width), cy)
-                    context.stroke()
-                    hx += 8f
-                }
-                // 选中框
+        // P1: 十字光标 + 区间选择
+        val interaction = ctx.crosshair.state
+        val showCrosshair = ctx.crosshairX >= 0f && (interaction is InteractionState.Hover || interaction is InteractionState.Locked || interaction is InteractionState.RangeSelect)
+
+        if (showCrosshair) {
+            val cx = ctx.crosshairX.coerceIn(0f, width)
+            val activeIdx = ctx.crosshair.activeIndex ?: -1
+            val localIdx = activeIdx - ctx.klineStartIndex
+            val k = visible.getOrNull(localIdx)
+
+            // 竖直线（虚线）
+            context.strokeStyle(Color(0xFF666666))
+            context.lineWidth(1f)
+            var vx = padT
+            while (vx < volTop) {
+                context.beginPath()
+                context.moveTo(cx, vx)
+                context.lineTo(cx, (vx + 4f).coerceAtMost(volTop))
+                context.stroke()
+                vx += 8f
+            }
+
+            // 水平线（虚线）— 跟随 crosshairY 或收盘价
+            val hy = if (ctx.crosshairY in padT..volTop) ctx.crosshairY else (k?.let { py(it.close) } ?: (padT + chartH / 2))
+            var hx = 0f
+            while (hx < width) {
+                context.beginPath()
+                context.moveTo(hx, hy)
+                context.lineTo((hx + 4f).coerceAtMost(width), hy)
+                context.stroke()
+                hx += 8f
+            }
+
+            // 右侧价格标签
+            val priceAtY = if (ctx.crosshairY in padT..volTop) {
+                val ratio = 1f - ((ctx.crosshairY - padT) / chartH).coerceIn(0f, 1f)
+                minP + ratio * (maxP - minP)
+            } else {
+                k?.close ?: 0.0
+            }
+            val priceTagW = 52f
+            context.fillStyle(Color(0xFF1976D2))
+            context.beginPath()
+            context.moveTo(width - priceTagW, hy - 9f)
+            context.lineTo(width, hy - 9f)
+            context.lineTo(width, hy + 9f)
+            context.lineTo(width - priceTagW, hy + 9f)
+            context.closePath()
+            context.fill()
+            context.fillStyle(Color.WHITE)
+            context.font(9f)
+            context.textAlign(TextAlign.CENTER)
+            context.fillText(fmt2(priceAtY), width - priceTagW / 2f, hy + 3f)
+
+            // 底部日期标签
+            if (k != null) {
+                val dateTagW = 62f
+                val dateTagX = (cx - dateTagW / 2f).coerceIn(0f, width - dateTagW)
+                context.fillStyle(Color(0xFF1976D2))
+                context.beginPath()
+                context.moveTo(dateTagX, dateY - 12f)
+                context.lineTo(dateTagX + dateTagW, dateY - 12f)
+                context.lineTo(dateTagX + dateTagW, dateY + 2f)
+                context.lineTo(dateTagX, dateY + 2f)
+                context.closePath()
+                context.fill()
+                context.fillStyle(Color.WHITE)
+                context.font(9f)
+                context.textAlign(TextAlign.CENTER)
+                context.fillText(k.tradeDate, dateTagX + dateTagW / 2f, dateY - 3f)
+            }
+
+            // 选中 K线框
+            if (k != null && (interaction is InteractionState.Locked || interaction is InteractionState.Hover)) {
                 context.strokeStyle(Color(0xFF1976D2))
                 context.lineWidth(1.5f)
                 context.beginPath()
@@ -2543,8 +2690,36 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, aggregat
                 context.lineTo(cx - cw / 2f - 2f, py(k.low) + 2f)
                 context.closePath()
                 context.stroke()
+            }
 
-                // Tooltip
+            // 区间选择遮罩
+            if (interaction is InteractionState.RangeSelect) {
+                val startLocal = interaction.startGlobalIdx - ctx.klineStartIndex
+                val endLocal = interaction.endGlobalIdx - ctx.klineStartIndex
+                if (startLocal in visible.indices || endLocal in visible.indices) {
+                    val lo = minOf(startLocal, endLocal).coerceIn(0, nVisible - 1)
+                    val hi = maxOf(startLocal, endLocal).coerceIn(0, nVisible - 1)
+                    val x0 = step * lo
+                    val x1 = step * (hi + 1)
+                    context.fillStyle(Color(0x1A1976D2))
+                    context.beginPath()
+                    context.moveTo(x0, padT)
+                    context.lineTo(x1, padT)
+                    context.lineTo(x1, volTop)
+                    context.lineTo(x0, volTop)
+                    context.closePath()
+                    context.fill()
+                    context.strokeStyle(Color(0x801976D2))
+                    context.lineWidth(1f)
+                    context.beginPath()
+                    context.moveTo(x0, padT); context.lineTo(x0, volTop)
+                    context.moveTo(x1, padT); context.lineTo(x1, volTop)
+                    context.stroke()
+                }
+            }
+
+            // OHLC Tooltip（顶部浮层）
+            if (k != null) {
                 context.fillStyle(Color(0xE622263F))
                 context.beginPath()
                 context.moveTo(0f, 2f)
@@ -2559,14 +2734,14 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, aggregat
                 val tooltipColor = if (up) Color(0xFFFF8A80) else Color(0xFFA5D6A7)
                 context.font(9f)
                 context.textAlign(TextAlign.LEFT)
-                context.fillStyle(Color(0xFFFFFFFF))
+                context.fillStyle(Color.WHITE)
                 context.fillText(
                     "${k.tradeDate} 开${fmt2(k.open)} 收${fmt2(k.close)} 高${fmt2(k.high)} 低${fmt2(k.low)}",
                     4f, 12f
                 )
                 context.fillStyle(tooltipColor)
                 context.fillText(
-                    "涨跌 ${fmtSignedPct(pct)} 量${k.volume.toInt()}手 ${if (ctx.klineShowMA) "MA5 ${maAt(sel,5)?.let { fmt2(it) } ?: "-"}" else ""}",
+                    "涨跌 ${fmtSignedPct(pct)} 量${k.volume.toInt()}手 ${if (ctx.klineShowMA) "MA5 ${maAt(activeIdx,5)?.let { fmt2(it) } ?: "-"}" else ""}",
                     4f, 24f
                 )
                 // 与AI价位距离
@@ -2575,12 +2750,29 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, aggregat
                     nearest?.let {
                         val dist = (k.close - it.price) / it.price * 100.0
                         context.fillStyle(Color(0xFFFFE082))
-                        context.fillText(
-                            "距${it.label} ${fmtSignedPct(dist)}",
-                            4f, 34f
-                        )
+                        context.fillText("距${it.label} ${fmtSignedPct(dist)}", 4f, 34f)
                     }
                 }
+            }
+
+            // 区间统计浮层（区间选择时显示）
+            ctx.rangeStats?.let { stats ->
+                val statsH = 28f
+                val statsY = padT + 4f
+                context.fillStyle(Color(0xE622263F))
+                context.beginPath()
+                context.moveTo(0f, statsY)
+                context.lineTo(width, statsY)
+                context.lineTo(width, statsY + statsH)
+                context.lineTo(0f, statsY + statsH)
+                context.closePath()
+                context.fill()
+                context.fillStyle(Color(0xFFFFE082))
+                context.font(9f)
+                context.textAlign(TextAlign.LEFT)
+                context.fillText("区间统计: ${stats.summary}", 4f, statsY + 12f)
+                context.fillStyle(Color(0xFFB0BEC5))
+                context.fillText("${stats.startDate} ~ ${stats.endDate}", 4f, statsY + 24f)
             }
         }
 
