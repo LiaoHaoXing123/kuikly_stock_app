@@ -6,6 +6,7 @@ import com.kuikly.stock.home.DashboardFocusItem
 import com.kuikly.stock.home.HomeDashboardService
 import com.tencent.kuikly.core.annotations.Page
 import com.tencent.kuikly.core.coroutines.launch
+import com.tencent.kuikly.core.coroutines.delay
 import com.tencent.kuikly.core.base.Color
 import com.tencent.kuikly.core.base.Border
 import com.tencent.kuikly.core.base.BorderStyle
@@ -71,6 +72,16 @@ class HomeDashboardPage : Pager() {
             } finally {
                 refreshing = false
             }
+            autoDismiss(refreshMessage)
+        }
+    }
+
+    /** 提示浮窗悬浮 5 秒后自动消失；期间若有新消息则以新消息为准。 */
+    private fun autoDismiss(message: String) {
+        if (message.isEmpty()) return
+        lifecycleScope.launch {
+            delay(5000)
+            if (refreshMessage == message) refreshMessage = ""
         }
     }
 
@@ -103,6 +114,7 @@ class HomeDashboardPage : Pager() {
                     backgroundColor(0xFFF4F7FB)
                 }
                 homeTopBar(ctx)
+                guideEntryCard(ctx)
                 statusFeedback({ ctx.refreshMessage }, { ctx.refreshIsError })
                 Scroller {
                     attr {
@@ -114,7 +126,6 @@ class HomeDashboardPage : Pager() {
                     marketBriefCard(ctx)
                     sectionTitle("研究工作台", "把重要动作拆开，减少首页拥挤")
                     researchGrid(ctx)
-                    guideEntryCard(ctx)
                     sectionTitle("今日关注", "提醒优先，其次是自选信号")
                     vfor({ ctx.focusItems }) { item ->
                         focusRow(item)
@@ -285,7 +296,7 @@ private fun ViewContainer<*, *>.researchModule(
 private fun ViewContainer<*, *>.guideEntryCard(ctx: HomeDashboardPage) {
     View {
         attr {
-            marginTop(2f)
+            margin(top = 10f, left = 16f, right = 16f)
             padding(14f)
             borderRadius(16f)
             backgroundColor(0xFF0B2B50)
