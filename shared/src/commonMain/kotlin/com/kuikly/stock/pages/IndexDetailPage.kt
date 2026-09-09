@@ -1240,7 +1240,7 @@ internal fun ViewContainer<*, *>.indexAiAnalysisCards(ctx: IndexDetailPage) {
                     }
                     Text {
                         attr {
-                            text("💡 指数联动说明")
+                            text("指数联动说明")
                             fontSize(12f)
                             fontWeightBold()
                             color(0xFF2E7D32)
@@ -1310,7 +1310,7 @@ internal fun ViewContainer<*, *>.indexRenderAICard(ctx: IndexDetailPage, card: M
                 }
                 View {
                     attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
-                    Text { attr { text("📊 $title (${signals.size})"); fontSize(14f); fontWeightBold(); color(0xFFA56100); flex(1f) } }
+                    Text { attr { text("$title (${signals.size})"); fontSize(14f); fontWeightBold(); color(0xFFA56100); flex(1f) } }
                     View {
                         attr { padding(3f, 8f, 3f, 8f); backgroundColor(0xFFFFFFFF); borderRadius(10f) }
                         event { click { ctx.toggleAISection(key) } }
@@ -1346,7 +1346,7 @@ internal fun ViewContainer<*, *>.indexRenderAICard(ctx: IndexDetailPage, card: M
                 }
                 View {
                     attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
-                    Text { attr { text("🎯 $title"); fontSize(14f); fontWeightBold(); color(0xFF2E7D32); flex(1f) } }
+                    Text { attr { text("$title"); fontSize(14f); fontWeightBold(); color(0xFF2E7D32); flex(1f) } }
                     View {
                         attr { padding(4f, 10f, 4f, 10f); backgroundColor(0xFF2E7D32); borderRadius(12f) }
                         event { click { ctx.toggleAISection(key) } }
@@ -1378,7 +1378,7 @@ internal fun ViewContainer<*, *>.indexRenderAICard(ctx: IndexDetailPage, card: M
                 }
                 View {
                     attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
-                    Text { attr { text("⚠️ $title"); fontSize(14f); fontWeightBold(); color(0xFFD32F2F); flex(1f) } }
+                    Text { attr { text("$title"); fontSize(14f); fontWeightBold(); color(0xFFD32F2F); flex(1f) } }
                     if (riskLevel.isNotEmpty()) {
                         View {
                             attr { padding(3f, 8f, 3f, 8f); backgroundColor(0xFFD32F2F); borderRadius(10f) }
@@ -1408,7 +1408,7 @@ internal fun ViewContainer<*, *>.indexRenderAICard(ctx: IndexDetailPage, card: M
                     borderRadius(12f)
                     padding(12f, 14f, 12f, 14f)
                 }
-                Text { attr { text("📝 $title"); fontSize(14f); fontWeightBold(); color(0xFF2E7D32) } }
+                Text { attr { text("$title"); fontSize(14f); fontWeightBold(); color(0xFF2E7D32) } }
                 Text { attr { text(summary); fontSize(13f); color(0xFF1B5E20); marginTop(6f); lineHeight(19f) } }
             }
         }

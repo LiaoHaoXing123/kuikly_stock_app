@@ -316,7 +316,7 @@ class ChatMainPage : Pager() {
                 delay(0)
                 isRefreshing = false
                 loadQuickQuestion()
-                refreshNotice = if (updated) "✅ 数据已刷新到最新" else "已是最近数据"
+                refreshNotice = if (updated) "数据已刷新到最新" else "已是最近数据"
             } catch (e: Throwable) {
                 delay(0)
                 isRefreshing = false
@@ -453,7 +453,7 @@ class ChatMainPage : Pager() {
         DataSourceManager.setMode(
             if (online) DataSourceManager.Mode.ONLINE else DataSourceManager.Mode.OFFLINE
         )
-        val notice = if (online) "✅ 已切换到在线模式" else "✅ 已切换到离线模式"
+        val notice = if (online) "已切换到在线模式" else "已切换到离线模式"
         modeSwitchNotice = notice
         lifecycleScope.launch {
             delay(3000)
@@ -799,7 +799,7 @@ class ChatMainPage : Pager() {
             } catch (e: Throwable) {
                 delay(0)
                 aiStatusLines.clear()
-                ("❌ 检测失败\n原因：${e.message ?: "未知错误"}\n排查：①是否联网 ②本地 SQLite 库是否就绪 ③数据源是否已配置")
+                ("检测失败\n原因：${e.message ?: "未知错误"}\n排查：①是否联网 ②本地 SQLite 库是否就绪 ③数据源是否已配置")
                     .split("\n").forEach { aiStatusLines.add(it) }
             }
         }
@@ -2034,7 +2034,7 @@ internal fun ViewContainer<*, *>.drawerSessionItem(ctx: ChatMainPage, s: ChatSes
             }
             Text {
                 attr {
-                    text(if (s.pinned) "📌 " + s.title else s.title)
+                    text(if (s.pinned) "置顶 · " + s.title else s.title)
                     fontSize(14f)
                     fontWeightBold()
                     color(0xFF333333)

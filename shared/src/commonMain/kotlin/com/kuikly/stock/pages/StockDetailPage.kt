@@ -804,7 +804,7 @@ internal fun ViewContainer<*, *>.aiVerdictBar(ctx: StockDetailPage, compact: Boo
 
     View {
         attr {
-            height(if (expanded) 100f else 34f)
+            minHeight(34f)
             flexDirectionColumn()
             backgroundColor(v?.tintColor ?: Color(0x0D000000))
             borderRadius(if (compact) 0f else 6f)
@@ -868,7 +868,7 @@ internal fun ViewContainer<*, *>.aiVerdictBar(ctx: StockDetailPage, compact: Boo
         // 展开区
         if (expanded && v != null) {
             View {
-                attr { flexDirectionRow(); height(30f); alignItemsCenter(); marginTop(4f) }
+                attr { flexDirectionRow(); flexWrapWrap(); alignItemsCenter(); marginTop(4f) }
                 v.supportValue?.let { p ->
                     pricePill("支撑", p, 0xFF17A67A) { ctx.focusKline(KlineFocus.Price(p, "AI支撑", 0xFF17A67A)) }
                 }
@@ -904,6 +904,7 @@ private fun ViewContainer<*, *>.pricePill(label: String, value: Double, colorVal
             paddingLeft(8f)
             paddingRight(8f)
             marginRight(6f)
+            marginBottom(6f)
             backgroundColor(Color((colorValue and 0x00FFFFFF) or 0x1F000000))
         }
         event { click { onTap() } }
@@ -1168,14 +1169,18 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
             borderRadius(10f)
         }
 
-        Text {
-            attr {
-                text("实时行情")
-                fontSize(15f)
-                fontWeightBold()
-                color(0xFF333333)
-                marginBottom(8f)
+        View {
+            attr { flexDirectionRow(); alignItemsCenter(); marginBottom(12f) }
+            Text {
+                attr {
+                    text("实时行情")
+                    fontSize(15f)
+                    fontWeightBold()
+                    color(0xFF333333)
+                    flex(1f)
+                }
             }
+            aiBiasChip(ctx)
         }
 
         View {
@@ -1193,7 +1198,6 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
             quoteColumn(ctx, "涨跌幅",
                 realtime.changePercent?.let { fmtSignedPct(it) } ?: "-",
                 15f, priceColor)
-            aiBiasChip(ctx)
         }
 
         View {
@@ -1231,9 +1235,11 @@ internal fun ViewContainer<*, *>.quoteItem(
 ) {
     View {
         attr {
-            width((ctx.pagerData.pageViewWidth - 40f) / 4f)
+            // 卡片左右外边距共 24，内边距共 32；留出浮点取整余量。
+            width((ctx.pagerData.pageViewWidth - 57f) / 4f)
             flexDirectionColumn()
-            marginTop(4f)
+            paddingRight(4f)
+            marginTop(8f)
         }
 
         Text {
@@ -1246,8 +1252,18 @@ internal fun ViewContainer<*, *>.quoteItem(
 
         Text {
             attr {
-                text(value?.let { fmt2(it) } ?: "-$suffix")
+                text(value?.let {
+                    if (suffix.isNotEmpty()) {
+                        when {
+                            abs(it) >= 100000000 -> "${fmt2(it / 100000000)}亿"
+                            abs(it) >= 10000 -> "${fmt2(it / 10000)}万"
+                            else -> fmt2(it)
+                        }
+                    } else fmt2(it)
+                } ?: "—")
                 fontSize(13f)
+                lines(1)
+                marginTop(4f)
                 fontWeightBold()
                 color(0xFF333333)
             }
@@ -1373,7 +1389,7 @@ internal fun ViewContainer<*, *>.indicatorCard(ctx: StockDetailPage) {
             Text {
                 attr {
                     text("DIF ${fmtInd(ind.dif)}  DEA ${fmtInd(ind.dea)}  柱 ${fmtInd(ind.macd)}")
-                    fontSize(12f); color(0xFF333333)
+                    fontSize(12f); lineHeight(19f); color(0xFF333333); flex(1f)
                 }
             }
         }
@@ -1388,7 +1404,7 @@ internal fun ViewContainer<*, *>.indicatorCard(ctx: StockDetailPage) {
             Text {
                 attr {
                     text("K ${fmtInd(ind.kdjK)}  D ${fmtInd(ind.kdjD)}  J ${fmtInd(ind.kdjJ)}")
-                    fontSize(12f); color(0xFF333333)
+                    fontSize(12f); lineHeight(19f); color(0xFF333333); flex(1f)
                 }
             }
         }
@@ -3017,8 +3033,8 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, aggregat
             }
         }
 
-        // MA图例
-        if (ctx.klineShowMA) {
+        // 选中态顶部已显示行情浮层，避免图例覆盖第三行 AI 价位距离。
+        if (ctx.klineShowMA && !showCrosshair) {
             context.font(9f)
             context.textAlign(TextAlign.LEFT)
             var lx = 4f
@@ -3275,7 +3291,7 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
                     }
                     Text {
                         attr {
-                            text("💡 联动交互说明")
+                            text("联动交互说明")
                             fontSize(12f)
                             fontWeightBold()
                             color(0xFF1976D2)
@@ -3411,7 +3427,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                     attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
                     Text {
                         attr {
-                            text("🎯 $title")
+                            text("$title")
                             fontSize(14f)
                             fontWeightBold()
                             color(0xFF1976D2)
@@ -3490,7 +3506,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                     attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
                     Text {
                         attr {
-                            text("⚠️ $title")
+                            text("$title")
                             fontSize(14f)
                             fontWeightBold()
                             color(0xFFD32F2F)
@@ -3547,7 +3563,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                 }
                 Text {
                     attr {
-                        text("📝 $title")
+                        text("$title")
                         fontSize(14f)
                         fontWeightBold()
                         color(0xFF7B1FA2)
