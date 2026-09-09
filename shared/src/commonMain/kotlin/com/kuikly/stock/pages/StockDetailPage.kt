@@ -104,6 +104,7 @@ class StockDetailPage : Pager() {
     internal var highlightCardType: String? by observable(null)
     internal var showStickyVerdict by observable(false)
     internal val klineFocusState = KlineFocusState()
+    private var focusVersion = 0
 
     // --- 提醒确认弹窗 ---
     internal var showAlertConfirm by observable(false)
@@ -163,20 +164,20 @@ class StockDetailPage : Pager() {
                             scrollEnable(true)
                         }
 
-                        analysisHistoryPanel(ctx.analysisState) { ctx.clearChartSelection(); ctx.clearMinuteSelection(); ctx.clearHighlight(); ctx.aiExpandedKeys.clear() }
-                        infoCard(ctx)
                         realtimeCard(ctx)
-                        indicatorCard(ctx)
                         View {
                             event { layoutFrameDidChange { frame -> ctx.chartAnchorY = frame.y } }
                             klineChartArea(ctx)
                         }
                         minuteCard(ctx)
                         orderBookCard(ctx)
+                        indicatorCard(ctx)
                         View {
                             event { layoutFrameDidChange { frame -> ctx.aiSectionY = frame.y } }
                             aiAnalysisCards(ctx)
                         }
+                        analysisHistoryPanel(ctx.analysisState) { ctx.clearInteraction(); ctx.clearChartSelection(); ctx.clearMinuteSelection(); ctx.clearHighlight(); ctx.aiExpandedKeys.clear(); ctx.jumpToAiSection() }
+                        infoCard(ctx)
 
                         vif({ ctx.dataSourceText.isNotEmpty() }) {
                             dataSourceFooter(ctx)
@@ -289,10 +290,25 @@ class StockDetailPage : Pager() {
 
     /** 统一联动入口：滚至 K 线并高亮目标 */
     internal fun focusKline(f: KlineFocus) {
+        clearInteraction()
         pendingFocus = f
         klineFocusState.focus = f
         klineFocusState.focusSetAt = System.currentTimeMillis()
-        detailScrollerRef?.view?.setContentOffset(0f, (klineSectionY - 12f).coerceAtLeast(0f), true)
+        if (f is KlineFocus.Price) {
+            highlightedPrice = f.value
+            highlightedPriceLabel = f.label
+        }
+        when (f) {
+            is KlineFocus.Point -> focusEvidenceDate(f.date)
+            is KlineFocus.Range -> focusEvidenceDate(f.start)
+            else -> Unit
+        }
+        scrollToChart()
+        val version = ++focusVersion
+        lifecycleScope.launch {
+            delay(4000)
+            if (focusVersion == version) pendingFocus = null
+        }
     }
 
     internal fun jumpToAiSection(highlight: String? = null) {
@@ -348,6 +364,7 @@ class StockDetailPage : Pager() {
 
     internal fun switchKlinePeriod(period: String) {
         if (klinePeriod == period) return
+        clearInteraction()
         klinePeriod = period
         // 切换周期后重置视口
         val aggregated = getAggregatedKline()
@@ -459,6 +476,7 @@ class StockDetailPage : Pager() {
         if (agg.isEmpty() || klineCanvasWidth <= 0f) return
         val globalIdx = (klineStartIndex + chartHitIndex(x, klineCanvasWidth, getVisibleKline().size)).coerceIn(0, agg.size - 1)
         crosshair.onTap(globalIdx)
+        crosshairY = -1f
         selectedKlineIndex = if (crosshair.state is InteractionState.Locked) globalIdx else -1
         crosshairX = if (crosshair.state is InteractionState.Locked) x else -1f
         if (crosshair.state !is InteractionState.Locked) {
@@ -508,7 +526,8 @@ class StockDetailPage : Pager() {
         crosshairY = -1f
         rangeStats = null
         isRangeSelecting = false
-        clearChartSelection()
+        selectedKlineIndex = -1
+        klineInfoText = ""
     }
 
     internal fun resetView() {
@@ -545,6 +564,7 @@ class StockDetailPage : Pager() {
     }
 
     internal fun clearChartSelection() {
+        clearInteraction()
         selectedKlineIndex = -1
         klineInfoText = ""
     }
@@ -559,6 +579,10 @@ class StockDetailPage : Pager() {
         klineVisibleCount = klineVisibleCount.coerceAtLeast(1).coerceAtMost(bars.size)
         klineStartIndex = (index - klineVisibleCount / 2).coerceIn(0, (bars.size - klineVisibleCount).coerceAtLeast(0))
         selectedKlineIndex = index
+        crosshair.reset()
+        crosshair.onTap(index)
+        crosshairY = -1f
+        crosshairX = ((index - klineStartIndex + 0.5f) / klineVisibleCount) * klineCanvasWidth
         klineInfoText = candleEvidence(bars, index)
         klineShowVolume = true
         scrollToChart()
@@ -866,6 +890,18 @@ internal fun ViewContainer<*, *>.aiVerdictBar(ctx: StockDetailPage, compact: Boo
         }
 
         // 展开区
+        if (!compact && data != null) {
+            Text {
+                attr {
+                    val latest = ctx.stockDetail?.kline?.lastOrNull()?.tradeDate.orEmpty()
+                    text(analysisDateLabel(data.dataDate, latest))
+                    fontSize(10f)
+                    lineHeight(16f)
+                    color(0xFF727B89)
+                    marginBottom(6f)
+                }
+            }
+        }
         if (expanded && v != null) {
             View {
                 attr { flexDirectionRow(); flexWrapWrap(); alignItemsCenter(); marginTop(4f) }
@@ -1525,8 +1561,9 @@ internal fun ViewContainer<*, *>.minuteCardContent(ctx: StockDetailPage, data: L
                 }
             }
 
-            vfor({ ObservableList(mutableListOf(listOf(ctx.aiAnalysis, ctx.highlightedPrice, ctx.selectedMinuteIndex, ctx.minuteShowAvg, ctx.minuteShowVolume))) }) { _ ->
+            View {
                 minuteChartCanvas(ctx, data!!)
+                chartTouchLayer(ctx, minute = true)
             }
             minuteSummary(ctx, data!!)
 
@@ -1564,7 +1601,7 @@ internal fun ViewContainer<*, *>.minuteCardContent(ctx: StockDetailPage, data: L
 
             Text {
                 attr {
-                    text("点击/长按分时图查看价位，自动联动标注到K线，虚线为AI关键价位")
+                    text("横拖查看分时价位 · 竖拖滚动页面 · 虚线为 AI 关键价位")
                     fontSize(10f)
                     color(0xFFBBBBBB)
                     marginTop(6f)
@@ -1575,7 +1612,6 @@ internal fun ViewContainer<*, *>.minuteCardContent(ctx: StockDetailPage, data: L
 }
 
 internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: List<MinutePoint>) {
-    val aiLevels = parseAIPriceLevels(ctx.aiAnalysis)
 
     Canvas({
         attr {
@@ -1583,11 +1619,8 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
             marginTop(4f)
             backgroundColor(0xFFFFFFFF)
         }
-        event {
-            longPress { params -> ctx.selectMinuteAtX(params.x) }
-            click { params -> ctx.selectMinuteAtX(params.x) }
-        }
     }) { context, width, height ->
+        val aiLevels = parseAIPriceLevels(ctx.aiAnalysis)
         val n = data.size
         if (n < 2 || width <= 0f || height <= 0f) return@Canvas
         if (ctx.minuteCanvasWidth != width) ctx.minuteCanvasWidth = width
@@ -2223,7 +2256,7 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
             }
             Text {
                 attr {
-                    text(ctx.klineInfoText.ifEmpty { "${ctx.getAggregatedKline().size}根 · ${ctx.klineVisibleCount}显示" })
+                    text(ctx.getAggregatedKline().getOrNull(ctx.selectedKlineIndex)?.tradeDate ?: "${ctx.getAggregatedKline().size}根 · ${ctx.klineVisibleCount}显示")
                     fontSize(10f)
                     color(0xFF999999)
                     flex(1f)
@@ -2298,12 +2331,14 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                             backgroundColor(0xFFFFF3E8)
                             borderRadius(8f)
                             padding(3f, 8f, 3f, 8f)
+                            marginBottom(8f)
                         }
                         Text {
                             attr {
                                 text("${ctx.highlightedPriceLabel} ¥${fmt2(ctx.highlightedPrice)}")
                                 fontSize(11f)
                                 color(0xFFA56100)
+                                flex(1f)
                             }
                         }
                         View {
@@ -2314,7 +2349,6 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                     }
                 }
             }
-
             // 副图指标选择器（关 / MACD / KDJ，默认关；开启时主画布向下增高）
             View {
                 attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginBottom(6f) }
@@ -2322,16 +2356,27 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                 subIndicatorChip(ctx, "none", "关")
                 subIndicatorChip(ctx, "macd", "MACD")
                 subIndicatorChip(ctx, "kdj", "KDJ")
+                View { attr { flex(1f) } }
+                View {
+                    attr { padding(6f); borderRadius(8f); backgroundColor(0xFFF5F7FA) }
+                    event { click { ctx.toggleVolume() } }
+                    Text { attr { text(if (ctx.klineShowVolume) "量 开" else "量 关"); fontSize(11f); color(0xFF627083) } }
+                }
             }
+            Text { attr { text("横拖平移 · 选中后拖动查看 · 长按拖选区间 · 双指缩放"); fontSize(10f); lineHeight(16f); color(0xFF8A9099); marginBottom(6f) } }
 
-            vfor({ ObservableList(mutableListOf(listOf(ctx.getAggregatedKline(), ctx.klineStartIndex, ctx.klineVisibleCount, ctx.selectedKlineIndex, ctx.aiAnalysis, ctx.highlightedPrice, ctx.highlightedPriceLabel, ctx.klineShowMA, ctx.klineShowVolume, ctx.klinePeriod, ctx.effectiveVerdict, ctx.verdictExpanded, ctx.isAnalyzing, ctx.crosshairX, ctx.crosshairY, ctx.rangeStats, ctx.isRangeSelecting, ctx.klineSubIndicator))) }) { _ ->
             View {
                 attr { flexDirectionColumn() }
-                event { layoutFrameDidChange { ctx.klineSectionY = it.y } }
+                vfor({ ObservableList(mutableListOf(listOf(ctx.aiAnalysis, ctx.verdictExpanded, ctx.isAnalyzing))) }) { _ ->
                 aiVerdictBar(ctx)
-                klineChartCanvas(ctx, ctx.getAggregatedKline())
+                }
+                View {
+                    klineChartCanvas(ctx)
+                    chartTouchLayer(ctx)
+                }
+                vfor({ ObservableList(mutableListOf(listOf(ctx.klineStartIndex, ctx.klineVisibleCount, ctx.selectedKlineIndex, ctx.klinePeriod))) }) { _ ->
                 klineSummary(ctx, ctx.getVisibleKline())
-            }
+                }
             }
             chartEvidencePanel({ ctx.getAggregatedKline() }, { ctx.selectedKlineIndex }, { ctx.aiAnalysis }, { ctx.focusCandle(it) }, { ctx.askAboutChart() })
 
@@ -2515,25 +2560,17 @@ internal fun ViewContainer<*, *>.klineErrorView(ctx: StockDetailPage) {
     }
 }
 
-internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, aggregated: List<KLineDataItem>) {
-    val visible = ctx.getVisibleKline()
-    val aiLevels = parseAIPriceLevels(ctx.aiAnalysis)
-
+internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
     Canvas({
         attr {
             height((if (ctx.klineShowVolume) 380f else 300f) + (if (ctx.klineSubIndicator != "none") 86f else 0f))
             marginTop(2f)
             backgroundColor(0xFFFFFFFF)
         }
-        event {
-            longPress { params ->
-                ctx.beginRangeSelect(params.x)
-            }
-            click { params ->
-                ctx.tapCrosshair(params.x)
-            }
-        }
     }) { context, width, height ->
+        val aggregated = ctx.getAggregatedKline()
+        val visible = ctx.getVisibleKline()
+        val aiLevels = parseAIPriceLevels(ctx.aiAnalysis)
         val nTotal = aggregated.size
         val nVisible = visible.size
         if (nTotal == 0 || nVisible == 0 || width <= 0f || height <= 0f) return@Canvas
@@ -3050,15 +3087,9 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, aggregat
         }
 
         // P0: KlineFocus 覆盖层绘制（Range遮罩/Point竖线/Price虚线，4秒淡出）
-        val focus = ctx.klineFocusState.focus
+        val focus = ctx.pendingFocus
         if (focus != null) {
-            val now = System.currentTimeMillis()
-            val age = now - ctx.klineFocusState.focusSetAt
-            val alpha = when {
-                age < 2000 -> 1f
-                age < 4000 -> 1f - (age - 2000) / 2000f
-                else -> { ctx.klineFocusState.focus = null; 0f }
-            }
+            val alpha = 1f
             if (alpha > 0f) {
                 fun withAlpha(c: Long, a: Float): Color {
                     val base = c and 0x00FFFFFF
@@ -3068,8 +3099,8 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, aggregat
                 fun cxOf(idx: Int): Float = step * idx + step / 2f
                 when (focus) {
                     is KlineFocus.Range -> {
-                        val s = visible.indexOfFirst { it.tradeDate == focus.start }
-                        val e = visible.indexOfFirst { it.tradeDate == focus.end }.let { if (it < 0) s else it }
+                        val s = visible.indexOfFirst { normalizedTradeDate(it.tradeDate) == normalizedTradeDate(focus.start) }
+                        val e = visible.indexOfFirst { normalizedTradeDate(it.tradeDate) == normalizedTradeDate(focus.end) }.let { if (it < 0) s else it }
                         if (s >= 0) {
                             val lo = minOf(s, e); val hi = maxOf(s, e)
                             val x0 = cxOf(lo) - cw / 2
@@ -3097,7 +3128,7 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, aggregat
                         }
                     }
                     is KlineFocus.Point -> {
-                        val i = visible.indexOfFirst { it.tradeDate == focus.date }
+                        val i = visible.indexOfFirst { normalizedTradeDate(it.tradeDate) == normalizedTradeDate(focus.date) }
                         if (i >= 0) {
                             val x = cxOf(i)
                             context.beginPath()

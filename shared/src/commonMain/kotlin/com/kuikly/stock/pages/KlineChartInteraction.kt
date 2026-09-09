@@ -61,8 +61,12 @@ internal class ChartCoordinateMapper(
         minVisible: Int = 20,
         maxVisible: Int = 200,
     ): Pair<Int, Int> {
+        if (dataSize <= 0) return 0 to 0
+        if (!factor.isFinite() || factor <= 0f || !anchorX.isFinite()) return visibleStartIdx to visibleCount
         val anchorIdx = xToGlobalIndex(anchorX).coerceIn(0, dataSize - 1)
-        val newCount = (visibleCount / factor).toInt().coerceIn(minVisible, minOf(maxVisible, dataSize))
+        val upper = maxVisible.coerceAtLeast(1).coerceAtMost(dataSize)
+        val lower = minVisible.coerceAtLeast(1).coerceAtMost(upper)
+        val newCount = (visibleCount / factor).toInt().coerceIn(lower, upper)
         val leftRatio = (anchorIdx - visibleStartIdx).toFloat() / visibleCount.coerceAtLeast(1)
         var newStart = (anchorIdx - (newCount * leftRatio)).toInt()
         newStart = newStart.coerceIn(0, (dataSize - newCount).coerceAtLeast(0))

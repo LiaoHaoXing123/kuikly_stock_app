@@ -92,7 +92,7 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
     override fun registerExternalRenderView(kuiklyRenderExport: IKuiklyRenderExport) {
         super.registerExternalRenderView(kuiklyRenderExport)
         with(kuiklyRenderExport) {
-
+            renderViewExport("StockChartGestureView", { context -> StockChartGestureView(context) })
         }
     }
 
@@ -107,6 +107,7 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
     private fun createPageData(): Map<String, Any> {
         val param = argsToMap()
         param["appId"] = 1
+        param["nativeChartGestures"] = true
         return param
     }
 
