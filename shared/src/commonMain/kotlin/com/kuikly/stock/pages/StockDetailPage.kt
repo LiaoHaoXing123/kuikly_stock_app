@@ -3,8 +3,10 @@
 
 package com.kuikly.stock.pages
 
+import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
 import com.tencent.kuikly.core.annotations.Page
 import com.tencent.kuikly.core.base.*
+import com.tencent.kuikly.core.base.event.layoutFrameDidChange
 import com.tencent.kuikly.core.directives.vfor
 import com.tencent.kuikly.core.directives.vif
 import com.tencent.kuikly.core.directives.velse
@@ -37,11 +39,20 @@ class StockDetailPage : Pager() {
 
     internal var stockCode by observable("")
     internal var stockDetail by observable<StockDetailData?>(null)
-    internal var aiAnalysis by observable<AIAnalysisData?>(null)
+    internal val analysisState = DetailAnalysisState("stock")
+    internal var aiAnalysis: AIAnalysisData?
+        get() = analysisState.analysis
+        set(value) { analysisState.analysis = value }
+    internal var detailScrollerRef: ViewRef<ScrollerView<*, *>>? = null
+    internal var chartAnchorY = 0f
     internal var isLoading by observable(true)
     internal var isAnalyzing by observable(false)
     internal var minuteData by observable<List<MinutePoint>?>(null)
     internal var orderBook by observable<OrderBookData?>(null)
+    internal var minuteLoading by observable(false)
+    internal var minuteError by observable("")
+    internal var orderBookLoading by observable(false)
+    internal var orderBookError by observable("")
     internal var loadErrorMessage by observable("")
     internal var dataSourceText by observable("")
     internal var selectedKlineIndex by observable(-1)
@@ -84,6 +95,7 @@ class StockDetailPage : Pager() {
     override fun didInit() {
         super.didInit()
         stockCode = pagerData.params.optString("code", "")
+        analysisState.restore(stockCode)
         watched = stockCode.isNotEmpty() && WatchStore.isWatched(stockCode)
 
         if (stockCode.isNotEmpty()) {
@@ -123,16 +135,21 @@ class StockDetailPage : Pager() {
                     detailNavigationBar(ctx)
 
                     Scroller {
+                        ref { ctx.detailScrollerRef = it }
                         attr {
                             flex(1f)
                             flexDirectionColumn()
                             scrollEnable(true)
                         }
 
+                        analysisHistoryPanel(ctx.analysisState) { ctx.clearChartSelection(); ctx.clearMinuteSelection(); ctx.clearHighlight(); ctx.aiExpandedKeys.clear() }
                         infoCard(ctx)
                         realtimeCard(ctx)
                         indicatorCard(ctx)
-                        klineChartArea(ctx)
+                        View {
+                            event { layoutFrameDidChange { frame -> ctx.chartAnchorY = frame.y } }
+                            klineChartArea(ctx)
+                        }
                         minuteCard(ctx)
                         orderBookCard(ctx)
                         aiAnalysisCards(ctx)
@@ -169,7 +186,7 @@ class StockDetailPage : Pager() {
                     klineVisibleCount = when {
                         total >= 60 -> 30
                         total >= 30 -> total
-                        else -> total.coerceAtLeast(10)
+                        else -> total
                     }
                     klineStartIndex = (total - klineVisibleCount).coerceAtLeast(0)
                     selectedKlineIndex = -1
@@ -218,7 +235,8 @@ class StockDetailPage : Pager() {
             try {
                 val result = StockRepository.analyzeStock(stockCode)
                 delay(0)
-                aiAnalysis = result
+                clearHighlight()
+                analysisState.accept(result)
                 // 自动高亮第一个关键价位
                 val levels = parseAIPriceLevels(result)
                 if (levels.isNotEmpty()) {
@@ -227,26 +245,48 @@ class StockDetailPage : Pager() {
                 }
             } catch (e: Throwable) {
                 delay(0)
-                aiAnalysis = null
+                analysisState.notice = "分析请求失败：${e.message ?: "网络不可用"}；已保留原分析，可重试"
+                aiErrorNotice = analysisState.notice
             } finally {
                 isAnalyzing = false
             }
         }
     }
 
-    internal fun loadExtraQuote() {
-        if (stockCode.isEmpty()) return
+    internal fun loadExtraQuote() { loadMinuteQuote(); loadBookQuote() }
+
+    internal fun loadMinuteQuote() {
+        if (stockCode.isEmpty() || minuteLoading) return
+        minuteLoading = true
+        minuteError = ""
         lifecycleScope.launch {
             try {
-                val minute = StockRepository.loadMinute(stockCode)
+                val data = StockRepository.loadMinute(stockCode)
                 delay(0)
-                minuteData = minute
-                val book = StockRepository.loadOrderBook(stockCode)
-                delay(0)
-                orderBook = book
+                minuteData = data ?: emptyList()
+                clearMinuteSelection()
             } catch (e: Throwable) {
                 delay(0)
-            }
+                minuteData = emptyList()
+                minuteError = e.message ?: "分时加载失败"
+            } finally { minuteLoading = false }
+        }
+    }
+
+    internal fun loadBookQuote() {
+        if (stockCode.isEmpty() || orderBookLoading) return
+        orderBookLoading = true
+        orderBookError = ""
+        lifecycleScope.launch {
+            try {
+                val data = StockRepository.loadOrderBook(stockCode)
+                delay(0)
+                orderBook = data?.takeIf { book -> (book.bids + book.asks).any { (price, _) -> price != null && price.isFinite() && price > 0 } }
+            } catch (e: Throwable) {
+                delay(0)
+                orderBook = null
+                orderBookError = e.message ?: "盘口加载失败"
+            } finally { orderBookLoading = false }
         }
     }
 
@@ -261,11 +301,11 @@ class StockDetailPage : Pager() {
         klineVisibleCount = when (period) {
             "W" -> 26.coerceAtMost(total)
             "M" -> 12.coerceAtMost(total)
-            else -> 30.coerceAtMost(total).coerceAtLeast(10)
+            else -> 30.coerceAtMost(total)
         }
         klineStartIndex = (total - klineVisibleCount).coerceAtLeast(0)
         selectedKlineIndex = -1
-        klineInfoText = if (period == "D") "日K" else if (period == "W") "周K · 每5日聚合" else "月K · 按月聚合"
+        klineInfoText = if (period == "D") "日K" else if (period == "W") "周K · 自然周聚合" else "月K · 按月聚合"
     }
 
     internal fun getAggregatedKline(): List<KLineDataItem> {
@@ -286,7 +326,8 @@ class StockDetailPage : Pager() {
     }
 
     internal fun zoomIn() {
-        val newCount = (klineVisibleCount - 5).coerceAtLeast(10)
+        clearChartSelection()
+        val newCount = (klineVisibleCount - 5).coerceAtLeast(10).coerceAtMost(getAggregatedKline().size)
         if (newCount != klineVisibleCount) {
             // 保持中心点
             val center = klineStartIndex + klineVisibleCount / 2
@@ -296,6 +337,7 @@ class StockDetailPage : Pager() {
     }
 
     internal fun zoomOut() {
+        clearChartSelection()
         val total = getAggregatedKline().size
         val newCount = (klineVisibleCount + 5).coerceAtMost(90).coerceAtMost(total)
         if (newCount != klineVisibleCount) {
@@ -306,15 +348,18 @@ class StockDetailPage : Pager() {
     }
 
     internal fun panLeft() {
+        clearChartSelection()
         klineStartIndex = (klineStartIndex - 5).coerceAtLeast(0)
     }
 
     internal fun panRight() {
+        clearChartSelection()
         val total = getAggregatedKline().size
         klineStartIndex = (klineStartIndex + 5).coerceAtMost((total - klineVisibleCount).coerceAtLeast(0))
     }
 
     internal fun resetView() {
+        clearChartSelection()
         val total = getAggregatedKline().size
         klineStartIndex = (total - klineVisibleCount).coerceAtLeast(0)
         selectedKlineIndex = -1
@@ -333,9 +378,9 @@ class StockDetailPage : Pager() {
     internal fun selectKlineAtX(x: Float) {
         val agg = getAggregatedKline()
         if (agg.isEmpty() || klineCanvasWidth <= 0f) return
-        val visibleCount = klineVisibleCount
+        val visibleCount = getVisibleKline().size
         if (visibleCount <= 0) return
-        val visibleIndex = ((x / klineCanvasWidth) * visibleCount).toInt().coerceIn(0, visibleCount - 1)
+        val visibleIndex = chartHitIndex(x, klineCanvasWidth, visibleCount)
         val globalIndex = (klineStartIndex + visibleIndex).coerceIn(0, agg.size - 1)
         selectedKlineIndex = globalIndex
         // 更新信息文本
@@ -346,10 +391,47 @@ class StockDetailPage : Pager() {
         }
     }
 
+    internal fun clearChartSelection() {
+        selectedKlineIndex = -1
+        klineInfoText = ""
+    }
+
+    internal fun scrollToChart() {
+        detailScrollerRef?.view?.setContentOffset(offsetX = 0f, offsetY = chartAnchorY.coerceAtLeast(0f), animated = true)
+    }
+
+    internal fun focusCandle(index: Int) {
+        val bars = getAggregatedKline()
+        if (index !in bars.indices) return
+        klineVisibleCount = klineVisibleCount.coerceAtLeast(1).coerceAtMost(bars.size)
+        klineStartIndex = (index - klineVisibleCount / 2).coerceIn(0, (bars.size - klineVisibleCount).coerceAtLeast(0))
+        selectedKlineIndex = index
+        klineInfoText = candleEvidence(bars, index)
+        klineShowVolume = true
+        scrollToChart()
+    }
+
+    internal fun focusEvidenceDate(date: String) {
+        switchKlinePeriod("D")
+        val index = getAggregatedKline().indexOfFirst { normalizedTradeDate(it.tradeDate) == normalizedTradeDate(date) }
+        if (index < 0) { analysisState.notice = "当前行情中没有 $date 的K线，请核对分析日期"; return }
+        focusCandle(index)
+    }
+
+    internal fun askAboutChart() {
+        val selected = selectedKlineIndex
+        val bars = if (selected >= 0) getAggregatedKline() else getVisibleKline()
+        val prompt = detailFollowupPrompt("stock", stockCode, stockDetail?.info?.name ?: stockCode, klinePeriod, bars, selected, aiAnalysis)
+        val params = JSONObject()
+        params.put("detail_question", prompt)
+        acquireModule<RouterModule>(RouterModule.MODULE_NAME).openPage("chat_main", params)
+    }
+
     internal fun highlightAIPrice(price: Double, label: String) {
         if (price <= 0 || !price.isFinite()) return
         highlightedPrice = price
         highlightedPriceLabel = label
+        scrollToChart()
         // 轻提示
         aiErrorNotice = "已在K线标注 $label ¥${fmt2(price)}"
         lifecycleScope.launch {
@@ -390,6 +472,7 @@ class StockDetailPage : Pager() {
     }
 
     internal fun clearMinuteSelection() {
+        if (highlightedPriceLabel.startsWith("分时 ")) clearHighlight()
         selectedMinuteIndex = -1
         minuteInfoText = ""
     }
@@ -452,7 +535,11 @@ class StockDetailPage : Pager() {
         } else {
             ConclusionAlertFactory.resistance(pendingAlertCode, pendingAlertName, pendingAlertValue)
         }
-        WatchStore.upsertAlert(rule)
+        if (!WatchStore.upsertAlert(rule)) {
+            aiErrorNotice = "提醒保存失败，请重试"
+            return
+        }
+        watched = WatchStore.isWatched(stockCode)
         showAlertConfirm = false
         aiErrorNotice = "提醒已创建 · ${pendingAlertName} ${if (pendingAlertType == 1) "跌至" else "涨至"} ${fmt2(pendingAlertValue)}"
         lifecycleScope.launch {
@@ -463,72 +550,6 @@ class StockDetailPage : Pager() {
 }
 
 // --- 聚合逻辑 ---
-
-internal fun aggregateToWeekly(daily: List<KLineDataItem>): List<KLineDataItem> {
-    if (daily.size <= 5) return daily
-    val result = mutableListOf<KLineDataItem>()
-    var i = 0
-    while (i < daily.size) {
-        val chunk = daily.subList(i, (i + 5).coerceAtMost(daily.size))
-        if (chunk.isEmpty()) break
-        val first = chunk.first()
-        val last = chunk.last()
-        val high = chunk.maxOf { it.high }
-        val low = chunk.minOf { it.low }
-        val vol = chunk.sumOf { it.volume }
-        val amt = chunk.mapNotNull { it.amount }.sum().takeIf { it > 0 }
-        result.add(
-            KLineDataItem(
-                code = first.code,
-                tradeDate = last.tradeDate,
-                open = first.open,
-                close = last.close,
-                high = high,
-                low = low,
-                volume = vol,
-                amount = amt
-            )
-        )
-        i += 5
-    }
-    return result
-}
-
-internal fun aggregateToMonthly(daily: List<KLineDataItem>): List<KLineDataItem> {
-    if (daily.isEmpty()) return emptyList()
-    val grouped = linkedMapOf<String, MutableList<KLineDataItem>>()
-    for (k in daily) {
-        val monthKey = extractMonthKey(k.tradeDate)
-        grouped.getOrPut(monthKey) { mutableListOf() }.add(k)
-    }
-    return grouped.values.map { chunk ->
-        val first = chunk.first()
-        val last = chunk.last()
-        val high = chunk.maxOf { it.high }
-        val low = chunk.minOf { it.low }
-        val vol = chunk.sumOf { it.volume }
-        val amt = chunk.mapNotNull { it.amount }.sum().takeIf { it > 0 }
-        KLineDataItem(
-            code = first.code,
-            tradeDate = last.tradeDate,
-            open = first.open,
-            close = last.close,
-            high = high,
-            low = low,
-            volume = vol,
-            amount = amt
-        )
-    }
-}
-
-internal fun extractMonthKey(date: String): String {
-    // 支持 YYYY-MM-DD 和 YYYYMMDD
-    return if (date.contains("-")) {
-        if (date.length >= 7) date.substring(0, 7) else date
-    } else {
-        if (date.length >= 6) date.substring(0, 6) else date
-    }
-}
 
 // --- AI价位解析 ---
 
@@ -642,7 +663,7 @@ internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
             event { click { ctx.toggleWatch() } }
             Text {
                 attr {
-                    text(if (ctx.watched) "★" else "☆")
+                    text(if (ctx.watched) "★ 取消自选及提醒" else "☆ 加入自选")
                     fontSize(20f)
                     color(0xFFFFFFFF)
                 }
@@ -976,7 +997,12 @@ internal fun ViewContainer<*, *>.indicatorItem(label: String, value: Double?) {
 private fun fmtInd(v: Double?): String = if (v == null) "-" else fmt3(v)
 
 internal fun ViewContainer<*, *>.minuteCard(ctx: StockDetailPage) {
-    val data = ctx.minuteData
+    vfor({ ObservableList(mutableListOf(Triple(ctx.minuteData, ctx.minuteLoading, ctx.minuteError))) }) { (data, loading, error) ->
+    minuteCardContent(ctx, data, loading, error)
+    }
+}
+
+internal fun ViewContainer<*, *>.minuteCardContent(ctx: StockDetailPage, data: List<MinutePoint>?, loading: Boolean, error: String) {
 
     View {
         attr {
@@ -1003,25 +1029,26 @@ internal fun ViewContainer<*, *>.minuteCard(ctx: StockDetailPage) {
             }
         }
 
-        vif({ data == null }) {
+        detailAction("重试分时") { ctx.loadMinuteQuote() }
+        vif({ loading }) {
             View {
                 attr { padding(20f); alignItems(FlexAlign.CENTER) }
                 Text { attr { text("分时数据加载中..."); fontSize(12f); color(0xFF999999) } }
             }
         }
-        velseif({ data != null && data.isEmpty() }) {
+        velseif({ error.isNotEmpty() || data.isNullOrEmpty() }) {
             View {
                 attr { padding(16f); backgroundColor(0xFFF5F5F5); borderRadius(8f); alignItems(FlexAlign.CENTER) }
-                Text { attr { text("该股暂无分时数据"); fontSize(13f); color(0xFF666666); fontWeightBold() } }
+                Text { attr { text(if (error.isNotEmpty()) "分时加载失败：$error" else "该股暂无分时数据"); fontSize(13f); color(0xFF666666); fontWeightBold() } }
                 Text {
                     attr {
-                        text("分时仅11只热门股有数据（平安银行、茅台等），可查看K线或切换热门股演示")
+                        text("数据源暂未提供分时，可重试或查看日K行情")
                         fontSize(11f); color(0xFF999999); marginTop(6f); textAlignCenter(); lineHeight(16f)
                     }
                 }
                 View {
                     attr { marginTop(10f); padding(6f, 12f, 6f, 12f); backgroundColor(0xFFE3F2FD); borderRadius(10f) }
-                    event { click { ctx.resetView() } }
+                    event { click { ctx.scrollToChart() } }
                     Text { attr { text("查看K线联动"); fontSize(11f); color(0xFF1976D2) } }
                 }
             }
@@ -1073,12 +1100,14 @@ internal fun ViewContainer<*, *>.minuteCard(ctx: StockDetailPage) {
                 }
             }
 
-            minuteChartCanvas(ctx, data!!)
-            minuteSummary(ctx, data)
+            vfor({ ObservableList(mutableListOf(listOf(ctx.aiAnalysis, ctx.highlightedPrice, ctx.selectedMinuteIndex, ctx.minuteShowAvg, ctx.minuteShowVolume))) }) { _ ->
+                minuteChartCanvas(ctx, data!!)
+            }
+            minuteSummary(ctx, data!!)
 
             // AI价位在分时上的图例
-            vif({ ctx.aiAnalysis != null }) {
-                val levels = parseAIPriceLevels(ctx.aiAnalysis)
+            vfor({ ObservableList(listOfNotNull(ctx.aiAnalysis).toMutableList()) }) { analysis ->
+                val levels = parseAIPriceLevels(analysis)
                 if (levels.isNotEmpty()) {
                     View {
                         attr { flexDirectionRow(); flexWrapWrap(); marginTop(8f) }
@@ -1376,7 +1405,20 @@ internal fun ViewContainer<*, *>.minuteSummary(ctx: StockDetailPage, data: List<
 }
 
 internal fun ViewContainer<*, *>.orderBookCard(ctx: StockDetailPage) {
-    val book = ctx.orderBook ?: return
+    View {
+        attr { margin(4f, 12f, 4f, 12f); padding(12f); backgroundColor(0xFFFFFFFF); borderRadius(10f) }
+        Text { attr { text("五档盘口"); fontSize(15f); fontWeightBold() } }
+        vif({ ctx.orderBookLoading }) { Text { attr { text("盘口数据加载中…"); fontSize(12f) } } }
+        velseif({ ctx.orderBookError.isNotEmpty() || ctx.orderBook == null }) {
+            Text { attr { text(ctx.orderBookError.ifEmpty { "暂无盘口数据" }); fontSize(12f) } }
+            detailAction("重试盘口") { ctx.loadBookQuote() }
+            detailAction("查看K线") { ctx.scrollToChart() }
+        }
+        velse { vfor({ ObservableList(listOfNotNull(ctx.orderBook).toMutableList()) }) { book -> orderBookCardContent(ctx, book) } }
+    }
+}
+
+internal fun ViewContainer<*, *>.orderBookCardContent(ctx: StockDetailPage, book: OrderBookData) {
 
     View {
         attr {
@@ -1553,8 +1595,8 @@ internal fun ViewContainer<*, *>.orderBookDepthCanvas(ctx: StockDetailPage, book
         }
     }) { context, width, height ->
         if (width <= 0f || height <= 0f) return@Canvas
-        val bids = book.bids.mapNotNull { it.first to it.second }.filter { it.first != null && it.first > 0 }
-        val asks = book.asks.mapNotNull { it.first to it.second }.filter { it.first != null && it.first > 0 }
+        val bids = book.bids.filter { (price, _) -> price != null && price.isFinite() && price > 0 }
+        val asks = book.asks.filter { (price, _) -> price != null && price.isFinite() && price > 0 }
         if (bids.isEmpty() && asks.isEmpty()) return@Canvas
 
         val allPrices = (bids.map { it.first!! } + asks.map { it.first!! })
@@ -1765,12 +1807,15 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                 }
             }
 
+            vfor({ ObservableList(mutableListOf(listOf(ctx.getAggregatedKline(), ctx.klineStartIndex, ctx.klineVisibleCount, ctx.selectedKlineIndex, ctx.aiAnalysis, ctx.highlightedPrice, ctx.highlightedPriceLabel, ctx.klineShowMA, ctx.klineShowVolume, ctx.klinePeriod))) }) { _ ->
             klineChartCanvas(ctx, ctx.getAggregatedKline())
             klineSummary(ctx, ctx.getVisibleKline())
+            }
+            chartEvidencePanel({ ctx.getAggregatedKline() }, { ctx.selectedKlineIndex }, { ctx.aiAnalysis }, { ctx.focusCandle(it) }, { ctx.askAboutChart() })
 
             // AI价位图例
-            vif({ ctx.aiAnalysis != null }) {
-                val levels = parseAIPriceLevels(ctx.aiAnalysis)
+            vfor({ ObservableList(listOfNotNull(ctx.aiAnalysis).toMutableList()) }) { analysis ->
+                val levels = parseAIPriceLevels(analysis)
                 if (levels.isNotEmpty()) {
                     View {
                         attr { flexDirectionRow(); flexWrapWrap(); marginTop(8f) }
@@ -1832,11 +1877,10 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
 }
 
 internal fun ViewContainer<*, *>.klinePeriodChip(ctx: StockDetailPage, period: String, label: String) {
-    val selected = ctx.klinePeriod == period
     View {
         attr {
             padding(5f, 12f, 5f, 12f)
-            backgroundColor(if (selected) 0xFF1976D2 else 0xFFF5F5F5)
+            backgroundColor(if (ctx.klinePeriod == period) 0xFF1976D2 else 0xFFF5F5F5)
             borderRadius(14f)
             marginRight(6f)
         }
@@ -1846,7 +1890,7 @@ internal fun ViewContainer<*, *>.klinePeriodChip(ctx: StockDetailPage, period: S
                 text(label)
                 fontSize(12f)
                 fontWeightBold()
-                color(if (selected) 0xFFFFFFFF else 0xFF666666)
+                color(if (ctx.klinePeriod == period) 0xFFFFFFFF else 0xFF666666)
             }
         }
     }
@@ -2389,10 +2433,11 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
         }
         velse {
             // 结构化卡片渲染
-            val analysis = ctx.aiAnalysis!!
+            vfor({ ObservableList(listOfNotNull(ctx.aiAnalysis).map { it to ctx.aiExpandedKeys.toList() }.toMutableList()) }) { (analysis, _) ->
+            aiEvidencePanel({ ctx.aiAnalysis }) { ctx.focusEvidenceDate(it) }
             // 按类型分组，固定顺序：趋势、信号、建议、风险、总结
             val orderedTypes = listOf("trend_card", "signal_card", "suggestion_card", "risk_card", "summary_card")
-            val grouped = analysis.cards.groupBy { it["type"] as? String ?: "unknown" }
+            val grouped = analysis.cards.filter { it["type"] != "evidence_card" }.groupBy { it["type"] as? String ?: "unknown" }
             orderedTypes.forEach { t ->
                 grouped[t]?.forEachIndexed { idx, card ->
                     renderAIAnalysisCard(ctx, card, "${t}_$idx")
@@ -2432,6 +2477,7 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
             }
         }
     }
+    }
 }
 
 internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card: Map<String, Any?>, key: String) {
@@ -2444,7 +2490,6 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
         "summary_card" -> "总结"
         else -> "分析"
     }
-    val expanded = ctx.isAIExpanded(key)
 
     when (type) {
         "trend_card" -> {
@@ -2487,7 +2532,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                         event { click { ctx.toggleAISection(key) } }
                         Text {
                             attr {
-                                text(if (expanded) "收起" else "展开")
+                                text(if (ctx.isAIExpanded(key)) "收起" else "展开")
                                 fontSize(11f)
                                 color(0xFF1976D2)
                             }
@@ -2503,7 +2548,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                         lineHeight(19f)
                     }
                 }
-                vif({ expanded }) {
+                vif({ ctx.isAIExpanded(key) }) {
                     val bias = card["bias"] as? String ?: ""
                     if (bias.isNotEmpty()) {
                         View {
@@ -2555,7 +2600,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                         event { click { ctx.toggleAISection(key) } }
                         Text {
                             attr {
-                                text(if (expanded) "收起" else "展开")
+                                text(if (ctx.isAIExpanded(key)) "收起" else "展开")
                                 fontSize(11f)
                                 color(0xFFA56100)
                             }
@@ -2563,7 +2608,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                     }
                 }
                 // 默认显示2条，展开显示全部
-                val displaySignals = if (expanded) signals else signals.take(2)
+                val displaySignals = if (ctx.isAIExpanded(key)) signals else signals.take(2)
                 displaySignals.forEach { sig ->
                     View {
                         attr { flexDirectionRow(); marginTop(6f) }
@@ -2586,7 +2631,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                         }
                     }
                 }
-                if (!expanded && signals.size > 2) {
+                if (!ctx.isAIExpanded(key) && signals.size > 2) {
                     Text {
                         attr {
                             text("还有 ${signals.size - 2} 条信号，点击展开查看")
@@ -2635,7 +2680,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                         event { click { ctx.toggleAISection(key) } }
                         Text {
                             attr {
-                                text(if (expanded) "收起详情" else "展开价位")
+                                text(if (ctx.isAIExpanded(key)) "收起详情" else "展开价位")
                                 fontSize(11f)
                                 color(0xFFFFFFFF)
                                 fontWeightBold()
@@ -2662,7 +2707,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                     if (stopLoss != null) priceLevelRow(ctx, "止损价", stopLoss, currentPrice, 0xFFA56100, 1)
                 }
 
-                vif({ expanded }) {
+                vif({ ctx.isAIExpanded(key) }) {
                     View {
                         attr {
                             marginTop(10f)
@@ -3212,5 +3257,8 @@ data class AIAnalysisData(
     val code: String,
     val name: String?,
     val analysis: Map<String, Any?>,
-    val cards: List<Map<String, Any?>>
+    val cards: List<Map<String, Any?>>,
+    val source: String = "来源未标注",
+    val generatedAt: Long = 0,
+    val dataDate: String = ""
 )

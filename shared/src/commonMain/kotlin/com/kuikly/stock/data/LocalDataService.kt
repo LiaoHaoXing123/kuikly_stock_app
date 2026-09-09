@@ -289,6 +289,11 @@ object LocalDataService {
 
     suspend fun mockAnalysis(code: String): AIAnalysisData? {
         val detail = loadStockDetail(code) ?: return null
+        return mockAnalysis(detail)
+    }
+
+    fun mockAnalysis(detail: StockDetailData): AIAnalysisData {
+        val code = detail.info?.code ?: detail.realtime?.code.orEmpty()
 
         val name = detail.info?.name ?: "未知"
         val price = detail.realtime?.price ?: 0.0
@@ -361,6 +366,11 @@ object LocalDataService {
 
     suspend fun mockIndexAnalysis(code: String): AIAnalysisData? {
         val detail = runCatching { StockDb.indexDetail(code) }.getOrNull() ?: return null
+        return mockIndexAnalysis(detail)
+    }
+
+    fun mockIndexAnalysis(detail: StockDetailData): AIAnalysisData {
+        val code = detail.info?.code ?: detail.realtime?.code.orEmpty()
 
         val name = detail.info?.name ?: "未知指数"
         val price = detail.realtime?.price ?: 0.0

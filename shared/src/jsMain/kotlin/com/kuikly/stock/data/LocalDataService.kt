@@ -20,15 +20,21 @@ actual fun loadAssetText(path: String): String? {
     return null
 }
 
-internal actual fun appPrefsGet(key: String): String? = null
+internal actual fun appPrefsGet(key: String): String? = try {
+    val available = js("typeof localStorage !== 'undefined'") as Boolean
+    if (available) js("localStorage.getItem(key)") as? String else null
+} catch (_: Throwable) { null }
 
 internal actual fun appPrefsSet(key: String, value: String) {
+    if (js("typeof localStorage !== 'undefined'") as Boolean) {
+        js("localStorage.setItem(key, value)")
+    }
 }
 
 internal actual fun copyTextToClipboard(text: String) {
 }
 
-internal actual fun exportTimestampString(epochMs: Long): String = epochMs.toString()
+internal actual fun exportTimestampString(epochMs: Long): String = kotlin.js.Date(epochMs.toDouble()).toLocaleString()
 
 internal actual fun shareText(title: String, text: String): Boolean = false
 

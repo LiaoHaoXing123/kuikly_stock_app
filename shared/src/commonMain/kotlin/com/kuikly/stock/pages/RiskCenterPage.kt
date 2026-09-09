@@ -2,6 +2,7 @@ package com.kuikly.stock.pages
 
 import com.kuikly.stock.data.AlertEngine
 import com.kuikly.stock.data.StockDb
+import com.kuikly.stock.data.HoldingInput
 import com.kuikly.stock.data.WatchHolding
 import com.kuikly.stock.data.WatchStore
 import com.kuikly.stock.data.fmt2
@@ -50,6 +51,7 @@ class RiskCenterPage : Pager() {
     internal var addMessage by observable("")
 
     internal var showEditDialog by observable(false)
+    internal var editMessage by observable("")
     internal var editCode by observable("")
     internal var editName by observable("")
     internal var editSharesText by observable("")
@@ -129,21 +131,12 @@ class RiskCenterPage : Pager() {
     }
 
     internal fun confirmAdd() {
-        val code = addCodeText.trim().uppercase()
-        val shares = addSharesText.trim().toDoubleOrNull() ?: 0.0
-        val cost = addCostText.trim().toDoubleOrNull() ?: 0.0
-        if (code.length != 6) {
-            addMessage = "请输入6位股票代码"
+        val input = HoldingInput.parse(addCodeText, addSharesText, addCostText)
+        if (input == null) {
+            addMessage = "请输入6位数字股票代码、有效正数股数和成本价"
             return
         }
-        if (shares <= 0) {
-            addMessage = "持仓股数需大于0"
-            return
-        }
-        if (cost <= 0) {
-            addMessage = "成本价需大于0"
-            return
-        }
+        val (code, shares, cost) = input
         val detail = runCatching { StockDb.stockDetail(code) }.getOrNull()
         val name = detail?.info?.name ?: code
         WatchStore.updateHolding(WatchHolding(code, name, shares, cost))
@@ -154,28 +147,28 @@ class RiskCenterPage : Pager() {
     }
 
     internal fun openEditDialog(line: HoldingRiskLine) {
+        editMessage = ""
         editCode = line.code
         editName = line.name
         editSharesText = trimNum(line.shares)
-        editCostText = fmt2(line.costValue / line.shares.coerceAtLeast(1.0))
+        editCostText = fmt2(line.costValue / line.shares)
         showEditDialog = true
     }
 
     internal fun confirmEdit() {
-        val shares = editSharesText.trim().toDoubleOrNull() ?: 0.0
-        val cost = editCostText.trim().toDoubleOrNull() ?: 0.0
-        if (shares < 0 || cost < 0) return
-        if (shares == 0.0) {
-            WatchStore.remove(editCode)
-        } else {
-            WatchStore.updateHolding(WatchHolding(editCode, editName, shares, cost))
+        val input = HoldingInput.parse(editCode, editSharesText, editCostText, allowClear = true)
+        if (input == null) {
+            editMessage = "请输入有效股数和成本价；股数填0清空持仓并保留自选"
+            return
         }
+        WatchStore.updateHolding(WatchHolding(input.code, editName, input.shares, input.cost))
         showEditDialog = false
         reload()
     }
 
     internal fun removeHolding(code: String) {
-        WatchStore.remove(code)
+        WatchStore.clearHolding(code)
+        refreshMessage = "已清空持仓，保留自选和提醒"
         reload()
     }
 
@@ -459,7 +452,7 @@ private fun ViewContainer<*, *>.holdingRiskRow(ctx: RiskCenterPage, line: Holdin
                     marginRight(8f)
                 }
                 event { click { ctx.removeHolding(line.code) } }
-                Text { attr { text("移出"); fontSize(11f); color(0xFFD32F2F) } }
+                Text { attr { text("清仓留自选"); fontSize(11f); color(0xFFD32F2F) } }
             }
             View { attr { flex(1f) } }
             View {
@@ -702,7 +695,8 @@ private fun ViewContainer<*, *>.riskEditDialog(ctx: RiskCenterPage) {
                 }
             }
 
-            Text { attr { text("股数填0将移出持仓，仅保留关注"); fontSize(11f); color(0xFF999999); marginTop(8f) } }
+            Text { attr { text(ctx.editMessage); fontSize(12f); color(0xFFD32F2F); marginTop(8f) } }
+            Text { attr { text("股数填0将清空持仓，保留自选和提醒"); fontSize(11f); color(0xFF999999); marginTop(8f) } }
 
             View {
                 attr { flexDirectionRow(); marginTop(16f) }

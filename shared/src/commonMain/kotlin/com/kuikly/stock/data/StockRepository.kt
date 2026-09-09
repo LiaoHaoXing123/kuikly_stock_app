@@ -154,23 +154,31 @@ object StockRepository {
         }
     }
 
-    suspend fun analyzeStock(code: String): AIAnalysisData? {
-        if (!DataSourceManager.isOnline || !AiRuntimeConfig.isConfigured()) {
-            println("[Repo] analyzeStock OFFLINE fallback for " + code)
-            return LocalDataService.mockAnalysis(code)
-        }
-        return try {
-            val detail = StockDb.stockDetail(code) ?: return LocalDataService.mockAnalysis(code)
-            println("[Repo] analyzeStock calling DeepSeek for " + code)
-            val result = DeepSeekApi.analyzeStock(detail)
-            println("[Repo] analyzeStock DONE cards=" + result.cards.size)
-            result
-        } catch (e: Throwable) {
-            println("[Repo] analyzeStock FAILED: " + (e.message ?: e.toString()))
-            LocalDataService.mockAnalysis(code)
-        }
-    }
+    suspend fun analyzeStock(code: String): AIAnalysisData = analyzeDetail(code, false)
 
+    private suspend fun analyzeDetail(code: String, index: Boolean): AIAnalysisData {
+        val detail = if (index) StockDb.indexDetail(code) else StockDb.stockDetail(code)
+        if (detail == null) throw IllegalStateException("没有可用行情，请先刷新数据")
+        val dataDate = detail.kline?.lastOrNull()?.tradeDate ?: detail.indicator?.tradeDate.orEmpty()
+        if (!DataSourceManager.isOnline || !AiRuntimeConfig.isConfigured()) {
+            val template = if (index) LocalDataService.mockIndexAnalysis(detail) else LocalDataService.mockAnalysis(detail)
+            return template.copy(source = "本地模板 · 非 AI 生成", generatedAt = nowMillis(), dataDate = dataDate)
+        }
+        val config = AiRuntimeConfig.current()
+        val result = try {
+            withTimeout(95000) {
+                if (index) DeepSeekApi.analyzeIndex(detail) else DeepSeekApi.analyzeStock(detail)
+            }
+        } catch (e: TimeoutCancellationException) {
+            throw IllegalStateException("AI 响应超时，请重试", e)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            throw IllegalStateException(friendlyAiError(e.message), e)
+        }
+        if (result.cards.isEmpty()) throw IllegalStateException("AI 返回的分析不完整，请重试")
+        return result.copy(source = "${config.providerName} · ${config.model}", generatedAt = nowMillis(), dataDate = dataDate)
+    }
     suspend fun loadIndexDetail(code: String): StockDetailData? {
         return try {
             StockDb.indexDetail(code)
@@ -179,29 +187,14 @@ object StockRepository {
         }
     }
 
-    suspend fun analyzeIndex(code: String): AIAnalysisData? {
-        if (!DataSourceManager.isOnline || !AiRuntimeConfig.isConfigured()) {
-            println("[Repo] analyzeIndex OFFLINE fallback for " + code)
-            return LocalDataService.mockIndexAnalysis(code)
-        }
-        return try {
-            val detail = StockDb.indexDetail(code) ?: return LocalDataService.mockIndexAnalysis(code)
-            println("[Repo] analyzeIndex calling DeepSeek for " + code)
-            val result = DeepSeekApi.analyzeIndex(detail)
-            println("[Repo] analyzeIndex DONE cards=" + result.cards.size)
-            result
-        } catch (e: Throwable) {
-            println("[Repo] analyzeIndex FAILED: " + (e.message ?: e.toString()))
-            LocalDataService.mockIndexAnalysis(code)
-        }
-    }
+    suspend fun analyzeIndex(code: String): AIAnalysisData = analyzeDetail(code, true)
 
     suspend fun loadMinute(code: String): List<MinutePoint>? {
-        return try { StockDb.minute(code) } catch (e: Throwable) { null }
+        return StockDb.minute(code)
     }
 
     suspend fun loadOrderBook(code: String): OrderBookData? {
-        return try { StockDb.orderBook(code) } catch (e: Throwable) { null }
+        return StockDb.orderBook(code)
     }
 
     suspend fun dataSources(): List<Pair<String, String>> {

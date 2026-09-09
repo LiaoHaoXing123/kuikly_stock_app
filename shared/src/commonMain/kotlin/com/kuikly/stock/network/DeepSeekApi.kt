@@ -21,6 +21,7 @@ import com.kuikly.stock.pages.IndicatorData
 import com.kuikly.stock.pages.RealtimeQuoteData
 import com.kuikly.stock.pages.StockDetailData
 import com.kuikly.stock.pages.StockListItem
+import com.kuikly.stock.pages.validatedAnalysisEvidence
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -165,6 +166,7 @@ object DeepSeekApi {
         val messages = buildAnalysisPrompt(detail)
         val raw = chat(messages)
         val analysis = parseJsonObjectLoose(raw)
+        require(analysis["trend"] is String || analysis["summary"] is String) { "AI 返回的分析不完整，请重试" }
         val cards = buildAnalysisCards(detail, analysis)
         return AIAnalysisData(
             code = detail.info?.code ?: "",
@@ -178,6 +180,7 @@ object DeepSeekApi {
         val messages = buildIndexAnalysisPrompt(detail)
         val raw = chat(messages)
         val analysis = parseJsonObjectLoose(raw)
+        require(analysis["trend"] is String || analysis["summary"] is String) { "AI 返回的分析不完整，请重试" }
         val cards = buildAnalysisCards(detail, analysis)
         return AIAnalysisData(
             code = detail.info?.code ?: "",
@@ -227,10 +230,13 @@ object DeepSeekApi {
 
 注意：没有技术指标与估值数据，不要编造均线/MACD/RSI/KDJ 数值与 PE/PB。
 
+请额外提供 evidence 数组，最多6项，每项包含 date（必须是下面提供的某个K线日期）和 reason（该日行情如何支持你的判断）。无法定位时返回空数组，不得编造日期或数值。
+
 JSON 格式示例：
 {
   "trend": "趋势描述",
   "signals": ["信号1", "信号2"],
+  "evidence": [],
   "support_price": "支撑点位",
   "resistance_price": "压力点位",
   "risk_level": "低|中|高",
@@ -307,10 +313,13 @@ $klineText
 5. 操作建议 (suggestion): 买入/卖出/持有/观望？目标价位和止损位？
 6. 总结 (summary): 一句话总结当前该股的投资价值和风险
 
+请额外提供 evidence 数组，最多6项，每项包含 date（必须是下面提供的某个K线日期）和 reason（该日行情如何支持你的判断）。无法定位时返回空数组，不得编造日期或数值。
+
 JSON 格式示例：
 {
   "trend": "趋势描述",
   "signals": ["信号1", "信号2"],
+  "evidence": [],
   "support_price": "支撑位价格",
   "resistance_price": "压力位价格",
   "risk_level": "低|中|高",
@@ -382,6 +391,8 @@ $indicatorText
         cards.add(mapOf("type" to "summary_card", "title" to "数据来源",
             "summary" to "技术指标来自本地 SQLite（真实计算值），AI 内容由当前启用的服务生成。",
             "color" to "#90A4AE"))
+        val evidence = validatedAnalysisEvidence(a["evidence"], detail.kline.orEmpty().takeLast(10))
+        if (evidence.isNotEmpty()) cards.add(mapOf("type" to "evidence_card", "items" to evidence))
         return cards
     }
 

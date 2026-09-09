@@ -34,7 +34,7 @@ object AlertNotifier {
         val fired = parseFired(appPrefsGet(KEY_LAST))
         var changed = false
         for ((rule, message) in hits) {
-            val key = rule.code + "_" + rule.type + "_" + (rule.threshold * 100).toInt()
+            val key = rule.identity
             if (fired[key] == today) continue
             fired[key] = today
             changed = true

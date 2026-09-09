@@ -236,6 +236,12 @@ class ChatMainPage : Pager() {
             if (AiRuntimeConfig.isConfigured()) "${p.name} · ${p.model}" else "${p.name} · 待配置"
         }.getOrDefault("API 未配置")
         restoreSessions()
+        val detailQuestion = pagerData.params.optString("detail_question", "")
+        if (detailQuestion.isNotBlank()) {
+            newChat()
+            inputText = detailQuestion
+            aiErrorNotice = "已带入选中行情，可编辑后发送"
+        }
         loadQuickQuestion()
     }
 
@@ -771,7 +777,10 @@ class ChatMainPage : Pager() {
         } else {
             ConclusionAlertFactory.resistance(pendingAlertCode, pendingAlertName, pendingAlertValue)
         }
-        WatchStore.upsertAlert(rule)
+        if (!WatchStore.upsertAlert(rule)) {
+            aiErrorNotice = "提醒保存失败，请重试"
+            return
+        }
         showAlertConfirm = false
         aiErrorNotice = "提醒已创建 · ${pendingAlertName} ${if (pendingAlertType == 1) "跌至" else "涨至"} ${fmtCardNumber(pendingAlertValue)}"
     }
