@@ -659,23 +659,27 @@ internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
         View { attr { flex(1f) } }
 
         View {
-            attr { padding(10f, 12f, 6f, 12f) }
+            attr { padding(10f, 10f, 6f, 10f) }
             event { click { ctx.toggleWatch() } }
             Text {
                 attr {
-                    text(if (ctx.watched) "★ 取消自选及提醒" else "☆ 加入自选")
-                    fontSize(20f)
+                    text(if (ctx.watched) "★" else "☆")
+                    fontSize(22f)
                     color(0xFFFFFFFF)
                 }
             }
         }
 
         View {
-            attr { padding(10f, 12f, 10f, 12f) }
+            attr {
+                padding(10f, 12f, 10f, 12f)
+                backgroundColor(if (ctx.isAnalyzing) 0xFF4A90D9 else 0x00FFFFFF)
+                borderRadius(8f)
+            }
             event { click { ctx.triggerAIAnalysis() } }
             Text {
                 attr {
-                    text("AI分析")
+                    text(if (ctx.isAnalyzing) "分析中…" else "AI分析")
                     fontSize(13f)
                     color(0xFFFFFFFF)
                 }
@@ -1107,33 +1111,31 @@ internal fun ViewContainer<*, *>.minuteCardContent(ctx: StockDetailPage, data: L
 
             // AI价位在分时上的图例
             vfor({ ObservableList(listOfNotNull(ctx.aiAnalysis).toMutableList()) }) { analysis ->
-                val levels = parseAIPriceLevels(analysis)
-                if (levels.isNotEmpty()) {
-                    View {
-                        attr { flexDirectionRow(); flexWrapWrap(); marginTop(8f) }
-                        levels.take(3).forEach { lvl ->
+                View {
+                    attr { flexDirectionRow(); flexWrapWrap(); marginTop(8f) }
+                    val levels = parseAIPriceLevels(analysis)
+                    levels.take(3).forEach { lvl ->
+                        View {
+                            attr {
+                                flexDirectionRow()
+                                alignItems(FlexAlign.CENTER)
+                                marginRight(6f)
+                                marginBottom(4f)
+                                padding(2f, 6f, 2f, 6f)
+                                backgroundColor(0xFFF7F9FC)
+                                borderRadius(8f)
+                            }
+                            event { click { ctx.highlightAIPrice(lvl.price, lvl.label) } }
                             View {
                                 attr {
-                                    flexDirectionRow()
-                                    alignItems(FlexAlign.CENTER)
-                                    marginRight(6f)
-                                    marginBottom(4f)
-                                    padding(2f, 6f, 2f, 6f)
-                                    backgroundColor(0xFFF7F9FC)
-                                    borderRadius(8f)
+                                    width(6f)
+                                    height(6f)
+                                    borderRadius(3f)
+                                    backgroundColor(lvl.color)
+                                    marginRight(4f)
                                 }
-                                event { click { ctx.highlightAIPrice(lvl.price, lvl.label) } }
-                                View {
-                                    attr {
-                                        width(6f)
-                                        height(6f)
-                                        borderRadius(3f)
-                                        backgroundColor(lvl.color)
-                                        marginRight(4f)
-                                    }
-                                }
-                                Text { attr { text("${lvl.label} ${fmt2(lvl.price)}"); fontSize(9f); color(lvl.color) } }
                             }
+                            Text { attr { text("${lvl.label} ${fmt2(lvl.price)}"); fontSize(9f); color(lvl.color) } }
                         }
                     }
                 }
@@ -1808,52 +1810,53 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
             }
 
             vfor({ ObservableList(mutableListOf(listOf(ctx.getAggregatedKline(), ctx.klineStartIndex, ctx.klineVisibleCount, ctx.selectedKlineIndex, ctx.aiAnalysis, ctx.highlightedPrice, ctx.highlightedPriceLabel, ctx.klineShowMA, ctx.klineShowVolume, ctx.klinePeriod))) }) { _ ->
-            klineChartCanvas(ctx, ctx.getAggregatedKline())
-            klineSummary(ctx, ctx.getVisibleKline())
+            View {
+                attr { flexDirectionColumn() }
+                klineChartCanvas(ctx, ctx.getAggregatedKline())
+                klineSummary(ctx, ctx.getVisibleKline())
+            }
             }
             chartEvidencePanel({ ctx.getAggregatedKline() }, { ctx.selectedKlineIndex }, { ctx.aiAnalysis }, { ctx.focusCandle(it) }, { ctx.askAboutChart() })
 
             // AI价位图例
             vfor({ ObservableList(listOfNotNull(ctx.aiAnalysis).toMutableList()) }) { analysis ->
-                val levels = parseAIPriceLevels(analysis)
-                if (levels.isNotEmpty()) {
-                    View {
-                        attr { flexDirectionRow(); flexWrapWrap(); marginTop(8f) }
-                        levels.forEach { lvl ->
+                View {
+                    attr { flexDirectionRow(); flexWrapWrap(); marginTop(8f) }
+                    val levels = parseAIPriceLevels(analysis)
+                    levels.forEach { lvl ->
+                        View {
+                            attr {
+                                flexDirectionRow()
+                                alignItems(FlexAlign.CENTER)
+                                marginRight(8f)
+                                marginBottom(4f)
+                                padding(3f, 8f, 3f, 8f)
+                                backgroundColor(
+                                    when (lvl.type) {
+                                        "support" -> 0xFFEAF7EF
+                                        "resistance" -> 0xFFFFF0F0
+                                        "target" -> 0xFFE8F2FF
+                                        else -> 0xFFFFF3E8
+                                    }
+                                )
+                                borderRadius(10f)
+                            }
+                            event { click { ctx.highlightAIPrice(lvl.price, lvl.label) } }
                             View {
                                 attr {
-                                    flexDirectionRow()
-                                    alignItems(FlexAlign.CENTER)
-                                    marginRight(8f)
-                                    marginBottom(4f)
-                                    padding(3f, 8f, 3f, 8f)
-                                    backgroundColor(
-                                        when (lvl.type) {
-                                            "support" -> 0xFFEAF7EF
-                                            "resistance" -> 0xFFFFF0F0
-                                            "target" -> 0xFFE8F2FF
-                                            else -> 0xFFFFF3E8
-                                        }
-                                    )
-                                    borderRadius(10f)
+                                    width(8f)
+                                    height(8f)
+                                    borderRadius(4f)
+                                    backgroundColor(lvl.color)
+                                    marginRight(4f)
                                 }
-                                event { click { ctx.highlightAIPrice(lvl.price, lvl.label) } }
-                                View {
-                                    attr {
-                                        width(8f)
-                                        height(8f)
-                                        borderRadius(4f)
-                                        backgroundColor(lvl.color)
-                                        marginRight(4f)
-                                    }
-                                }
-                                Text {
-                                    attr {
-                                        text("${lvl.label} ${fmt2(lvl.price)}")
-                                        fontSize(10f)
-                                        color(lvl.color)
-                                        fontWeightBold()
-                                    }
+                            }
+                            Text {
+                                attr {
+                                    text("${lvl.label} ${fmt2(lvl.price)}")
+                                    fontSize(10f)
+                                    color(lvl.color)
+                                    fontWeightBold()
                                 }
                             }
                         }
@@ -2434,44 +2437,47 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
         velse {
             // 结构化卡片渲染
             vfor({ ObservableList(listOfNotNull(ctx.aiAnalysis).map { it to ctx.aiExpandedKeys.toList() }.toMutableList()) }) { (analysis, _) ->
-            aiEvidencePanel({ ctx.aiAnalysis }) { ctx.focusEvidenceDate(it) }
-            // 按类型分组，固定顺序：趋势、信号、建议、风险、总结
-            val orderedTypes = listOf("trend_card", "signal_card", "suggestion_card", "risk_card", "summary_card")
-            val grouped = analysis.cards.filter { it["type"] != "evidence_card" }.groupBy { it["type"] as? String ?: "unknown" }
-            orderedTypes.forEach { t ->
-                grouped[t]?.forEachIndexed { idx, card ->
-                    renderAIAnalysisCard(ctx, card, "${t}_$idx")
-                }
-            }
-            // 其他未知类型
-            grouped.filterKeys { it !in orderedTypes }.values.flatten().forEachIndexed { idx, card ->
-                renderAIAnalysisCard(ctx, card, "other_$idx")
-            }
-
-            // 联动提示
             View {
-                attr {
-                    flexDirectionColumn()
-                    marginTop(10f)
-                    padding(10f, 12f, 10f, 12f)
-                    backgroundColor(0xFFF1F7FF)
-                    borderRadius(10f)
-                }
-                Text {
-                    attr {
-                        text("💡 联动交互说明")
-                        fontSize(12f)
-                        fontWeightBold()
-                        color(0xFF1976D2)
+                attr { flexDirectionColumn() }
+                aiEvidencePanel({ ctx.aiAnalysis }) { ctx.focusEvidenceDate(it) }
+                // 按类型分组，固定顺序：趋势、信号、建议、风险、总结
+                val orderedTypes = listOf("trend_card", "signal_card", "suggestion_card", "risk_card", "summary_card")
+                val grouped = analysis.cards.filter { it["type"] != "evidence_card" }.groupBy { it["type"] as? String ?: "unknown" }
+                orderedTypes.forEach { t ->
+                    grouped[t]?.forEachIndexed { idx, card ->
+                        renderAIAnalysisCard(ctx, card, "${t}_$idx")
                     }
                 }
-                Text {
+                // 其他未知类型
+                grouped.filterKeys { it !in orderedTypes }.values.flatten().forEachIndexed { idx, card ->
+                    renderAIAnalysisCard(ctx, card, "other_$idx")
+                }
+
+                // 联动提示
+                View {
                     attr {
-                        text("· 点击AI价位卡片 → K线标注虚线\n· 点击K线 → 查看与AI价位的距离\n· 设提醒 → 写入自选盯盘，行情刷新时触发\n· 周K/月K → 聚合查看中长期趋势")
-                        fontSize(11f)
-                        color(0xFF666666)
-                        marginTop(4f)
-                        lineHeight(16f)
+                        flexDirectionColumn()
+                        marginTop(10f)
+                        padding(10f, 12f, 10f, 12f)
+                        backgroundColor(0xFFF1F7FF)
+                        borderRadius(10f)
+                    }
+                    Text {
+                        attr {
+                            text("💡 联动交互说明")
+                            fontSize(12f)
+                            fontWeightBold()
+                            color(0xFF1976D2)
+                        }
+                    }
+                    Text {
+                        attr {
+                            text("· 点击AI价位卡片 → K线标注虚线\n· 点击K线 → 查看与AI价位的距离\n· 设提醒 → 写入自选盯盘，行情刷新时触发\n· 周K/月K → 聚合查看中长期趋势")
+                            fontSize(11f)
+                            color(0xFF666666)
+                            marginTop(4f)
+                            lineHeight(16f)
+                        }
                     }
                 }
             }

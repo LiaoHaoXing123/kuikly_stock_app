@@ -79,7 +79,7 @@ internal fun ViewContainer<*, *>.analysisHistoryPanel(state: DetailAnalysisState
                         Text { attr { text("${exportTimestampString(record.result.generatedAt)} · ${record.result.source}"); fontSize(11f); color(0xFF26384A) } }
                         View {
                             attr { flexDirectionRow() }
-                            detailAction("查看") { state.select(record); state.notice = "正在查看历史分析"; onChange() }
+                            detailAction("查看") { state.select(record); state.notice = "已切换到该历史分析，已滚动至底部查看"; onChange() }
                             detailAction("删除") { state.delete(record); onChange() }
                         }
                     }
@@ -133,8 +133,11 @@ internal fun ViewContainer<*, *>.aiEvidencePanel(analysis: () -> AIAnalysisData?
             Text { attr { text("本次分析未提供可定位日期。可在图表选择行情后追问。"); fontSize(11f); color(0xFF627083); marginTop(6f) } }
         }
         vfor({ ObservableList(aiDatedEvidence(analysis()).toMutableList()) }) { evidence ->
-            Text { attr { text(evidence.reason); fontSize(12f); lineHeight(18f); color(0xFF43576C); marginTop(8f) } }
-            detailAction("定位 ${evidence.date} 的K线与成交量") { focusDate(evidence.date) }
+            View {
+                attr { flexDirectionColumn(); marginTop(8f) }
+                Text { attr { text(evidence.reason); fontSize(12f); lineHeight(18f); color(0xFF43576C) } }
+                detailAction("定位 ${evidence.date} 的K线与成交量") { focusDate(evidence.date) }
+            }
         }
     }
 }

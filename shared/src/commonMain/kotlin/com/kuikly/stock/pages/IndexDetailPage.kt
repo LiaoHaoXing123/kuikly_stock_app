@@ -722,51 +722,52 @@ internal fun ViewContainer<*, *>.indexKlineChartArea(ctx: IndexDetailPage) {
             }
 
             vfor({ ObservableList(mutableListOf(listOf(ctx.getAggregatedKline(), ctx.klineStartIndex, ctx.klineVisibleCount, ctx.selectedKlineIndex, ctx.aiAnalysis, ctx.highlightedPrice, ctx.highlightedPriceLabel, ctx.klinePeriod))) }) { _ ->
-            indexKlineChartCanvas(ctx, ctx.getAggregatedKline())
-            indexKlineSummary(ctx, ctx.getVisibleKline())
+            View {
+                attr { flexDirectionColumn() }
+                indexKlineChartCanvas(ctx, ctx.getAggregatedKline())
+                indexKlineSummary(ctx, ctx.getVisibleKline())
+            }
             }
             chartEvidencePanel({ ctx.getAggregatedKline() }, { ctx.selectedKlineIndex }, { ctx.aiAnalysis }, { ctx.focusCandle(it) }, { ctx.askAboutChart() })
 
             vfor({ ObservableList(listOfNotNull(ctx.aiAnalysis).toMutableList()) }) { analysis ->
-                val levels = parseAIPriceLevels(analysis)
-                if (levels.isNotEmpty()) {
-                    View {
-                        attr { flexDirectionRow(); flexWrapWrap(); marginTop(8f) }
-                        levels.forEach { lvl ->
+                View {
+                    attr { flexDirectionRow(); flexWrapWrap(); marginTop(8f) }
+                    val levels = parseAIPriceLevels(analysis)
+                    levels.forEach { lvl ->
+                        View {
+                            attr {
+                                flexDirectionRow()
+                                alignItems(FlexAlign.CENTER)
+                                marginRight(8f)
+                                marginBottom(4f)
+                                padding(3f, 8f, 3f, 8f)
+                                backgroundColor(
+                                    when (lvl.type) {
+                                        "support" -> 0xFFEAF7EF
+                                        "resistance" -> 0xFFFFF0F0
+                                        "target" -> 0xFFE8F2FF
+                                        else -> 0xFFFFF3E8
+                                    }
+                                )
+                                borderRadius(10f)
+                            }
+                            event { click { ctx.highlightAIPrice(lvl.price, lvl.label) } }
                             View {
                                 attr {
-                                    flexDirectionRow()
-                                    alignItems(FlexAlign.CENTER)
-                                    marginRight(8f)
-                                    marginBottom(4f)
-                                    padding(3f, 8f, 3f, 8f)
-                                    backgroundColor(
-                                        when (lvl.type) {
-                                            "support" -> 0xFFEAF7EF
-                                            "resistance" -> 0xFFFFF0F0
-                                            "target" -> 0xFFE8F2FF
-                                            else -> 0xFFFFF3E8
-                                        }
-                                    )
-                                    borderRadius(10f)
+                                    width(8f)
+                                    height(8f)
+                                    borderRadius(4f)
+                                    backgroundColor(lvl.color)
+                                    marginRight(4f)
                                 }
-                                event { click { ctx.highlightAIPrice(lvl.price, lvl.label) } }
-                                View {
-                                    attr {
-                                        width(8f)
-                                        height(8f)
-                                        borderRadius(4f)
-                                        backgroundColor(lvl.color)
-                                        marginRight(4f)
-                                    }
-                                }
-                                Text {
-                                    attr {
-                                        text("${lvl.label} ${fmt2(lvl.price)}")
-                                        fontSize(10f)
-                                        color(lvl.color)
-                                        fontWeightBold()
-                                    }
+                            }
+                            Text {
+                                attr {
+                                    text("${lvl.label} ${fmt2(lvl.price)}")
+                                    fontSize(10f)
+                                    color(lvl.color)
+                                    fontWeightBold()
                                 }
                             }
                         }
@@ -1215,41 +1216,44 @@ internal fun ViewContainer<*, *>.indexAiAnalysisCards(ctx: IndexDetailPage) {
         }
         velse {
             vfor({ ObservableList(listOfNotNull(ctx.aiAnalysis).map { it to ctx.aiExpandedKeys.toList() }.toMutableList()) }) { (analysis, _) ->
-            aiEvidencePanel({ ctx.aiAnalysis }) { ctx.focusEvidenceDate(it) }
-            val orderedTypes = listOf("trend_card", "signal_card", "suggestion_card", "risk_card", "summary_card")
-            val grouped = analysis.cards.filter { it["type"] != "evidence_card" }.groupBy { it["type"] as? String ?: "unknown" }
-            orderedTypes.forEach { t ->
-                grouped[t]?.forEachIndexed { idx, card ->
-                    indexRenderAICard(ctx, card, "${t}_$idx")
-                }
-            }
-            grouped.filterKeys { it !in orderedTypes }.values.flatten().forEachIndexed { idx, card ->
-                indexRenderAICard(ctx, card, "other_$idx")
-            }
-
             View {
-                attr {
-                    flexDirectionColumn()
-                    marginTop(10f)
-                    padding(10f, 12f, 10f, 12f)
-                    backgroundColor(0xFFEAF4EA)
-                    borderRadius(10f)
-                }
-                Text {
-                    attr {
-                        text("💡 指数联动说明")
-                        fontSize(12f)
-                        fontWeightBold()
-                        color(0xFF2E7D32)
+                attr { flexDirectionColumn() }
+                aiEvidencePanel({ ctx.aiAnalysis }) { ctx.focusEvidenceDate(it) }
+                val orderedTypes = listOf("trend_card", "signal_card", "suggestion_card", "risk_card", "summary_card")
+                val grouped = analysis.cards.filter { it["type"] != "evidence_card" }.groupBy { it["type"] as? String ?: "unknown" }
+                orderedTypes.forEach { t ->
+                    grouped[t]?.forEachIndexed { idx, card ->
+                        indexRenderAICard(ctx, card, "${t}_$idx")
                     }
                 }
-                Text {
+                grouped.filterKeys { it !in orderedTypes }.values.flatten().forEachIndexed { idx, card ->
+                    indexRenderAICard(ctx, card, "other_$idx")
+                }
+
+                View {
                     attr {
-                        text("· 点击AI点位 → K线标注\n· 点击K线 → 查看与AI点位的距离\n· 周K/月K 聚合看大势")
-                        fontSize(11f)
-                        color(0xFF666666)
-                        marginTop(4f)
-                        lineHeight(16f)
+                        flexDirectionColumn()
+                        marginTop(10f)
+                        padding(10f, 12f, 10f, 12f)
+                        backgroundColor(0xFFEAF4EA)
+                        borderRadius(10f)
+                    }
+                    Text {
+                        attr {
+                            text("💡 指数联动说明")
+                            fontSize(12f)
+                            fontWeightBold()
+                            color(0xFF2E7D32)
+                        }
+                    }
+                    Text {
+                        attr {
+                            text("· 点击AI点位 → K线标注\n· 点击K线 → 查看与AI点位的距离\n· 周K/月K 聚合看大势")
+                            fontSize(11f)
+                            color(0xFF666666)
+                            marginTop(4f)
+                            lineHeight(16f)
+                        }
                     }
                 }
             }
