@@ -6,6 +6,7 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
 import android.database.Cursor
+import com.kuikly.stock.pages.FundFlowItem
 import com.kuikly.stock.pages.IndicatorData
 import com.kuikly.stock.pages.KLineDataItem
 import com.kuikly.stock.pages.MinutePoint
@@ -193,10 +194,11 @@ actual object StockDb {
         }.reversed()
 
     val indicator = latestIndicator(db, code)
+    val fundFlow = fundFlow(code, 5)
 
         if (info == null && realtime == null) { Log.w(TAG, "stockDetail " + code + " NOT FOUND"); return null }
-        Log.i(TAG, "stockDetail " + code + " -> info=" + (info != null) + " realtime=" + (realtime != null) + " kline=" + kline.size + " ind=" + indicator?.tradeDate)
-        return StockDetailData(info = info, realtime = realtime, kline = kline, indicator = indicator)
+        Log.i(TAG, "stockDetail " + code + " -> info=" + (info != null) + " realtime=" + (realtime != null) + " kline=" + kline.size + " ind=" + indicator?.tradeDate + " ff=" + fundFlow.size)
+        return StockDetailData(info = info, realtime = realtime, kline = kline, indicator = indicator, fundFlow = fundFlow)
     }
 
     actual fun indicators(code: String, limit: Int): List<IndicatorData> {
@@ -261,8 +263,7 @@ actual object StockDb {
         }
     }
 
-    actual fun orderBook(code: String): OrderBookData? {
-        val db = openDb() ?: return null
+    actual fun orderBook(code: String): OrderBookData? {        val db = openDb() ?: return null
         return db.rawQuery(
             """SELECT update_time,bid1_price,bid1_vol,bid2_price,bid2_vol,bid3_price,bid3_vol,
                       bid4_price,bid4_vol,bid5_price,bid5_vol,ask1_price,ask1_vol,ask2_price,ask2_vol,
@@ -289,6 +290,35 @@ actual object StockDb {
                 ),
                 commissionRatio = c.getDoubleOrNull("commission_ratio"),
             )
+        }
+    }
+
+    actual fun fundFlow(code: String, limit: Int): List<FundFlowItem> {
+        val db = openDb() ?: return emptyList()
+        // 非必需表：旧库没有 stock_fund_flow 时静默返回空，不阻塞详情页
+        return try {
+            db.rawQuery(
+                """SELECT trade_date,main_net,main_ratio,super_net,big_net,mid_net,small_net
+                   FROM stock_fund_flow WHERE code=? ORDER BY trade_date DESC LIMIT ?""",
+                arrayOf(code, limit.toString())
+            ).use { c ->
+                buildList {
+                    while (c.moveToNext()) {
+                        add(FundFlowItem(
+                            tradeDate = c.getStringOrEmpty("trade_date"),
+                            mainNet = c.getDoubleOrZero("main_net"),
+                            mainRatio = c.getDoubleOrZero("main_ratio"),
+                            superNet = c.getDoubleOrNull("super_net"),
+                            bigNet = c.getDoubleOrNull("big_net"),
+                            midNet = c.getDoubleOrNull("mid_net"),
+                            smallNet = c.getDoubleOrNull("small_net"),
+                        ))
+                    }
+                }
+            }.reversed()
+        } catch (e: Exception) {
+            Log.w(TAG, "fundFlow " + code + " 表缺失或查询失败: " + e.message)
+            emptyList()
         }
     }
 

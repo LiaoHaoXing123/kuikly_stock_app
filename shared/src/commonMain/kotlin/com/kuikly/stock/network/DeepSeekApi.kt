@@ -28,6 +28,7 @@ import com.kuikly.stock.pages.IndicatorData
 import com.kuikly.stock.pages.RealtimeQuoteData
 import com.kuikly.stock.pages.StockDetailData
 import com.kuikly.stock.pages.StockListItem
+import com.kuikly.stock.pages.fmtMoney
 import com.kuikly.stock.pages.validatedAnalysisEvidence
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -420,6 +421,17 @@ $klineText
             append("\n- KDJ：K=${ind.kdjK}, D=${ind.kdjD}, J=${ind.kdjJ}")
         } else ""
 
+        val ff = detail.fundFlow.orEmpty()
+        val fundFlowText = if (ff.isNotEmpty()) buildString {
+            append("\n## 主力资金流向（日级，近 ${ff.size} 个交易日）")
+            ff.forEach { f ->
+                val sign = if (f.mainRatio > 0) "+" else ""
+                append("\n- ${f.tradeDate}: 主力净流入 ${fmtMoney(f.mainNet)}, 净占比 ${sign}${fmtRatio1(f.mainRatio)}%")
+            }
+            val sum = ff.sumOf { it.mainNet }
+            append("\n- 区间累计: ${fmtMoney(sum)}（${if (sum >= 0) "净流入" else "净流出"}）")
+        } else ""
+
         val system = """你是一位专业的股票分析师，请对以下股票进行全面的综合分析。
 
 ${DetailProtocolV2.PROMPT}"""
@@ -443,7 +455,9 @@ $datePool
 ## 最新技术指标（程序计算，非AI生成）
 $indicatorText
 
-请根据以上数据进行全面分析，需结合技术指标（均线排列、MACD金叉死叉、RSI超买超卖、KDJ钝化等）给出专业判断。"""
+$fundFlowText
+
+请根据以上数据进行全面分析，需结合技术指标（均线排列、MACD金叉死叉、RSI超买超卖、KDJ钝化等）与主力资金流向（净流入/净流出趋势、占比变化）给出专业判断。"""
 
         return listOf("system" to system, "user" to user)
     }
@@ -596,6 +610,16 @@ stockLines.add(
                         "RSI6=${fmt(ind.rsi6)}, KDJ(K=${fmt(ind.kdjK)}/D=${fmt(ind.kdjD)}/J=${fmt(ind.kdjJ)})"
                 )
             }
+detail.fundFlow?.take(5)?.let { ff ->
+if (ff.isNotEmpty()) {
+val sum = ff.sumOf { it.mainNet }
+stockLines.add(
+                        "  主力资金(近${ff.size}日): " + ff.joinToString(", ") {
+                            "${it.tradeDate} 净流入${fmtMoney(it.mainNet)}(${it.mainRatio}%)"
+                        } + ", 累计${fmtMoney(sum)}(${if (sum >= 0) "净流入" else "净流出"})"
+                    )
+                }
+            }
         }
 if (isMarketQuestion(message)) {
 val ov = try { StockDb.marketOverview() } catch (e: Throwable) { null }
@@ -614,6 +638,9 @@ return keywords.any { message.contains(it) }
     }
 
 private fun fmt(v: Double?): String = if (v == null) "-" else fmt3(v)
+
+/** 净占比保留 1 位小数（-15.7）。纯 Kotlin 实现，跨平台可用。 */
+private fun fmtRatio1(v: Double): String = com.kuikly.stock.data.fmt1(v)
 
 private fun parseJsonObjectLoose(raw: String): Map<String, Any?> {
 val jsonStr = extractJsonBlock(raw) ?: return emptyMap()

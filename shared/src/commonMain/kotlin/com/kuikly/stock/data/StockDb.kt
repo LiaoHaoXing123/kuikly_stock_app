@@ -2,6 +2,7 @@
 
 package com.kuikly.stock.data
 
+import com.kuikly.stock.pages.FundFlowItem
 import com.kuikly.stock.pages.IndicatorData
 import com.kuikly.stock.pages.MinutePoint
 import com.kuikly.stock.pages.OrderBookData
@@ -25,6 +26,8 @@ expect object StockDb {
     fun minute(code: String): List<MinutePoint>
 
     fun orderBook(code: String): OrderBookData?
+
+    fun fundFlow(code: String, limit: Int): List<FundFlowItem>
 
     fun marketOverview(): MarketOverview
 

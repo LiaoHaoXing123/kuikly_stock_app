@@ -31,6 +31,7 @@ import com.kuikly.stock.data.PriceAlertRule
 import com.tencent.kuikly.core.coroutines.delay
 import com.tencent.kuikly.core.coroutines.launch
 import com.tencent.kuiklybase.KuiklyMarkdown
+import com.kuikly.stock.data.fmt0
 import com.kuikly.stock.data.fmt2
 import com.kuikly.stock.data.fmt3
 import com.kuikly.stock.data.fmtSigned2
@@ -172,6 +173,7 @@ class StockDetailPage : Pager() {
                         minuteCard(ctx)
                         orderBookCard(ctx)
                         indicatorCard(ctx)
+                        fundFlowCard(ctx)
                         View {
                             event { layoutFrameDidChange { frame -> ctx.aiSectionY = frame.y } }
                             aiAnalysisCards(ctx)
@@ -1456,6 +1458,114 @@ internal fun ViewContainer<*, *>.indicatorItem(label: String, value: Double?) {
 }
 
 private fun fmtInd(v: Double?): String = if (v == null) "-" else fmt3(v)
+
+/** 主力资金卡：最近 N 日主力净流入/净占比，红涨绿跌（A股配色）。无数据时不渲染。 */
+internal fun ViewContainer<*, *>.fundFlowCard(ctx: StockDetailPage) {
+    val flows = ctx.stockDetail?.fundFlow ?: return
+    if (flows.isEmpty()) return
+
+    View {
+        attr {
+            flexDirectionColumn()
+            margin(4f, 12f, 4f, 12f)
+            padding(top = 12f, left = 16f, bottom = 12f, right = 16f)
+            backgroundColor(0xFFFFFFFF)
+            borderRadius(10f)
+        }
+
+        View {
+            attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginBottom(10f) }
+            Text {
+                attr {
+                    text("主力资金（近 ${flows.size} 日）")
+                    fontSize(15f); fontWeightBold(); color(0xFF333333); flex(1f)
+                }
+            }
+            Text {
+                attr {
+                    text("主力档 · 日级")
+                    fontSize(10f); color(0xFF999999)
+                }
+            }
+        }
+
+        // 表头
+        View {
+            attr { flexDirectionRow(); padding(bottom = 6f) }
+            Text { attr { text("日期"); fontSize(11f); color(0xFF999999); width(72f) } }
+            Text { attr { text("净流入"); fontSize(11f); color(0xFF999999); flex(1f) } }
+            Text { attr { text("净占比"); fontSize(11f); color(0xFF999999); width(64f); textAlignRight() } }
+        }
+
+        // 每日行（最新在上）
+        var sum = 0.0
+        flows.forEach { f ->
+            sum += f.mainNet
+            val positive = f.mainNet >= 0
+            val color = if (positive) 0xFFEF4444 else 0xFF10B981
+            View {
+                attr { flexDirectionRow(); padding(top = 5f, bottom = 5f) }
+                Text {
+                    attr {
+                        text(f.tradeDate.takeLast(5))
+                        fontSize(12f); color(0xFF333333); width(72f)
+                    }
+                }
+                Text {
+                    attr {
+                        text(fmtMoney(f.mainNet))
+                        fontSize(12f); fontWeightBold(); color(color); flex(1f)
+                    }
+                }
+                Text {
+                    attr {
+                        text(if (f.mainRatio > 0) "+${com.kuikly.stock.data.fmt1(f.mainRatio)}%" else "${com.kuikly.stock.data.fmt1(f.mainRatio)}%")
+                        fontSize(12f); color(color); width(64f); textAlignRight()
+                    }
+                }
+            }
+        }
+
+        View {
+            attr { height(1f); backgroundColor(0xFFEEEEEE); margin(8f, 0f, 8f, 0f) }
+        }
+
+        // 区间合计
+        View {
+            attr { flexDirectionRow(); marginTop(4f) }
+            Text {
+                attr {
+                    text("近 ${flows.size} 日累计")
+                    fontSize(12f); color(0xFF666666); width(72f)
+                }
+            }
+            Text {
+                attr {
+                    text(fmtMoney(sum))
+                    fontSize(13f); fontWeightBold()
+                    color(if (sum >= 0) 0xFFEF4444 else 0xFF10B981)
+                    flex(1f)
+                }
+            }
+            Text {
+                attr {
+                    text(if (sum >= 0) "净流入" else "净流出")
+                    fontSize(11f); color(if (sum >= 0) 0xFFEF4444 else 0xFF10B981); width(64f); textAlignRight()
+                }
+            }
+        }
+    }
+}
+
+/** 元 -> 万/亿 人类可读格式（1.2亿 / 3456万 / 890元）。AI 证据与 UI 共用。 */
+internal fun fmtMoney(v: Double): String {
+    val abs = kotlin.math.abs(v)
+    return when {
+        abs >= 1e8 -> "${fmt2(v / 1e8)}亿"
+        abs >= 1e4 -> "${fmt0(v / 1e4)}万"
+        else -> fmt0(v)
+    }
+}
 
 internal fun ViewContainer<*, *>.minuteCard(ctx: StockDetailPage) {
     vfor({ ObservableList(mutableListOf(Triple(ctx.minuteData, ctx.minuteLoading, ctx.minuteError))) }) { (data, loading, error) ->
@@ -4040,11 +4150,22 @@ data class OrderBookData(
     val commissionRatio: Double?
 )
 
+data class FundFlowItem(
+    val tradeDate: String,
+    val mainNet: Double,     // 主力净流入-净额（元）
+    val mainRatio: Double,   // 主力净流入-净占比（%，如 -15.73）
+    val superNet: Double?,   // 超大单净额（东财通道才有，新浪主力档为 null）
+    val bigNet: Double?,
+    val midNet: Double?,
+    val smallNet: Double?
+)
+
 data class StockDetailData(
     val info: StockInfoData?,
     val realtime: RealtimeQuoteData?,
     val kline: List<KLineDataItem>?,
-    val indicator: IndicatorData? = null
+    val indicator: IndicatorData? = null,
+    val fundFlow: List<FundFlowItem>? = null
 )
 
 data class AIAnalysisData(
