@@ -33,6 +33,8 @@ data class CardSchema(
     val type: String,
     val required: Map<String, FieldRule>,
     val optional: Map<String, FieldRule> = emptyMap(),
+    /** true 时：schema 未定义的字段（除 type）视为协议违规，整卡作废。 */
+    val strict: Boolean = false,
 )
 
 class ValidateReport {
@@ -64,15 +66,8 @@ fun coerce(value: Any?, rule: FieldRule): Any? = when (rule) {
         (value as? String)?.trim()?.takeIf { it in rule.values }
 
     is FieldRule.Num -> {
-        val d: Double? = when (value) {
-            is Number -> value.toDouble()
-            is String -> value.trim()
-                .replace(",", "")
-                .removeSuffix("元")
-                .removePrefix("约")
-                .toDoubleOrNull()
-            else -> null
-        }
+        // 协议要求价格等数值字段必须是 JSON number，禁止字符串（"10"、"约10元" 均拒）。
+        val d: Double? = (value as? Number)?.toDouble()
         d?.takeIf { it.isFinite() }
             ?.takeIf { rule.min == null || it >= rule.min }
             ?.takeIf { rule.max == null || it <= rule.max }
@@ -147,6 +142,15 @@ fun validateCards(
             report.droppedCards++
             report.notes += "未知卡片类型: ${type ?: "<null>"}"
             continue
+        }
+        if (schema.strict) {
+            val allowed = setOf("type") + schema.required.keys + schema.optional.keys
+            val unknown = map.keys.filter { it !in allowed }
+            if (unknown.isNotEmpty()) {
+                report.droppedCards++
+                report.notes += "卡片 $type 含未定义字段: $unknown"
+                continue
+            }
         }
         val body = validateObject(
             map, schema.required, schema.optional,

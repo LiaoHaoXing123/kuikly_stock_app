@@ -17,12 +17,12 @@ object ChatProtocolV1 {
         "code" to FieldRule.Code6,
         "name" to FieldRule.Text,
         "price" to PRICE,
-        "change_percent" to FieldRule.Num(),
+        "change_percent" to FieldRule.Text, // 协议定义为字符串，如 "+0.40%"、"1%"
     )
 
     val registry: Map<String, CardSchema> = listOf(
-        CardSchema("stock_card", required = quoteCard),
-        CardSchema("index_card", required = quoteCard),
+        CardSchema("stock_card", required = quoteCard, strict = true),
+        CardSchema("index_card", required = quoteCard, strict = true),
         CardSchema(
             type = "conclusion_card",
             required = mapOf(
@@ -33,7 +33,7 @@ object ChatProtocolV1 {
             ),
             optional = mapOf(
                 "bias_note" to FieldRule.Text,
-                "change_percent" to FieldRule.Num(),
+                "change_percent" to FieldRule.Text,
                 "support" to FieldRule.Text,
                 "resistance" to FieldRule.Text,
                 "support_value" to PRICE,
@@ -44,9 +44,10 @@ object ChatProtocolV1 {
                 "footnote" to FieldRule.Text,
                 "signals" to FieldRule.TextList(max = 5),
             ),
+            strict = true,
         ),
-        CardSchema("signal_card", required = mapOf("content" to FieldRule.Text)),
-        CardSchema("risk_card", required = mapOf("content" to FieldRule.Text)),
+        CardSchema("signal_card", required = mapOf("content" to FieldRule.Text), strict = true),
+        CardSchema("risk_card", required = mapOf("content" to FieldRule.Text), strict = true),
         CardSchema(
             type = "chart_card",
             required = mapOf(
@@ -58,6 +59,7 @@ object ChatProtocolV1 {
                     min = 2, max = 120,
                 ),
             ),
+            strict = true,
         ),
     ).associateBy { it.type }
 }
