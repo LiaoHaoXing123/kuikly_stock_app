@@ -21,6 +21,8 @@ dependencyResolutionManagement {
     repositories {
         // 🔑 Kuikly官方私有仓库（必须最前！）
         maven("https://mirrors.tencent.com/repository/maven-tencent/")
+        // KuiklyMarkdown 组件仓库（com.tencent.kuiklybase）
+        maven("https://mirrors.tencent.com/nexus/repository/maven-tencent/")
         // ✅ 官方源（第三方库标准变体，含Ktor Native，必须在腾讯云公共镜像之前）
         google()
         mavenCentral()

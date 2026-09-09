@@ -24,6 +24,7 @@ import com.tencent.kuikly.core.views.Input
 import com.tencent.kuikly.core.views.Scroller
 import com.tencent.kuikly.core.views.Text
 import com.tencent.kuikly.core.views.View
+import com.kuikly.stock.data.nowMillis
 
 internal data class AiProfileRow(
     val profile: AiProviderProfile,
@@ -59,7 +60,7 @@ class ApiConfigPage : Pager() {
     }
 
     private fun fillEditorFields(profile: AiProviderProfile?) {
-        val now = System.currentTimeMillis()
+        val now = nowMillis()
         editingId = profile?.id ?: "custom_$now"
         editName = profile?.name ?: ""
         editBaseUrl = profile?.baseUrl ?: ""
@@ -118,7 +119,7 @@ class ApiConfigPage : Pager() {
         validateBaseUrl(editBaseUrl)?.let { editorError = it; return }
         if (editModels.isBlank()) { editorError = "请输入至少一个模型 ID"; return }
         val old = AiProfileStore.profiles().firstOrNull { it.id == editingId }
-        val now = System.currentTimeMillis()
+        val now = nowMillis()
         val models = editModels.split(",").map { it.trim() }.filter { it.isNotEmpty() }.distinct()
         if (models.isEmpty()) { editorError = "请输入至少一个模型 ID"; return }
         val displayName = editName.takeIf { it.isNotBlank() } ?: old?.name ?: providerNameFromUrl(editBaseUrl)

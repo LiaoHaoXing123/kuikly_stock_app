@@ -20,6 +20,10 @@ import com.tencent.kuikly.core.nvi.serialization.json.JSONArray
 import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.observable
 import com.tencent.kuikly.core.reactive.handler.observableList
+import com.tencent.kuiklybase.KuiklyMarkdown
+import com.tencent.kuiklybase.KuiklyStreamingMarkdown
+import com.tencent.kuiklybase.streaming.MarkdownBlock
+import com.tencent.kuiklybase.streaming.MarkdownStreamingState
 import com.kuikly.stock.base.splitBreaks
 import com.kuikly.stock.data.copyTextToClipboard
 import com.kuikly.stock.data.exportTimestampString
@@ -39,6 +43,8 @@ import kotlinx.coroutines.CancellationException
 import com.kuikly.stock.ai.config.AiRuntimeConfig
 import com.tencent.kuikly.core.coroutines.delay
 import com.tencent.kuikly.core.coroutines.launch
+import com.kuikly.stock.data.fmt2
+import com.kuikly.stock.data.nowMillis
 
 @Page("chat_main")
 class ChatMainPage : Pager() {
@@ -61,6 +67,8 @@ class ChatMainPage : Pager() {
 
     internal var isThinking by observable(false)
     internal var streamingText by observable("")
+    internal var streamBlocks: ObservableList<MarkdownBlock> by observableList()
+    internal val streamState = MarkdownStreamingState()
     internal var requestStage by observable("")
     private var requestVersion = 0
     private var requestJob: Job? = null
@@ -228,13 +236,19 @@ class ChatMainPage : Pager() {
             if (AiRuntimeConfig.isConfigured()) "${p.name} · ${p.model}" else "${p.name} · 待配置"
         }.getOrDefault("API 未配置")
         restoreSessions()
+        val detailQuestion = pagerData.params.optString("detail_question", "")
+        if (detailQuestion.isNotBlank()) {
+            newChat()
+            inputText = detailQuestion
+            aiErrorNotice = "已带入选中行情，可编辑后发送"
+        }
         loadQuickQuestion()
     }
 
     internal fun newChat() {
         stopResponse()
         val id = createSessionId()
-        sessions.add(ChatSession(id = id, title = "新对话", messages = emptyList(), updatedAt = System.currentTimeMillis()))
+        sessions.add(ChatSession(id = id, title = "新对话", messages = emptyList(), updatedAt = nowMillis()))
         switchToSession(id, persist = false)
         aiErrorNotice = "已新建对话，可点击右上角查看历史对话"
     }
@@ -261,7 +275,7 @@ class ChatMainPage : Pager() {
         val title = if (s.title.isBlank() || s.title == "新对话") {
             msgs.firstOrNull { it.isUser }?.content?.take(14) ?: "新对话"
         } else s.title
-        sessions[idx] = s.copy(messages = msgs, title = title, updatedAt = System.currentTimeMillis())
+        sessions[idx] = s.copy(messages = msgs, title = title, updatedAt = nowMillis())
         activeTitle = if (title.isBlank()) "AI 智能助手" else title
     }
 
@@ -270,7 +284,7 @@ class ChatMainPage : Pager() {
         persistAllSessions()
     }
 
-    private fun createSessionId(): String = "s" + System.currentTimeMillis()
+    private fun createSessionId(): String = "s" + nowMillis()
 
     internal fun sendQuickQuestion() {
         if (quickQuestion.isEmpty()) return
@@ -429,7 +443,7 @@ class ChatMainPage : Pager() {
         inputText = ""
         quoteText = ""
         val id = createSessionId()
-        sessions.add(ChatSession(id = id, title = "新对话", messages = emptyList(), updatedAt = System.currentTimeMillis()))
+        sessions.add(ChatSession(id = id, title = "新对话", messages = emptyList(), updatedAt = nowMillis()))
         activeSessionId = id
         activeTitle = "AI 智能助手"
         persistAllSessions()
@@ -515,7 +529,7 @@ class ChatMainPage : Pager() {
             toastExport("该会话暂无消息，无需导出")
             return
         }
-        val exportedAt = exportTimestampString(System.currentTimeMillis())
+        val exportedAt = exportTimestampString(nowMillis())
         val title = target.title.ifBlank { "AI 问答" }
         when (kind) {
             3 -> {
@@ -658,6 +672,8 @@ class ChatMainPage : Pager() {
         pendingQuestion = finalText
         isThinking = true
         streamingText = ""
+        streamState.reset()
+        streamBlocks.clear()
         aiErrorNotice = ""
         requestStage = "正在准备会话上下文…"
         val version = ++requestVersion
@@ -670,7 +686,10 @@ class ChatMainPage : Pager() {
                     StockRepository.chat(finalText, history,
                         onText = { text ->
                             pageResult { Unit }
-                            if (version == requestVersion && session == activeSessionId) streamingText = text
+                            if (version == requestVersion && session == activeSessionId) {
+                                streamingText = text
+                                syncStreamBlocks(text)
+                            }
                         },
                         onStage = { stage ->
                             pageResult { Unit }
@@ -692,6 +711,7 @@ class ChatMainPage : Pager() {
             } finally {
                 if (version == requestVersion) {
                     streamingText = ""
+                    streamBlocks.clear()
                     requestStage = ""
                     isThinking = false
                     requestJob = null
@@ -699,6 +719,32 @@ class ChatMainPage : Pager() {
                 }
             }
         }
+    }
+
+    /**
+     * 流式 Markdown 块增量同步（手动 diff：core 2.7.0 没有 diffUpdate）。
+     * 常见情况只有追加新块或末块变化，走增量分支避免全量重建。
+     */
+    internal fun syncStreamBlocks(text: String) {
+        val newBlocks = streamState.update(text) ?: return
+        if (newBlocks.isEmpty()) {
+            if (streamBlocks.isNotEmpty()) streamBlocks.clear()
+            return
+        }
+        val current = streamBlocks.toList()
+        if (current.size == newBlocks.size && current.indices.all { current[it].id == newBlocks[it].id }) return
+        if (newBlocks.size >= current.size && current.indices.all { current[it].id == newBlocks[it].id }) {
+            newBlocks.drop(current.size).forEach { streamBlocks.add(it) }
+            return
+        }
+        if (newBlocks.size == current.size && newBlocks.size > 1 &&
+            (0 until newBlocks.size - 1).all { newBlocks[it].id == current[it].id }
+        ) {
+            streamBlocks[streamBlocks.size - 1] = newBlocks.last()
+            return
+        }
+        streamBlocks.clear()
+        newBlocks.forEach { streamBlocks.add(it) }
     }
 
     internal fun toggleEvidence(key: String) {
@@ -731,7 +777,10 @@ class ChatMainPage : Pager() {
         } else {
             ConclusionAlertFactory.resistance(pendingAlertCode, pendingAlertName, pendingAlertValue)
         }
-        WatchStore.upsertAlert(rule)
+        if (!WatchStore.upsertAlert(rule)) {
+            aiErrorNotice = "提醒保存失败，请重试"
+            return
+        }
         showAlertConfirm = false
         aiErrorNotice = "提醒已创建 · ${pendingAlertName} ${if (pendingAlertType == 1) "跌至" else "涨至"} ${fmtCardNumber(pendingAlertValue)}"
     }
@@ -876,9 +925,11 @@ internal fun ViewContainer<*, *>.aiErrorToast(ctx: ChatMainPage) {
 
 internal fun ViewContainer<*, *>.thinkingBubble(ctx: ChatMainPage) {
     View {
-        attr { marginTop(8f); padding(12f); borderRadius(12f); backgroundColor(0xFFFFFFFF) }
+        attr { flexDirectionColumn(); marginTop(8f); padding(12f); borderRadius(12f); backgroundColor(0xFFFFFFFF) }
         Text { attr { text(ctx.requestStage); fontSize(12f); color(0xFF65758B) } }
-        Text { attr { text(ctx.streamingText); fontSize(15f); lineHeight(23f); color(0xFF26384D); marginTop(6f) } }
+        vfor({ ctx.streamBlocks }) { block ->
+            KuiklyStreamingMarkdown(state = ctx.streamState, block = block, config = chatMarkdownConfig)
+        }
         View {
             attr { height(44f); allCenter(); accessibility("停止生成"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }
             event { click { ctx.stopResponse() } }
@@ -929,7 +980,7 @@ internal fun ViewContainer<*, *>.chatBubble(
                     }
                 }
             } else {
-                renderMarkdown(message.content)
+                KuiklyMarkdown(content = sanitizeMarkdownForRender(message.content), config = chatMarkdownConfig)
             }
 
             with(bubble) {
@@ -1255,7 +1306,7 @@ private fun cardNumber(value: Any?): Double? = when (value) {
     else -> value?.toString()?.toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 }
 }
 
-private fun fmtCardNumber(value: Double): String = String.format("%.2f", value)
+private fun fmtCardNumber(value: Double): String = fmt2(value)
 
 internal fun ViewContainer<*, *>.conclusionAction(label: String, action: () -> Unit) {
     View {
@@ -2350,140 +2401,6 @@ internal fun ViewContainer<*, *>.devModeOptionView(
     }
 }
 
-internal data class MdBlock(
-    val kind: String,
-    val text: String,
-    val level: Int = 0
-)
-
-internal fun parseMarkdown(raw: String): List<MdBlock> {
-    val blocks = mutableListOf<MdBlock>()
-    val lines = raw.replace("\r\n", "\n").split("\n")
-    var i = 0
-    while (i < lines.size) {
-        val line = lines[i].trim()
-        if (line.isEmpty()) {
-            i++
-            continue
-        }
-
-        val h = Regex("^(#{1,6})\\s+(.*)$").find(line)
-        if (h != null) {
-            blocks.add(MdBlock("heading", h.groupValues[2], h.groupValues[1].length))
-            i++
-            continue
-        }
-
-        if (line.startsWith(">")) {
-            blocks.add(MdBlock("quote", line.removePrefix(">").trim()))
-            i++
-            continue
-        }
-
-        val listItem = Regex("^[-*•·]\\s*(.*)$").find(line)
-        if (listItem != null) {
-            val items = mutableListOf<String>()
-            while (i < lines.size) {
-                val l = lines[i].trim()
-                val m = Regex("^[-*•·]\\s*(.*)$").find(l)
-                if (m != null) {
-                    items.add(m.groupValues[1])
-                    i++
-                } else {
-                    break
-                }
-            }
-            blocks.add(MdBlock("list", items.joinToString("\n")))
-            continue
-        }
-
-        if (line.startsWith("```")) {
-            val buf = mutableListOf<String>()
-            i++
-            while (i < lines.size && !lines[i].trim().startsWith("```")) {
-                buf.add(lines[i])
-                i++
-            }
-            i++
-            blocks.add(MdBlock("code", buf.joinToString("\n")))
-            continue
-        }
-
-        blocks.add(MdBlock("para", line))
-        i++
-    }
-    return blocks
-}
-
-internal fun ViewContainer<*, *>.renderMarkdown(text: String) {
-    View {
-        attr { flexDirectionColumn() }
-        parseMarkdown(text).forEach { block ->
-            when (block.kind) {
-                "heading" -> markdownHeading(block.text, block.level)
-                "list" -> markdownList(block.text)
-                "quote" -> markdownQuote(block.text)
-                "code" -> markdownCode(block.text)
-                else -> markdownParagraph(block.text)
-            }
-        }
-    }
-}
-
-internal fun ViewContainer<*, *>.markdownHeading(text: String, level: Int) {
-    Text {
-        attr {
-            text(text.replace("**", ""))
-            fontSize(if (level <= 2) 16f else 14f)
-            fontWeightBold()
-            color(0xFF222222)
-            marginTop(12f)
-            marginBottom(3f)
-        }
-    }
-}
-
-internal fun ViewContainer<*, *>.markdownList(text: String) {
-    View {
-        attr {
-            flexDirectionColumn()
-            marginTop(4f)
-        }
-        text.split("\n").forEach { item ->
-            View {
-                attr { marginTop(2f) }
-                renderInlineBold("•  " + item, fontSize = 14f, color = 0xFF444444)
-            }
-        }
-    }
-}
-
-internal fun ViewContainer<*, *>.markdownQuote(text: String) {
-    View {
-        attr { marginTop(6f) }
-        renderInlineBold("›  " + text, fontSize = 12f, color = 0xFF888888)
-    }
-}
-
-internal fun ViewContainer<*, *>.markdownCode(text: String) {
-    View {
-        attr {
-            flexDirectionColumn()
-            marginTop(6f)
-        }
-        text.split("\n").forEach { line ->
-            Text {
-                attr {
-                    text(line)
-                    fontSize(12f)
-                    color(0xFF6A1B9A)
-                    marginTop(2f)
-                }
-            }
-        }
-    }
-}
-
 internal fun ViewContainer<*, *>.renderInlineBold(
     text: String,
     fontSize: Float,
@@ -2511,22 +2428,6 @@ internal fun ViewContainer<*, *>.renderInlineBold(
                 text(text)
                 fontSize(fontSize)
                 color(color)
-            }
-        }
-    }
-}
-
-internal fun ViewContainer<*, *>.markdownParagraph(text: String) {
-    View {
-        attr {
-            flexDirectionColumn()
-            marginTop(8f)
-        }
-        text.split("\n").forEach { line ->
-            if (line.isBlank()) return@forEach
-            View {
-                attr { marginTop(2f) }
-                renderInlineBold(line, fontSize = 15f, color = 0xFF333333)
             }
         }
     }

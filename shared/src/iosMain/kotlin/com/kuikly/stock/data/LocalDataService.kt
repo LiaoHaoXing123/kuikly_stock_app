@@ -3,6 +3,7 @@
 package com.kuikly.stock.data
 
 import platform.Foundation.*
+import platform.UIKit.UIPasteboard
 
 actual fun loadAssetText(path: String): String? {
     val filePath = NSBundle.mainBundle.pathForResource(path, ofType = null) ?: return null
@@ -10,12 +11,29 @@ actual fun loadAssetText(path: String): String? {
     return nsStr as String?
 }
 
-internal actual fun appPrefsGet(key: String): String? = null
+private val userDefaults: NSUserDefaults = NSUserDefaults.standardUserDefaults
+
+// 会话 / 自选 / 提醒 / API 配置等持久化：NSUserDefaults
+internal actual fun appPrefsGet(key: String): String? = try {
+    userDefaults.stringForKey(key)
+} catch (e: Throwable) {
+    null
+}
 
 internal actual fun appPrefsSet(key: String, value: String) {
+    try {
+        userDefaults.setObject(value, forKey = key)
+    } catch (e: Throwable) {
+        // 写入失败可忽略（调用方均有内存态）
+    }
 }
 
 internal actual fun copyTextToClipboard(text: String) {
+    try {
+        UIPasteboard.generalPasteboard.string = text
+    } catch (e: Throwable) {
+        // 复制失败可忽略
+    }
 }
 
 internal actual fun exportTimestampString(epochMs: Long): String = try {

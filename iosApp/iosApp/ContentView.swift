@@ -4,7 +4,7 @@ import shared
 struct ContentView: View {
 
 	var body: some View {
-        KuiklyRenderViewPage(pageName: "router", data: [:]).ignoresSafeArea()
+        KuiklyRenderViewPage(pageName: "home_dashboard", data: [:]).ignoresSafeArea()
 	}
 }
 

@@ -8,6 +8,7 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.utils.io.*
 import kotlinx.serialization.json.*
+import com.kuikly.stock.data.nowMillis
 
 /** Requests are scoped by the caller's Job; execute releases the streaming body. */
 internal object ChatTransport {
@@ -115,7 +116,7 @@ internal object ChatTransport {
                 val event = decoder.line(line) ?: continue
                 if (event == "[DONE]") break
                 stream.accept(event)
-                val now = System.currentTimeMillis()
+                val now = nowMillis()
                 if (now - lastUpdate >= 60 || stream.complete) {
                     val preview = partialReplyText(stream.text)
                     if (preview != published) { onText(preview); published = preview }

@@ -20,6 +20,9 @@ import com.tencent.kuikly.core.reactive.handler.observableList
 import com.kuikly.stock.data.StockRepository
 import com.tencent.kuikly.core.coroutines.delay
 import com.tencent.kuikly.core.coroutines.launch
+import com.kuikly.stock.data.fmt2
+import com.kuikly.stock.data.fmtSigned2
+import com.kuikly.stock.data.fmtSignedPct
 
 @Page("stock_list")
 class StockListPage : Pager() {
@@ -465,9 +468,9 @@ internal fun ViewContainer<*, *>.stockListItem(
         pct > 0 -> 0xFFE53935
         else -> 0xFF43A047
     }
-    val priceText = stock.price?.let { String.format("%.2f", it) } ?: "-"
-    val changeText = stock.change?.let { String.format("%+.2f", it) } ?: "-"
-    val pctText = stock.changePercent?.let { String.format("%+.2f%%", it) } ?: "-"
+    val priceText = stock.price?.let { fmt2(it) } ?: "-"
+    val changeText = stock.change?.let { fmtSigned2(it) } ?: "-"
+    val pctText = stock.changePercent?.let { fmtSignedPct(it) } ?: "-"
 
     View {
         attr {

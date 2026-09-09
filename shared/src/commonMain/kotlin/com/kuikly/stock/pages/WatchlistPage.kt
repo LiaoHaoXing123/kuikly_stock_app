@@ -15,6 +15,7 @@ import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.observable
 import com.tencent.kuikly.core.reactive.handler.observableList
 import com.tencent.kuikly.core.views.*
+import com.kuikly.stock.data.HoldingInput
 import com.kuikly.stock.data.PriceAlertRule
 import com.kuikly.stock.data.WatchHolding
 import com.kuikly.stock.data.WatchStore
@@ -40,6 +41,8 @@ class WatchlistPage : Pager() {
     internal var editCostText by observable("")
     internal var editAlertType by observable(-1)
     internal var editThresholdText by observable("")
+    internal var editRules: ObservableList<PriceAlertRule> by observableList()
+    internal var editMessage by observable("")
     internal var saveMessage by observable("")
 
     override fun didInit() {
@@ -130,9 +133,9 @@ class WatchlistPage : Pager() {
             pct < 0 -> 0xFF43A047
             else -> 0xFF888888
         }
-        val alert = WatchStore.alertOf(h.code)
-        val alertDesc = if (alert != null && alert.enabled) {
-            describeAlertType(alert.type) + " " + fmt2(alert.threshold)
+        val alerts = WatchStore.alertsOf(h.code).filter { it.enabled }
+        val alertDesc = if (alerts.isNotEmpty()) "${alerts.size} 条 · " + alerts.joinToString(" / ") {
+            describeAlertType(it.type) + " " + fmt2(it.threshold)
         } else ""
         val mv = if (price != null) price * h.shares else 0.0
         val posPnl = if (price != null) (price - h.cost) * h.shares else 0.0
@@ -155,7 +158,7 @@ class WatchlistPage : Pager() {
             pnlText = if (h.shares > 0) signed2(posPnl) else "",
             pnlPctText = if (h.shares > 0 && h.cost > 0) signed2(pnlPct) + "%" else "",
             alertDesc = alertDesc,
-            hasAlert = alert != null && alert.enabled
+            hasAlert = alerts.isNotEmpty()
         )
     }
 
@@ -183,39 +186,56 @@ class WatchlistPage : Pager() {
     internal fun openEdit(row: WatchRowData) {
         editCode = row.code
         editName = row.name
-        editSharesText = if (row.shares > 0) trimNum(row.shares) else ""
-        editCostText = if (row.cost > 0) fmt2(row.cost) else ""
-        val alert = WatchStore.alertOf(row.code)
-        editAlertType = alert?.type ?: -1
-        editThresholdText = alert?.let { fmt2(it.threshold) } ?: ""
+        editSharesText = trimNum(row.shares)
+        editCostText = fmt2(row.cost)
+        editRules.clear()
+        editRules.addAll(WatchStore.alertsOf(row.code))
+        editAlertType = -1
+        editThresholdText = ""
+        editMessage = ""
         showEdit = true
     }
 
     internal fun saveEdit() {
-        val shares = editSharesText.trim().toDoubleOrNull() ?: 0.0
-        val cost = editCostText.trim().toDoubleOrNull() ?: 0.0
-        if (shares < 0 || cost < 0) return
-        WatchStore.updateHolding(WatchHolding(editCode, editName, shares, cost))
-        var alertSaved = true
-        val type = editAlertType
-        if (type >= 0) {
-            val threshold = editThresholdText.trim().toDoubleOrNull() ?: 0.0
-            if (threshold > 0) {
-                alertSaved = WatchStore.upsertAlert(PriceAlertRule(editCode, editName, type, threshold, true))
-            } else {
-                WatchStore.removeAlert(editCode)
-            }
-        } else {
-            WatchStore.removeAlert(editCode)
+        val input = HoldingInput.parse(editCode, editSharesText, editCostText, allowClear = true)
+        if (input == null) {
+            editMessage = "请输入有效股数和成本价；股数填0保留自选"
+            return
         }
+        val threshold = editThresholdText.trim().toDoubleOrNull()
+        if (editAlertType >= 0 && (threshold == null || !threshold.isFinite() || threshold <= 0.0)) {
+            editMessage = "提醒阈值需为有效正数"
+            return
+        }
+        WatchStore.updateHolding(WatchHolding(editCode, editName, input.shares, input.cost))
+        val alertSaved = if (editAlertType >= 0 && threshold != null) {
+            WatchStore.upsertAlert(PriceAlertRule(editCode, editName, editAlertType, threshold, true))
+        } else true
         showEdit = false
         saveMessage = if (alertSaved) "已保存自选与提醒" else "提醒保存失败，请重试"
         reload()
     }
 
+    internal fun toggleRule(rule: PriceAlertRule) {
+        val saved = WatchStore.upsertAlert(rule.copy(enabled = !rule.enabled))
+        editMessage = if (saved) "提醒已更新" else "提醒保存失败，请重试"
+        refreshRules()
+    }
+
+    internal fun deleteRule(rule: PriceAlertRule) {
+        val saved = WatchStore.removeAlert(rule)
+        editMessage = if (saved) "已删除此规则" else "提醒删除失败，请重试"
+        refreshRules()
+    }
+
+    private fun refreshRules() {
+        editRules.clear()
+        editRules.addAll(WatchStore.alertsOf(editCode))
+        reload()
+    }
+
     internal fun removeItem(code: String) {
         WatchStore.remove(code)
-        WatchStore.removeAlert(code)
         reload()
     }
 
@@ -548,14 +568,14 @@ internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowD
                 attr {
                     minHeight(44f)
                     padding(left = 10f, top = 5f, right = 4f, bottom = 5f)
-                    accessibility("将${row.name}移出自选")
+                    accessibility("将${row.name}移出自选及提醒")
                     accessibilityRole(AccessibilityRole.BUTTON)
                     accessibilityInfo(true, false)
                 }
                 event { click { ctx.removeItem(row.code) } }
                 Text {
                     attr {
-                        text("移出自选")
+                        text("移出自选及提醒")
                         fontSize(12f)
                         color(0xFFE53935)
                     }
@@ -643,9 +663,30 @@ internal fun ViewContainer<*, *>.watchEditDialog(ctx: WatchlistPage) {
                 }
             }
 
+            Text { attr { text(ctx.editMessage); fontSize(12f); color(0xFFD32F2F); marginTop(6f) } }
+            Scroller {
+                attr { height((ctx.editRules.size * 44f).coerceAtMost(132f)); flexDirectionColumn(); scrollEnable(true) }
+                vfor({ ctx.editRules }) { rule ->
+                    View {
+                        attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginTop(6f) }
+                        Text { attr { text(describeAlertType(rule.type) + " " + rule.threshold.toString()); fontSize(12f); flex(1f) } }
+                        View {
+                            attr { padding(8f) }
+                            event { click { ctx.toggleRule(rule) } }
+                            Text { attr { text(if (rule.enabled) "停用" else "启用"); fontSize(12f); color(0xFF1976D2) } }
+                        }
+                        View {
+                            attr { padding(8f) }
+                            event { click { ctx.deleteRule(rule) } }
+                            Text { attr { text("删除此规则"); fontSize(12f); color(0xFFD32F2F) } }
+                        }
+                    }
+                }
+            }
+
             Text {
                 attr {
-                    text("盯盘提醒（数据刷新时检查，可能延迟）")
+                    text("新增提醒（数据刷新时检查，可能延迟）")
                     fontSize(12f)
                     color(0xFF666666)
                     marginTop(10f)
@@ -657,7 +698,7 @@ internal fun ViewContainer<*, *>.watchEditDialog(ctx: WatchlistPage) {
                     flexWrapWrap()
                     marginTop(6f)
                 }
-                watchAlertChip(ctx, -1, "关闭")
+                watchAlertChip(ctx, -1, "不新增")
                 watchAlertChip(ctx, 0, "价格 ≥")
                 watchAlertChip(ctx, 1, "价格 ≤")
                 watchAlertChip(ctx, 2, "涨幅 ≥")

@@ -16,21 +16,28 @@ internal data class PriceAlertRule(
     val type: Int,
     val threshold: Double,
     val enabled: Boolean = true
-)
+) {
+    val identity: String get() = "${code}_${type}_${threshold}"
+}
 
-internal object WatchStore {
+internal object WatchStore : WatchRepository(::appPrefsGet, ::appPrefsSet)
 
-    private const val KEY_WATCH = "watch_v1"
-    private const val KEY_ALERT = "alert_v1"
+internal open class WatchRepository(
+    private val read: (String) -> String?,
+    private val write: (String, String) -> Unit
+) {
 
-    fun list(): List<WatchHolding> = parseWatch(appPrefsGet(KEY_WATCH))
+    private val KEY_WATCH = "watch_v1"
+    private val KEY_ALERT = "alert_v1"
+
+    fun list(): List<WatchHolding> = parseWatch(read(KEY_WATCH))
 
     fun isWatched(code: String): Boolean = list().any { it.code == code }
 
     fun find(code: String): WatchHolding? = list().firstOrNull { it.code == code }
 
     fun save(items: List<WatchHolding>) {
-        appPrefsSet(KEY_WATCH, encodeWatch(items))
+        write(KEY_WATCH, encodeWatch(items))
     }
 
     fun toggle(code: String, name: String): Boolean {
@@ -38,6 +45,7 @@ internal object WatchStore {
         val idx = cur.indexOfFirst { it.code == code }
         val added = if (idx >= 0) {
             cur.removeAt(idx)
+            removeAlertsForStock(code)
             false
         } else {
             cur.add(WatchHolding(code, name))
@@ -56,31 +64,42 @@ internal object WatchStore {
 
     fun remove(code: String) {
         save(list().filterNot { it.code == code })
+        removeAlertsForStock(code)
     }
 
-    fun alerts(): List<PriceAlertRule> = parseAlerts(appPrefsGet(KEY_ALERT))
+    fun clearHolding(code: String) {
+        find(code)?.let { updateHolding(it.copy(shares = 0.0, cost = 0.0)) }
+    }
 
-    fun alertOf(code: String): PriceAlertRule? = alerts().firstOrNull { it.code == code }
+    fun alerts(): List<PriceAlertRule> = parseAlerts(read(KEY_ALERT))
+
+    fun alertsOf(code: String): List<PriceAlertRule> = alerts().filter { it.code == code }
 
     fun saveAlerts(items: List<PriceAlertRule>) {
-        appPrefsSet(KEY_ALERT, encodeAlerts(items))
+        write(KEY_ALERT, encodeAlerts(items))
     }
 
     fun upsertAlert(rule: PriceAlertRule): Boolean {
-        val cur = alerts().filterNot { it.code == rule.code }.toMutableList()
+        if (rule.code.isBlank() || !rule.threshold.isFinite() || rule.threshold <= 0.0 || rule.type !in 0..3) return false
+        val cur = alerts().filterNot { it.identity == rule.identity }.toMutableList()
         cur.add(rule)
-        saveAlerts(cur)
-        return alerts().any {
-            it.code == rule.code &&
-                it.type == rule.type &&
-                it.threshold == rule.threshold &&
-                it.enabled == rule.enabled
-        }
+        return runCatching {
+            saveAlerts(cur)
+            if (alerts().none { it == rule }) return@runCatching false
+            // Every rule needs a visible management entry, including rules created from detail/chat.
+            if (!isWatched(rule.code)) updateHolding(WatchHolding(rule.code, rule.name))
+            isWatched(rule.code)
+        }.getOrDefault(false)
     }
 
-    fun removeAlert(code: String) {
+    fun removeAlertsForStock(code: String) {
         saveAlerts(alerts().filterNot { it.code == code })
     }
+
+    fun removeAlert(rule: PriceAlertRule): Boolean = runCatching {
+        saveAlerts(alerts().filterNot { it.identity == rule.identity })
+        alerts().none { it.identity == rule.identity }
+    }.getOrDefault(false)
 
     private fun encodeWatch(items: List<WatchHolding>): String {
         val arr = JSONArray()

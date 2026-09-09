@@ -1,12 +1,13 @@
 // 指数详情页：基础信息、实时点位、日K走势，以及 AI 解读入口。
-// 由聊天页 index_card 跳转承接（openPage("index_detail", {code})）。
-// 注意：指数代码与个股代码存在重叠（如 000001），本页只读 index_* 表，绝不调用个股 minute/orderBook/indicator；
-// 也不提供自选按钮（WatchStore 以 code 为键，会与同代码个股冲突）。
+// 增强版：K线多周期/缩放/平移/AI价位联动，AI分析卡片化
 
 package com.kuikly.stock.pages
 
+import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
 import com.tencent.kuikly.core.annotations.Page
 import com.tencent.kuikly.core.base.*
+import com.tencent.kuikly.core.base.event.layoutFrameDidChange
+import com.tencent.kuikly.core.directives.vfor
 import com.tencent.kuikly.core.directives.vif
 import com.tencent.kuikly.core.directives.velse
 import com.tencent.kuikly.core.directives.velseif
@@ -15,37 +16,53 @@ import com.tencent.kuikly.core.layout.FlexJustifyContent
 import com.tencent.kuikly.core.layout.FlexWrap
 import com.tencent.kuikly.core.module.RouterModule
 import com.tencent.kuikly.core.pager.Pager
+import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.observable
+import com.tencent.kuikly.core.reactive.handler.observableList
 import com.tencent.kuikly.core.views.*
 import com.tencent.kuikly.core.views.TextAlign
 import com.kuikly.stock.data.StockRepository
 import com.tencent.kuikly.core.coroutines.delay
 import com.tencent.kuikly.core.coroutines.launch
+import com.tencent.kuiklybase.KuiklyMarkdown
+import com.kuikly.stock.data.fmt0
+import com.kuikly.stock.data.fmt2
+import com.kuikly.stock.data.fmtSigned2
+import com.kuikly.stock.data.fmtSignedPct
+import kotlin.math.abs
 
 @Page("index_detail")
 class IndexDetailPage : Pager() {
 
     internal var indexCode by observable("")
-
     internal var indexDetail by observable<StockDetailData?>(null)
-
-    internal var aiAnalysis by observable<AIAnalysisData?>(null)
-
+    internal val analysisState = DetailAnalysisState("index")
+    internal var aiAnalysis: AIAnalysisData?
+        get() = analysisState.analysis
+        set(value) { analysisState.analysis = value }
+    internal var detailScrollerRef: ViewRef<ScrollerView<*, *>>? = null
+    internal var chartAnchorY = 0f
     internal var isLoading by observable(true)
-
     internal var isAnalyzing by observable(false)
-
     internal var loadErrorMessage by observable("")
-
     internal var dataSourceText by observable("")
-
     internal var selectedKlineIndex by observable(-1)
-
     internal var klineCanvasWidth by observable(0f)
+
+    // K线增强
+    internal var klinePeriod by observable("D")
+    internal var klineVisibleCount by observable(30)
+    internal var klineStartIndex by observable(0)
+    internal var highlightedPrice by observable(0.0)
+    internal var highlightedPriceLabel by observable("")
+    internal var klineInfoText by observable("")
+    internal var aiExpandedKeys: ObservableList<String> by observableList()
+    internal var aiToast by observable("")
 
     override fun didInit() {
         super.didInit()
         indexCode = pagerData.params.optString("code", "")
+        analysisState.restore(indexCode)
 
         if (indexCode.isNotEmpty()) {
             loadIndexDetail()
@@ -73,24 +90,30 @@ class IndexDetailPage : Pager() {
                     indexNavigationBar(ctx)
 
                     Scroller {
+                        ref { ctx.detailScrollerRef = it }
                         attr {
                             flex(1f)
                             flexDirectionColumn()
                             scrollEnable(true)
                         }
 
+                        analysisHistoryPanel(ctx.analysisState) { ctx.clearChartSelection(); ctx.clearHighlight(); ctx.aiExpandedKeys.clear() }
                         indexInfoCard(ctx)
-
                         indexRealtimeCard(ctx)
-
-                        indexKlineChartArea(ctx)
-
+                        View {
+                            event { layoutFrameDidChange { frame -> ctx.chartAnchorY = frame.y } }
+                            indexKlineChartArea(ctx)
+                        }
                         indexAiAnalysisCards(ctx)
 
                         vif({ ctx.dataSourceText.isNotEmpty() }) {
                             indexDataSourceFooter(ctx)
                         }
                     }
+                }
+
+                vif({ ctx.aiToast.isNotEmpty() }) {
+                    indexAiToast(ctx)
                 }
             }
         }
@@ -106,6 +129,13 @@ class IndexDetailPage : Pager() {
                 delay(0)
                 if (data != null) {
                     indexDetail = data
+                    val total = data.kline?.size ?: 0
+                    klineVisibleCount = when {
+                        total >= 60 -> 30
+                        total >= 30 -> total
+                        else -> total
+                    }
+                    klineStartIndex = (total - klineVisibleCount).coerceAtLeast(0)
                 } else {
                     indexDetail = null
                     loadErrorMessage = "未找到指数 $indexCode 的数据（可能是旧版数据库，更新后重试）"
@@ -147,15 +177,183 @@ class IndexDetailPage : Pager() {
             try {
                 val result = StockRepository.analyzeIndex(indexCode)
                 delay(0)
-                aiAnalysis = result
+                clearHighlight()
+                analysisState.accept(result)
+                val levels = parseAIPriceLevels(result)
+                if (levels.isNotEmpty()) {
+                    highlightedPrice = levels.first().price
+                    highlightedPriceLabel = levels.first().label
+                }
             } catch (e: Throwable) {
                 delay(0)
-                aiAnalysis = null
+                analysisState.notice = "分析请求失败：${e.message ?: "网络不可用"}；已保留原分析，可重试"
+                aiToast = analysisState.notice
             } finally {
                 isAnalyzing = false
             }
         }
     }
+
+    // K线逻辑复用个股页聚合函数
+    internal fun getAggregatedKline(): List<KLineDataItem> {
+        val original = indexDetail?.kline ?: return emptyList()
+        return when (klinePeriod) {
+            "W" -> aggregateToWeekly(original)
+            "M" -> aggregateToMonthly(original)
+            else -> original
+        }
+    }
+
+    internal fun getVisibleKline(): List<KLineDataItem> {
+        val agg = getAggregatedKline()
+        if (agg.isEmpty()) return emptyList()
+        val start = klineStartIndex.coerceIn(0, (agg.size - 1).coerceAtLeast(0))
+        val end = (start + klineVisibleCount).coerceAtMost(agg.size)
+        return if (start >= end) emptyList() else agg.subList(start, end)
+    }
+
+    internal fun switchKlinePeriod(period: String) {
+        if (klinePeriod == period) return
+        klinePeriod = period
+        val agg = getAggregatedKline()
+        val total = agg.size
+        // 重新计算后需要用新聚合
+        val newAgg = when (period) {
+            "W" -> aggregateToWeekly(indexDetail?.kline ?: emptyList())
+            "M" -> aggregateToMonthly(indexDetail?.kline ?: emptyList())
+            else -> indexDetail?.kline ?: emptyList()
+        }
+        val newTotal = newAgg.size
+        klineVisibleCount = when (period) {
+            "W" -> 26.coerceAtMost(newTotal)
+            "M" -> 12.coerceAtMost(newTotal)
+            else -> 30.coerceAtMost(newTotal)
+        }
+        klineStartIndex = (newTotal - klineVisibleCount).coerceAtLeast(0)
+        selectedKlineIndex = -1
+        klineInfoText = if (period == "D") "日K" else if (period == "W") "周K · 自然周聚合" else "月K · 按月聚合"
+    }
+
+    internal fun zoomIn() {
+        clearChartSelection()
+        val newCount = (klineVisibleCount - 5).coerceAtLeast(10).coerceAtMost(getAggregatedKline().size)
+        if (newCount != klineVisibleCount) {
+            val center = klineStartIndex + klineVisibleCount / 2
+            klineVisibleCount = newCount
+            klineStartIndex = (center - newCount / 2).coerceIn(0, (getAggregatedKline().size - newCount).coerceAtLeast(0))
+        }
+    }
+
+    internal fun zoomOut() {
+        clearChartSelection()
+        val total = getAggregatedKline().size
+        val newCount = (klineVisibleCount + 5).coerceAtMost(90).coerceAtMost(total)
+        if (newCount != klineVisibleCount) {
+            val center = klineStartIndex + klineVisibleCount / 2
+            klineVisibleCount = newCount
+            klineStartIndex = (center - newCount / 2).coerceIn(0, (total - newCount).coerceAtLeast(0))
+        }
+    }
+
+    internal fun panLeft() {
+        clearChartSelection()
+        klineStartIndex = (klineStartIndex - 5).coerceAtLeast(0)
+    }
+
+    internal fun panRight() {
+        clearChartSelection()
+        val total = getAggregatedKline().size
+        klineStartIndex = (klineStartIndex + 5).coerceAtMost((total - klineVisibleCount).coerceAtLeast(0))
+    }
+
+    internal fun resetView() {
+        clearChartSelection()
+        val total = getAggregatedKline().size
+        klineStartIndex = (total - klineVisibleCount).coerceAtLeast(0)
+        selectedKlineIndex = -1
+        highlightedPrice = 0.0
+        highlightedPriceLabel = ""
+    }
+
+    internal fun selectKlineAtX(x: Float) {
+        val agg = getAggregatedKline()
+        if (agg.isEmpty() || klineCanvasWidth <= 0f) return
+        val visibleCount = getVisibleKline().size
+        if (visibleCount <= 0) return
+        val visibleIndex = chartHitIndex(x, klineCanvasWidth, visibleCount)
+        val globalIndex = (klineStartIndex + visibleIndex).coerceIn(0, agg.size - 1)
+        selectedKlineIndex = globalIndex
+        val k = agg.getOrNull(globalIndex)
+        if (k != null) {
+            val changePct = if (k.open != 0.0) (k.close - k.open) / k.open * 100.0 else 0.0
+            klineInfoText = "${k.tradeDate} 开${fmt2(k.open)} 收${fmt2(k.close)} 高${fmt2(k.high)} 低${fmt2(k.low)} ${fmtSignedPct(changePct)}"
+        }
+    }
+
+    internal fun clearChartSelection() {
+        selectedKlineIndex = -1
+        klineInfoText = ""
+    }
+
+    internal fun scrollToChart() {
+        detailScrollerRef?.view?.setContentOffset(offsetX = 0f, offsetY = chartAnchorY.coerceAtLeast(0f), animated = true)
+    }
+
+    internal fun focusCandle(index: Int) {
+        val bars = getAggregatedKline()
+        if (index !in bars.indices) return
+        klineVisibleCount = klineVisibleCount.coerceAtLeast(1).coerceAtMost(bars.size)
+        klineStartIndex = (index - klineVisibleCount / 2).coerceIn(0, (bars.size - klineVisibleCount).coerceAtLeast(0))
+        selectedKlineIndex = index
+        klineInfoText = candleEvidence(bars, index)
+
+        scrollToChart()
+    }
+
+    internal fun focusEvidenceDate(date: String) {
+        switchKlinePeriod("D")
+        val index = getAggregatedKline().indexOfFirst { normalizedTradeDate(it.tradeDate) == normalizedTradeDate(date) }
+        if (index < 0) { analysisState.notice = "当前行情中没有 $date 的K线，请核对分析日期"; return }
+        focusCandle(index)
+    }
+
+    internal fun askAboutChart() {
+        val selected = selectedKlineIndex
+        val bars = if (selected >= 0) getAggregatedKline() else getVisibleKline()
+        val prompt = detailFollowupPrompt("index", indexCode, indexDetail?.info?.name ?: indexCode, klinePeriod, bars, selected, aiAnalysis)
+        val params = JSONObject()
+        params.put("detail_question", prompt)
+        acquireModule<RouterModule>(RouterModule.MODULE_NAME).openPage("chat_main", params)
+    }
+
+    internal fun highlightAIPrice(price: Double, label: String) {
+        if (price <= 0 || !price.isFinite()) return
+        highlightedPrice = price
+        highlightedPriceLabel = label
+        scrollToChart()
+        aiToast = "已在K线标注 $label ${fmt2(price)}"
+        lifecycleScope.launch {
+            delay(2000)
+            if (aiToast.contains("已在K线标注")) aiToast = ""
+        }
+    }
+
+    internal fun clearHighlight() {
+        highlightedPrice = 0.0
+        highlightedPriceLabel = ""
+    }
+
+    internal fun toggleAISection(key: String) {
+        val cur = aiExpandedKeys.toList()
+        aiExpandedKeys.clear()
+        if (cur.contains(key)) {
+            aiExpandedKeys.addAll(cur.filter { it != key })
+        } else {
+            aiExpandedKeys.addAll(cur + key)
+        }
+    }
+
+    internal fun isAIExpanded(key: String): Boolean = aiExpandedKeys.contains(key)
 }
 
 internal fun ViewContainer<*, *>.indexNavigationBar(ctx: IndexDetailPage) {
@@ -285,13 +483,13 @@ internal fun ViewContainer<*, *>.indexRealtimeCard(ctx: IndexDetailPage) {
             }
 
             indexQuoteColumn("最新点位",
-                realtime.price?.let { String.format("%.2f", it) } ?: "-",
+                realtime.price?.let { fmt2(it) } ?: "-",
                 26f, priceColor)
             indexQuoteColumn("涨跌点",
-                realtime.change?.let { String.format("%+.2f", it) } ?: "-",
+                realtime.change?.let { fmtSigned2(it) } ?: "-",
                 15f, priceColor)
             indexQuoteColumn("涨跌幅",
-                realtime.changePercent?.let { String.format("%+.2f%%", it) } ?: "-",
+                realtime.changePercent?.let { fmtSignedPct(it) } ?: "-",
                 15f, priceColor)
         }
 
@@ -343,7 +541,7 @@ internal fun ViewContainer<*, *>.indexQuoteItem(
 
         Text {
             attr {
-                text(value?.let { format?.invoke(it) ?: String.format("%.2f", it) } ?: "-")
+                text(value?.let { format?.invoke(it) ?: fmt2(it) } ?: "-")
                 fontSize(13f)
                 fontWeightBold()
                 color(0xFF333333)
@@ -385,15 +583,15 @@ internal fun ViewContainer<*, *>.indexQuoteColumn(
 }
 
 internal fun fmtIndexVolume(v: Double): String = when {
-    v >= 100000000 -> String.format("%.2f亿股", v / 100000000)
-    v >= 10000 -> String.format("%.2f万股", v / 10000)
-    else -> String.format("%.0f股", v)
+    v >= 100000000 -> fmt2(v / 100000000) + "亿股"
+    v >= 10000 -> fmt2(v / 10000) + "万股"
+    else -> fmt0(v) + "股"
 }
 
 internal fun fmtIndexAmount(v: Double): String = when {
-    v >= 100000000 -> String.format("%.2f亿元", v / 100000000)
-    v >= 10000 -> String.format("%.2f万元", v / 10000)
-    else -> String.format("%.0f元", v)
+    v >= 100000000 -> fmt2(v / 100000000) + "亿元"
+    v >= 10000 -> fmt2(v / 10000) + "万元"
+    else -> fmt0(v) + "元"
 }
 
 internal fun ViewContainer<*, *>.indexDataSourceFooter(ctx: IndexDetailPage) {
@@ -426,7 +624,7 @@ internal fun ViewContainer<*, *>.indexDataSourceFooter(ctx: IndexDetailPage) {
 }
 
 internal fun ViewContainer<*, *>.indexKlineChartArea(ctx: IndexDetailPage) {
-    val klineData = ctx.indexDetail?.kline
+    val original = ctx.indexDetail?.kline
 
     View {
         attr {
@@ -437,25 +635,199 @@ internal fun ViewContainer<*, *>.indexKlineChartArea(ctx: IndexDetailPage) {
             borderRadius(10f)
         }
 
-        Text {
-            attr {
-                text("K线走势（近30日）")
-                fontSize(15f)
-                fontWeightBold()
-                color(0xFF333333)
-                marginBottom(6f)
+        View {
+            attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginBottom(8f) }
+            Text {
+                attr {
+                    text("K线走势")
+                    fontSize(15f)
+                    fontWeightBold()
+                    color(0xFF333333)
+                    flex(1f)
+                }
+            }
+            Text {
+                attr {
+                    text(ctx.klineInfoText.ifEmpty { "${ctx.getAggregatedKline().size}根 · ${ctx.klineVisibleCount}显示" })
+                    fontSize(10f)
+                    color(0xFF999999)
+                    flex(1f)
+                    textAlignRight()
+                }
+            }
+        }
+
+        View {
+            attr { flexDirectionRow(); marginBottom(8f) }
+            indexPeriodChip(ctx, "D", "日K")
+            indexPeriodChip(ctx, "W", "周K")
+            indexPeriodChip(ctx, "M", "月K")
+            View { attr { flex(1f) } }
+            View {
+                attr {
+                    padding(4f, 8f, 4f, 8f)
+                    backgroundColor(0xFFF5F5F5)
+                    borderRadius(10f)
+                }
+                event { click { ctx.resetView() } }
+                Text { attr { text("重置"); fontSize(11f); color(0xFF666666) } }
             }
         }
 
         vif({ ctx.isLoading }) {
             klineLoadingView()
         }
-        velseif({ klineData != null && klineData.isNotEmpty() }) {
-            indexKlineChartCanvas(ctx, klineData!!)
-            indexKlineSummary(klineData)
+        velseif({ original != null && original.isNotEmpty() }) {
+            View {
+                attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginBottom(6f) }
+                indexControlBtn(ctx, "◀◀", { ctx.panLeft() })
+                indexControlBtn(ctx, "－", { ctx.zoomIn() })
+                Text {
+                    attr {
+                        text("${ctx.klineVisibleCount}根")
+                        fontSize(11f)
+                        color(0xFF666666)
+                        marginLeft(6f)
+                        marginRight(6f)
+                        width(40f)
+                        textAlignCenter()
+                    }
+                }
+                indexControlBtn(ctx, "＋", { ctx.zoomOut() })
+                indexControlBtn(ctx, "▶▶", { ctx.panRight() })
+                View { attr { flex(1f) } }
+                vif({ ctx.highlightedPrice > 0 }) {
+                    View {
+                        attr {
+                            flexDirectionRow()
+                            alignItems(FlexAlign.CENTER)
+                            backgroundColor(0xFFE8F5E9)
+                            borderRadius(8f)
+                            padding(3f, 8f, 3f, 8f)
+                        }
+                        Text {
+                            attr {
+                                text("${ctx.highlightedPriceLabel} ${fmt2(ctx.highlightedPrice)}")
+                                fontSize(11f)
+                                color(0xFF2E7D32)
+                            }
+                        }
+                        View {
+                            attr { marginLeft(6f); padding(2f, 6f, 2f, 6f); backgroundColor(0xFFFFFFFF); borderRadius(6f) }
+                            event { click { ctx.clearHighlight() } }
+                            Text { attr { text("✕"); fontSize(10f); color(0xFF999999) } }
+                        }
+                    }
+                }
+            }
+
+            vfor({ ObservableList(mutableListOf(listOf(ctx.getAggregatedKline(), ctx.klineStartIndex, ctx.klineVisibleCount, ctx.selectedKlineIndex, ctx.aiAnalysis, ctx.highlightedPrice, ctx.highlightedPriceLabel, ctx.klinePeriod))) }) { _ ->
+            indexKlineChartCanvas(ctx, ctx.getAggregatedKline())
+            indexKlineSummary(ctx, ctx.getVisibleKline())
+            }
+            chartEvidencePanel({ ctx.getAggregatedKline() }, { ctx.selectedKlineIndex }, { ctx.aiAnalysis }, { ctx.focusCandle(it) }, { ctx.askAboutChart() })
+
+            vfor({ ObservableList(listOfNotNull(ctx.aiAnalysis).toMutableList()) }) { analysis ->
+                val levels = parseAIPriceLevels(analysis)
+                if (levels.isNotEmpty()) {
+                    View {
+                        attr { flexDirectionRow(); flexWrapWrap(); marginTop(8f) }
+                        levels.forEach { lvl ->
+                            View {
+                                attr {
+                                    flexDirectionRow()
+                                    alignItems(FlexAlign.CENTER)
+                                    marginRight(8f)
+                                    marginBottom(4f)
+                                    padding(3f, 8f, 3f, 8f)
+                                    backgroundColor(
+                                        when (lvl.type) {
+                                            "support" -> 0xFFEAF7EF
+                                            "resistance" -> 0xFFFFF0F0
+                                            "target" -> 0xFFE8F2FF
+                                            else -> 0xFFFFF3E8
+                                        }
+                                    )
+                                    borderRadius(10f)
+                                }
+                                event { click { ctx.highlightAIPrice(lvl.price, lvl.label) } }
+                                View {
+                                    attr {
+                                        width(8f)
+                                        height(8f)
+                                        borderRadius(4f)
+                                        backgroundColor(lvl.color)
+                                        marginRight(4f)
+                                    }
+                                }
+                                Text {
+                                    attr {
+                                        text("${lvl.label} ${fmt2(lvl.price)}")
+                                        fontSize(10f)
+                                        color(lvl.color)
+                                        fontWeightBold()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Text {
+                attr {
+                    text("点击/长按K线查看详情 · 缩放平移查看历史 · 点击AI价位联动标注")
+                    fontSize(10f)
+                    color(0xFFBBBBBB)
+                    marginTop(6f)
+                }
+            }
         }
         velse {
             indexKlineErrorView(ctx)
+        }
+    }
+}
+
+internal fun ViewContainer<*, *>.indexPeriodChip(ctx: IndexDetailPage, period: String, label: String) {
+    View {
+        attr {
+            padding(5f, 12f, 5f, 12f)
+            backgroundColor(if (ctx.klinePeriod == period) 0xFF2E7D32 else 0xFFF5F5F5)
+            borderRadius(14f)
+            marginRight(6f)
+        }
+        event { click { ctx.switchKlinePeriod(period) } }
+        Text {
+            attr {
+                text(label)
+                fontSize(12f)
+                fontWeightBold()
+                color(if (ctx.klinePeriod == period) 0xFFFFFFFF else 0xFF666666)
+            }
+        }
+    }
+}
+
+internal fun ViewContainer<*, *>.indexControlBtn(ctx: IndexDetailPage, label: String, action: () -> Unit) {
+    View {
+        attr {
+            width(32f)
+            height(28f)
+            backgroundColor(0xFFF5F5F5)
+            borderRadius(8f)
+            alignItems(FlexAlign.CENTER)
+            justifyContent(FlexJustifyContent.CENTER)
+            marginRight(4f)
+        }
+        event { click { action() } }
+        Text {
+            attr {
+                text(label)
+                fontSize(12f)
+                color(0xFF666666)
+                textAlignCenter()
+            }
         }
     }
 }
@@ -497,46 +869,51 @@ internal fun ViewContainer<*, *>.indexKlineErrorView(ctx: IndexDetailPage) {
     }
 }
 
-internal fun ViewContainer<*, *>.indexKlineChartCanvas(ctx: IndexDetailPage, klineData: List<KLineDataItem>) {
+internal fun ViewContainer<*, *>.indexKlineChartCanvas(ctx: IndexDetailPage, aggregated: List<KLineDataItem>) {
+    val visible = ctx.getVisibleKline()
+    val aiLevels = parseAIPriceLevels(ctx.aiAnalysis)
+
     Canvas({
         attr {
-            height(344f)
+            height(360f)
             marginTop(2f)
         }
         event {
-            longPress { params ->
-                if (ctx.klineCanvasWidth <= 0f) return@longPress
-                val i = ((params.x / ctx.klineCanvasWidth) * klineData.size)
-                    .toInt().coerceIn(0, klineData.size - 1)
-                ctx.selectedKlineIndex = i
-            }
+            longPress { params -> ctx.selectKlineAtX(params.x) }
+            click { params -> ctx.selectKlineAtX(params.x) }
         }
     }) { context, width, height ->
-        val n = klineData.size
-        if (n == 0 || width <= 0f || height <= 0f) return@Canvas
+        val nTotal = aggregated.size
+        val nVisible = visible.size
+        if (nTotal == 0 || nVisible == 0 || width <= 0f || height <= 0f) return@Canvas
 
         if (ctx.klineCanvasWidth != width) {
             ctx.klineCanvasWidth = width
         }
 
-        val tooltipH = 26f
-        val padT = 30f
-        val volTop = height - 62f
-        val volH = 40f
-        val dateY = height - 12f
+        val tooltipH = 36f
+        val padT = 38f
+        val volTop = height - 70f
+        val volH = 44f
+        val dateY = height - 10f
 
-        val all = klineData.flatMap { listOf(it.high, it.low, it.open, it.close) }
-        var minP = all.minOrNull() ?: 0.0
-        var maxP = all.maxOrNull() ?: 1.0
+        val priceList = visible.flatMap { listOf(it.high, it.low, it.open, it.close) }.toMutableList()
+        aiLevels.forEach { if (it.price > 0) priceList.add(it.price) }
+        if (ctx.highlightedPrice > 0) priceList.add(ctx.highlightedPrice)
+        var minP = priceList.minOrNull() ?: 0.0
+        var maxP = priceList.maxOrNull() ?: 1.0
         if (maxP <= minP) maxP = minP + 1.0
+        val pad = (maxP - minP) * 0.08
+        minP -= pad
+        maxP += pad
 
         val chartH = volTop - padT - 6f
         fun py(p: Double): Float = padT + chartH * ((maxP - p) / (maxP - minP)).toFloat()
 
-        val step = width / n
-        val cw = (step * 0.55f).coerceAtLeast(1.5f)
+        val step = width / nVisible.coerceAtLeast(1)
+        val cw = (step * 0.55f).coerceAtLeast(2f).coerceAtMost(14f)
 
-        context.strokeStyle(Color(0xFFEDEDED))
+        context.strokeStyle(Color(0xFFF0F2F5))
         context.lineWidth(1f)
         for (i in 0..4) {
             val gy = padT + chartH * i / 4f
@@ -546,7 +923,42 @@ internal fun ViewContainer<*, *>.indexKlineChartCanvas(ctx: IndexDetailPage, kli
             context.stroke()
         }
 
-        klineData.forEachIndexed { i, k ->
+        // AI levels
+        aiLevels.forEach { lvl ->
+            if (lvl.price in minP..maxP) {
+                val y = py(lvl.price)
+                context.strokeStyle(Color(lvl.color))
+                context.lineWidth(1f)
+                var x = 0f
+                while (x < width) {
+                    context.beginPath()
+                    context.moveTo(x, y)
+                    context.lineTo((x + 6f).coerceAtMost(width), y)
+                    context.stroke()
+                    x += 10f
+                }
+                context.fillStyle(Color(lvl.color))
+                context.font(9f)
+                context.textAlign(TextAlign.RIGHT)
+                context.fillText("${lvl.label} ${fmt2(lvl.price)}", width - 2f, y - 3f)
+            }
+        }
+
+        if (ctx.highlightedPrice > 0 && ctx.highlightedPrice in minP..maxP) {
+            val y = py(ctx.highlightedPrice)
+            context.strokeStyle(Color(0xFF2E7D32))
+            context.lineWidth(2f)
+            context.beginPath()
+            context.moveTo(0f, y)
+            context.lineTo(width, y)
+            context.stroke()
+            context.fillStyle(Color(0xFF2E7D32))
+            context.font(10f)
+            context.textAlign(TextAlign.LEFT)
+            context.fillText("★ ${ctx.highlightedPriceLabel} ${fmt2(ctx.highlightedPrice)}", 4f, y - 4f)
+        }
+
+        visible.forEachIndexed { i, k ->
             val cx = step * i + step / 2f
             val up = k.close >= k.open
             val color = if (up) Color(0xFFE53935) else Color(0xFF43A047)
@@ -559,7 +971,7 @@ internal fun ViewContainer<*, *>.indexKlineChartCanvas(ctx: IndexDetailPage, kli
             val yo = py(k.open)
             val yc = py(k.close)
             val top = minOf(yo, yc)
-            val bh = kotlin.math.abs(yo - yc).coerceAtLeast(1.2f)
+            val bh = abs(yo - yc).coerceAtLeast(1.5f)
             context.fillStyle(color)
             context.beginPath()
             context.moveTo(cx - cw / 2f, top)
@@ -570,14 +982,14 @@ internal fun ViewContainer<*, *>.indexKlineChartCanvas(ctx: IndexDetailPage, kli
             context.fill()
         }
 
-        val maxVol = klineData.maxOf { it.volume }.toFloat().coerceAtLeast(1f)
+        val maxVol = visible.maxOf { it.volume }.toFloat().coerceAtLeast(1f)
         context.strokeStyle(Color(0xFFE0E0E0))
         context.lineWidth(1f)
         context.beginPath()
         context.moveTo(0f, volTop - 5f)
         context.lineTo(width, volTop - 5f)
         context.stroke()
-        klineData.forEachIndexed { i, k ->
+        visible.forEachIndexed { i, k ->
             val cx = step * i + step / 2f
             val up = k.close >= k.open
             val color = if (up) Color(0xFFE53935) else Color(0xFF43A047)
@@ -599,62 +1011,91 @@ internal fun ViewContainer<*, *>.indexKlineChartCanvas(ctx: IndexDetailPage, kli
         context.fillStyle(Color(0xFF999999))
         context.font(10f)
         context.textAlign(TextAlign.LEFT)
-        context.fillText(String.format("%.2f", maxP), 4f, padT + 9f)
-        context.fillText(String.format("%.2f", minP), 4f, volTop - 6f)
+        context.fillText(fmt2(maxP), 4f, padT + 9f)
+        context.fillText(fmt2(minP), 4f, volTop - 6f)
 
-        val firstDate = klineData.first().tradeDate
-        val lastDate = klineData.last().tradeDate
-        context.font(9f)
-        context.textAlign(TextAlign.LEFT)
-        context.fillText(firstDate, 2f, dateY)
-        context.textAlign(TextAlign.RIGHT)
-        context.fillText(lastDate, width - 2f, dateY)
+        if (visible.isNotEmpty()) {
+            context.font(9f)
+            context.textAlign(TextAlign.LEFT)
+            context.fillText(visible.first().tradeDate, 2f, dateY)
+            context.textAlign(TextAlign.RIGHT)
+            context.fillText(visible.last().tradeDate, width - 2f, dateY)
+        }
 
         val sel = ctx.selectedKlineIndex
-        if (sel >= 0 && sel < n) {
-            val k = klineData[sel]
-            val cx = step * sel + step / 2f
-            context.strokeStyle(Color(0xFF333333))
-            context.lineWidth(1.5f)
-            context.beginPath()
-            context.moveTo(cx - cw / 2f - 1f, py(k.high) - 1f)
-            context.lineTo(cx + cw / 2f + 1f, py(k.high) - 1f)
-            context.lineTo(cx + cw / 2f + 1f, py(k.low) + 1f)
-            context.lineTo(cx - cw / 2f - 1f, py(k.low) + 1f)
-            context.closePath()
-            context.stroke()
+        if (sel >= 0 && sel >= ctx.klineStartIndex && sel < ctx.klineStartIndex + nVisible) {
+            val localIdx = sel - ctx.klineStartIndex
+            if (localIdx in visible.indices) {
+                val k = visible[localIdx]
+                val cx = step * localIdx + step / 2f
+                val cy = py(k.close)
+                context.strokeStyle(Color(0xFF333333))
+                context.lineWidth(1f)
+                var vx = 0f
+                while (vx < height) {
+                    context.beginPath()
+                    context.moveTo(cx, vx)
+                    context.lineTo(cx, (vx + 4f).coerceAtMost(volTop))
+                    context.stroke()
+                    vx += 8f
+                }
+                var hx = 0f
+                while (hx < width) {
+                    context.beginPath()
+                    context.moveTo(hx, cy)
+                    context.lineTo((hx + 4f).coerceAtMost(width), cy)
+                    context.stroke()
+                    hx += 8f
+                }
+                context.strokeStyle(Color(0xFF2E7D32))
+                context.lineWidth(1.5f)
+                context.beginPath()
+                context.moveTo(cx - cw / 2f - 2f, py(k.high) - 2f)
+                context.lineTo(cx + cw / 2f + 2f, py(k.high) - 2f)
+                context.lineTo(cx + cw / 2f + 2f, py(k.low) + 2f)
+                context.lineTo(cx - cw / 2f - 2f, py(k.low) + 2f)
+                context.closePath()
+                context.stroke()
 
-            context.fillStyle(Color(0xE6333333))
-            context.beginPath()
-            context.moveTo(0f, 2f)
-            context.lineTo(width, 2f)
-            context.lineTo(width, tooltipH)
-            context.lineTo(0f, tooltipH)
-            context.closePath()
-            context.fill()
+                context.fillStyle(Color(0xE622263F))
+                context.beginPath()
+                context.moveTo(0f, 2f)
+                context.lineTo(width, 2f)
+                context.lineTo(width, tooltipH)
+                context.lineTo(0f, tooltipH)
+                context.closePath()
+                context.fill()
 
-            val up = k.close >= k.open
-            val pct = if (k.open != 0.0) (k.close - k.open) / k.open * 100.0 else 0.0
-            val tooltipColor = if (up) Color(0xFFFF8A80) else Color(0xFFA5D6A7)
-            context.font(8f)
-            context.textAlign(TextAlign.LEFT)
-            context.fillStyle(Color(0xFFFFFFFF))
-            context.fillText(
-                "${k.tradeDate}  开 ${String.format("%.2f", k.open)}  收 ${String.format("%.2f", k.close)}" +
-                    "  高 ${String.format("%.2f", k.high)}  低 ${String.format("%.2f", k.low)}",
-                4f, 10f
-            )
-            context.fillStyle(tooltipColor)
-            context.fillText(
-                "涨跌 ${String.format("%+.2f%%", pct)}   量 ${fmtIndexVolume(k.volume)}",
-                4f, 20f
-            )
+                val up = k.close >= k.open
+                val pct = if (k.open != 0.0) (k.close - k.open) / k.open * 100.0 else 0.0
+                val tooltipColor = if (up) Color(0xFFFF8A80) else Color(0xFFA5D6A7)
+                context.font(9f)
+                context.textAlign(TextAlign.LEFT)
+                context.fillStyle(Color(0xFFFFFFFF))
+                context.fillText(
+                    "${k.tradeDate} 开${fmt2(k.open)} 收${fmt2(k.close)} 高${fmt2(k.high)} 低${fmt2(k.low)}",
+                    4f, 12f
+                )
+                context.fillStyle(tooltipColor)
+                context.fillText(
+                    "涨跌 ${fmtSignedPct(pct)} 量${fmtIndexVolume(k.volume)}",
+                    4f, 24f
+                )
+                if (aiLevels.isNotEmpty()) {
+                    val nearest = aiLevels.minByOrNull { abs(it.price - k.close) }
+                    nearest?.let {
+                        val dist = (k.close - it.price) / it.price * 100.0
+                        context.fillStyle(Color(0xFFFFE082))
+                        context.fillText("距${it.label} ${fmtSignedPct(dist)}", 4f, 34f)
+                    }
+                }
+            }
         }
     }
 }
 
-internal fun ViewContainer<*, *>.indexKlineSummary(klineData: List<KLineDataItem>) {
-    val latest = klineData.lastOrNull()
+internal fun ViewContainer<*, *>.indexKlineSummary(ctx: IndexDetailPage, visible: List<KLineDataItem>) {
+    val latest = visible.lastOrNull() ?: ctx.indexDetail?.kline?.lastOrNull()
     if (latest == null) return
 
     View {
@@ -674,32 +1115,33 @@ internal fun ViewContainer<*, *>.indexKlineSummary(klineData: List<KLineDataItem
         View {
             attr {
                 flexDirectionRow()
+                flexWrapWrap()
             }
 
             Text {
                 attr {
                     text("最新: ${latest.tradeDate}")
-                    fontSize(12f)
+                    fontSize(11f)
                     color(0xFF666666)
                 }
             }
 
             Text {
                 attr {
-                    text("收盘: ${latest.close}")
-                    fontSize(12f)
+                    text("收盘: ${fmt2(latest.close)}")
+                    fontSize(11f)
                     fontWeightBold()
                     color(0xFF333333)
-                    marginLeft(12f)
+                    marginLeft(10f)
                 }
             }
 
             Text {
                 attr {
-                    text("成交量: ${fmtIndexVolume(latest.volume)}")
-                    fontSize(12f)
+                    text("量: ${fmtIndexVolume(latest.volume)}")
+                    fontSize(11f)
                     color(0xFF666666)
-                    marginLeft(12f)
+                    marginLeft(10f)
                 }
             }
         }
@@ -726,15 +1168,26 @@ internal fun ViewContainer<*, *>.indexAiAnalysisCards(ctx: IndexDetailPage) {
                     fontSize(15f)
                     fontWeightBold()
                     color(0xFF333333)
+                    flex(1f)
+                }
+            }
+
+            vif({ ctx.aiAnalysis != null }) {
+                Text {
+                    attr {
+                        text("${ctx.aiAnalysis!!.cards.size}张卡片")
+                        fontSize(11f)
+                        color(0xFF999999)
+                        marginRight(8f)
+                    }
                 }
             }
 
             vif({ !ctx.isAnalyzing }) {
                 View {
                     attr {
-                        marginLeft(8f)
-                        padding(top = 4f, left = 8f, bottom = 4f, right = 8f)
-                        backgroundColor(0xFFE8F5E9)
+                        padding(top = 4f, left = 10f, bottom = 4f, right = 10f)
+                        backgroundColor(0xFF2E7D32)
                         borderRadius(12f)
                     }
                     event {
@@ -744,9 +1197,10 @@ internal fun ViewContainer<*, *>.indexAiAnalysisCards(ctx: IndexDetailPage) {
                     }
                     Text {
                         attr {
-                            text("刷新分析")
+                            text(if (ctx.aiAnalysis == null) "开始分析" else "刷新")
                             fontSize(11f)
-                            color(0xFF666666)
+                            color(0xFFFFFFFF)
+                            fontWeightBold()
                         }
                     }
                 }
@@ -760,7 +1214,245 @@ internal fun ViewContainer<*, *>.indexAiAnalysisCards(ctx: IndexDetailPage) {
             indexNotAnalyzedView(ctx)
         }
         velse {
-            indexAnalysisBubble(ctx, ctx.aiAnalysis!!)
+            vfor({ ObservableList(listOfNotNull(ctx.aiAnalysis).map { it to ctx.aiExpandedKeys.toList() }.toMutableList()) }) { (analysis, _) ->
+            aiEvidencePanel({ ctx.aiAnalysis }) { ctx.focusEvidenceDate(it) }
+            val orderedTypes = listOf("trend_card", "signal_card", "suggestion_card", "risk_card", "summary_card")
+            val grouped = analysis.cards.filter { it["type"] != "evidence_card" }.groupBy { it["type"] as? String ?: "unknown" }
+            orderedTypes.forEach { t ->
+                grouped[t]?.forEachIndexed { idx, card ->
+                    indexRenderAICard(ctx, card, "${t}_$idx")
+                }
+            }
+            grouped.filterKeys { it !in orderedTypes }.values.flatten().forEachIndexed { idx, card ->
+                indexRenderAICard(ctx, card, "other_$idx")
+            }
+
+            View {
+                attr {
+                    flexDirectionColumn()
+                    marginTop(10f)
+                    padding(10f, 12f, 10f, 12f)
+                    backgroundColor(0xFFEAF4EA)
+                    borderRadius(10f)
+                }
+                Text {
+                    attr {
+                        text("💡 指数联动说明")
+                        fontSize(12f)
+                        fontWeightBold()
+                        color(0xFF2E7D32)
+                    }
+                }
+                Text {
+                    attr {
+                        text("· 点击AI点位 → K线标注\n· 点击K线 → 查看与AI点位的距离\n· 周K/月K 聚合看大势")
+                        fontSize(11f)
+                        color(0xFF666666)
+                        marginTop(4f)
+                        lineHeight(16f)
+                    }
+                }
+            }
+        }
+    }
+    }
+}
+
+internal fun ViewContainer<*, *>.indexRenderAICard(ctx: IndexDetailPage, card: Map<String, Any?>, key: String) {
+    val type = card["type"] as? String ?: "unknown"
+    val title = card["title"] as? String ?: when (type) {
+        "trend_card" -> "趋势研判"
+        "signal_card" -> "技术信号"
+        "suggestion_card" -> "操作建议"
+        "risk_card" -> "风险提示"
+        "summary_card" -> "总结"
+        else -> "分析"
+    }
+
+    when (type) {
+        "trend_card" -> {
+            val content = card["content"] as? String ?: ""
+            View {
+                attr {
+                    flexDirectionColumn()
+                    marginTop(8f)
+                    backgroundColor(0xFFFFFFFF)
+                    borderRadius(12f)
+                    padding(12f, 14f, 12f, 14f)
+                    border(Border(1f, BorderStyle.SOLID, Color(0xFFC8E6C9)))
+                }
+                View {
+                    attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
+                    View { attr { width(4f); height(16f); backgroundColor(0xFF2E7D32); borderRadius(2f); marginRight(8f) } }
+                    Text { attr { text(title); fontSize(14f); fontWeightBold(); color(0xFF2E7D32); flex(1f) } }
+                    View {
+                        attr { padding(3f, 8f, 3f, 8f); backgroundColor(0xFFE8F5E9); borderRadius(10f) }
+                        event { click { ctx.toggleAISection(key) } }
+                        Text { attr { text(if (ctx.isAIExpanded(key)) "收起" else "展开"); fontSize(11f); color(0xFF2E7D32) } }
+                    }
+                }
+                Text { attr { text(content); fontSize(13f); color(0xFF333333); marginTop(8f); lineHeight(19f) } }
+            }
+        }
+        "signal_card" -> {
+            val signals = (card["signals"] as? List<*>)?.mapNotNull { it?.toString() } ?: emptyList()
+            View {
+                attr {
+                    flexDirectionColumn()
+                    marginTop(8f)
+                    backgroundColor(0xFFFFF9C4)
+                    borderRadius(12f)
+                    padding(12f, 14f, 12f, 14f)
+                }
+                View {
+                    attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
+                    Text { attr { text("📊 $title (${signals.size})"); fontSize(14f); fontWeightBold(); color(0xFFA56100); flex(1f) } }
+                    View {
+                        attr { padding(3f, 8f, 3f, 8f); backgroundColor(0xFFFFFFFF); borderRadius(10f) }
+                        event { click { ctx.toggleAISection(key) } }
+                        Text { attr { text(if (ctx.isAIExpanded(key)) "收起" else "展开"); fontSize(11f); color(0xFFA56100) } }
+                    }
+                }
+                val displaySignals = if (ctx.isAIExpanded(key)) signals else signals.take(2)
+                displaySignals.forEach { sig ->
+                    View {
+                        attr { flexDirectionRow(); marginTop(6f) }
+                        Text { attr { text("•"); fontSize(13f); color(0xFFA56100); width(14f) } }
+                        Text { attr { text(sig); fontSize(12f); color(0xFF5D4037); flex(1f); lineHeight(17f) } }
+                    }
+                }
+            }
+        }
+        "suggestion_card" -> {
+            val suggestion = card["suggestion"] as? String ?: "-"
+            val targetPrice = parseCardPrice(card["target_price"])
+            val stopLoss = parseCardPrice(card["stop_loss"])
+            val support = parseCardPrice(card["support_price"] ?: card["support_value"])
+            val resistance = parseCardPrice(card["resistance_price"] ?: card["resistance_value"])
+            val currentPrice = ctx.indexDetail?.realtime?.price ?: 0.0
+
+            View {
+                attr {
+                    flexDirectionColumn()
+                    marginTop(8f)
+                    backgroundColor(0xFFFFFFFF)
+                    borderRadius(12f)
+                    padding(12f, 14f, 12f, 14f)
+                    border(Border(1.2f, BorderStyle.SOLID, Color(0xFF2E7D32)))
+                }
+                View {
+                    attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
+                    Text { attr { text("🎯 $title"); fontSize(14f); fontWeightBold(); color(0xFF2E7D32); flex(1f) } }
+                    View {
+                        attr { padding(4f, 10f, 4f, 10f); backgroundColor(0xFF2E7D32); borderRadius(12f) }
+                        event { click { ctx.toggleAISection(key) } }
+                        Text { attr { text(if (ctx.isAIExpanded(key)) "收起详情" else "展开点位"); fontSize(11f); color(0xFFFFFFFF); fontWeightBold() } }
+                    }
+                }
+                Text { attr { text(suggestion); fontSize(13f); color(0xFF333333); marginTop(8f); lineHeight(19f) } }
+
+                View {
+                    attr { flexDirectionColumn(); marginTop(10f) }
+                    if (resistance != null) indexPriceLevelRow(ctx, "压力位", resistance, currentPrice, 0xFFD64545)
+                    if (support != null) indexPriceLevelRow(ctx, "支撑位", support, currentPrice, 0xFF2E9E5B)
+                    if (targetPrice != null) indexPriceLevelRow(ctx, "目标点位", targetPrice, currentPrice, 0xFF0E67D1)
+                    if (stopLoss != null) indexPriceLevelRow(ctx, "止损点位", stopLoss, currentPrice, 0xFFA56100)
+                }
+            }
+        }
+        "risk_card" -> {
+            val riskLevel = card["risk_level"] as? String ?: ""
+            val risks = (card["risks"] as? List<*>)?.mapNotNull { it?.toString() } ?: emptyList()
+            val content = card["content"] as? String ?: ""
+            View {
+                attr {
+                    flexDirectionColumn()
+                    marginTop(8f)
+                    backgroundColor(0xFFFFEBEE)
+                    borderRadius(12f)
+                    padding(12f, 14f, 12f, 14f)
+                }
+                View {
+                    attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
+                    Text { attr { text("⚠️ $title"); fontSize(14f); fontWeightBold(); color(0xFFD32F2F); flex(1f) } }
+                    if (riskLevel.isNotEmpty()) {
+                        View {
+                            attr { padding(3f, 8f, 3f, 8f); backgroundColor(0xFFD32F2F); borderRadius(10f) }
+                            Text { attr { text(riskLevel); fontSize(11f); color(0xFFFFFFFF); fontWeightBold() } }
+                        }
+                    }
+                }
+                if (content.isNotBlank()) {
+                    Text { attr { text(content); fontSize(12f); color(0xFF5D4037); marginTop(6f); lineHeight(17f) } }
+                }
+                risks.forEach { r ->
+                    View {
+                        attr { flexDirectionRow(); marginTop(6f) }
+                        Text { attr { text("•"); fontSize(12f); color(0xFFD32F2F); width(12f) } }
+                        Text { attr { text(r); fontSize(12f); color(0xFF5D4037); flex(1f); lineHeight(17f) } }
+                    }
+                }
+            }
+        }
+        "summary_card" -> {
+            val summary = card["summary"] as? String ?: card["content"] as? String ?: ""
+            View {
+                attr {
+                    flexDirectionColumn()
+                    marginTop(8f)
+                    backgroundColor(0xFFE8F5E9)
+                    borderRadius(12f)
+                    padding(12f, 14f, 12f, 14f)
+                }
+                Text { attr { text("📝 $title"); fontSize(14f); fontWeightBold(); color(0xFF2E7D32) } }
+                Text { attr { text(summary); fontSize(13f); color(0xFF1B5E20); marginTop(6f); lineHeight(19f) } }
+            }
+        }
+        else -> {
+            val content = card["content"] as? String ?: card.toString()
+            View {
+                attr {
+                    flexDirectionColumn()
+                    marginTop(8f)
+                    backgroundColor(0xFFFFFFFF)
+                    borderRadius(10f)
+                    padding(12f)
+                }
+                Text { attr { text(title); fontSize(13f); fontWeightBold(); color(0xFF333333) } }
+                Text { attr { text(content); fontSize(12f); color(0xFF666666); marginTop(4f) } }
+            }
+        }
+    }
+}
+
+internal fun ViewContainer<*, *>.indexPriceLevelRow(
+    ctx: IndexDetailPage,
+    label: String,
+    price: Double,
+    currentPrice: Double,
+    color: Long
+) {
+    val dist = if (currentPrice > 0) (price - currentPrice) / currentPrice * 100.0 else 0.0
+    val distText = if (currentPrice > 0) fmtSignedPct(dist) else ""
+    View {
+        attr {
+            flexDirectionRow()
+            alignItems(FlexAlign.CENTER)
+            marginTop(6f)
+            padding(8f, 10f, 8f, 10f)
+            backgroundColor(0xFFF7F9FC)
+            borderRadius(8f)
+        }
+        View { attr { width(6f); height(6f); borderRadius(3f); backgroundColor(color); marginRight(8f) } }
+        Text { attr { text(label); fontSize(12f); color(0xFF666666); width(60f) } }
+        Text { attr { text(fmt2(price)); fontSize(13f); fontWeightBold(); color(color); flex(1f) } }
+        if (distText.isNotEmpty()) {
+            Text { attr { text(distText); fontSize(11f); color(if (dist >= 0) 0xFFE53935 else 0xFF43A047); marginRight(8f) } }
+        }
+        View {
+            attr { padding(4f, 8f, 4f, 8f); backgroundColor(0xFFE8F5E9); borderRadius(10f) }
+            event { click { ctx.highlightAIPrice(price, label) } }
+            Text { attr { text("标注"); fontSize(10f); color(0xFF2E7D32); fontWeightBold() } }
         }
     }
 }
@@ -783,7 +1475,7 @@ internal fun ViewContainer<*, *>.indexAnalysisBubble(ctx: IndexDetailPage, analy
                 borderRadius(12f)
                 padding(left = 12f, top = 10f, right = 12f, bottom = 10f)
             }
-            renderMarkdown(text)
+            KuiklyMarkdown(content = sanitizeMarkdownForRender(text), config = chatMarkdownConfig)
         }
     }
 }
@@ -913,6 +1605,32 @@ internal fun ViewContainer<*, *>.indexErrorView(ctx: IndexDetailPage) {
                     fontSize(14f)
                     fontWeightBold()
                     color(0xFFFFFFFF)
+                }
+            }
+        }
+    }
+}
+
+internal fun ViewContainer<*, *>.indexAiToast(ctx: IndexDetailPage) {
+    View {
+        attr {
+            absolutePosition(top = 70f, left = 0f, right = 0f)
+            alignItems(FlexAlign.CENTER)
+        }
+        event { click { ctx.aiToast = "" } }
+        View {
+            attr {
+                maxWidth(ctx.pagerData.pageViewWidth - 60f)
+                backgroundColor(0xE62E7D32)
+                borderRadius(10f)
+                padding(left = 14f, top = 8f, right = 14f, bottom = 8f)
+            }
+            Text {
+                attr {
+                    text(ctx.aiToast)
+                    fontSize(12f)
+                    color(0xFFFFFFFF)
+                    textAlignCenter()
                 }
             }
         }

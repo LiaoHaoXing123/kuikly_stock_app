@@ -65,9 +65,12 @@ kotlin {
                 // 日志插件（跨平台，含 JS）
                 implementation("io.ktor:ktor-client-logging:2.3.0")
                 // kotlinx-serialization 运行时（Kotlin 2.1 配套版本；依赖 serialization 编译插件生成代码）
-                implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+                implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
                 implementation("com.tencent.kuikly-open:core:${Version.getKuiklyVersion()}")
                 implementation("com.tencent.kuikly-open:core-annotations:${Version.getKuiklyVersion()}")
+                // 聊天 Markdown 渲染（Kuikly-contrib/KuiklyMarkdown；组件要求宿主提供 coroutines-core 与 serialization-json）
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1")
+                implementation("com.tencent.kuiklybase:KuiklyMarkdown:1.0.6-2.1.21")
 
             }
         }
