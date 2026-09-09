@@ -71,6 +71,7 @@ class StockDetailPage : Pager() {
     internal var highlightedPrice by observable(0.0)
     internal var highlightedPriceLabel by observable("")
     internal var klineInfoText by observable("")
+    internal var klineSubIndicator by observable("none") // none / macd / kdj，副图指标，默认关闭
 
     // --- P1 K线交互状态 ---
     internal val crosshair = CrosshairController()
@@ -1583,9 +1584,16 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
 
         val prices = data.map { it.price }
         val avgs = data.mapNotNull { it.avgPrice }
+        val preClose = ctx.stockDetail?.realtime?.preClose ?: data.first().price
         var minP = (prices + avgs + aiLevels.map { it.price } + listOfNotNull(ctx.highlightedPrice.takeIf { it > 0 })).minOrNull() ?: 0.0
         var maxP = (prices + avgs + aiLevels.map { it.price } + listOfNotNull(ctx.highlightedPrice.takeIf { it > 0 })).maxOrNull() ?: 1.0
         if (maxP <= minP) maxP = minP + 1.0
+        // 以昨收为中心对称，涨跌视觉对称（分时图惯例）；仍包含所有价位点
+        if (preClose > 0.0) {
+            val half = maxOf(maxP - preClose, preClose - minP).coerceAtLeast(1e-6)
+            minP = preClose - half
+            maxP = preClose + half
+        }
         val pad = (maxP - minP) * 0.12
         minP -= pad
         maxP += pad
@@ -1612,6 +1620,41 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
             context.moveTo(midX, padT)
             context.lineTo(midX, volTop)
             context.stroke()
+        }
+
+        // 昨收基准 + 涨跌区域填充（伪渐变：逐段低透明度四边形，段中价≥昨收红 / 否则绿）
+        val baseY = py(preClose)
+        if (preClose > 0.0) {
+            for (i in 0 until n - 1) {
+                val x0 = px(i)
+                val x1 = px(i + 1)
+                val y0 = py(data[i].price)
+                val y1 = py(data[i + 1].price)
+                val mid = (data[i].price + data[i + 1].price) / 2.0
+                context.fillStyle(Color(if (mid >= preClose) 0x18E53935L else 0x1843A047L))
+                context.beginPath()
+                context.moveTo(x0, y0)
+                context.lineTo(x1, y1)
+                context.lineTo(x1, baseY)
+                context.lineTo(x0, baseY)
+                context.closePath()
+                context.fill()
+            }
+            // 昨收虚线（灰）+ 右侧标签
+            context.strokeStyle(Color(0xFF999999))
+            context.lineWidth(1f)
+            var bx = 0f
+            while (bx < width) {
+                context.beginPath()
+                context.moveTo(bx, baseY)
+                context.lineTo((bx + 5f).coerceAtMost(width), baseY)
+                context.stroke()
+                bx += 9f
+            }
+            context.fillStyle(Color(0xFF999999))
+            context.font(8f)
+            context.textAlign(TextAlign.RIGHT)
+            context.fillText("昨收 ${fmt2(preClose)}", width - 2f, baseY - 2f)
         }
 
         // AI价位虚线
@@ -1681,7 +1724,6 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
         if (ctx.minuteShowVolume && volH > 0) {
             val vols = data.map { it.volume ?: 0.0 }
             val maxVol = vols.maxOrNull()?.toFloat()?.coerceAtLeast(1f) ?: 1f
-            val preClose = ctx.stockDetail?.realtime?.preClose ?: data.first().price
             data.forEachIndexed { i, p ->
                 val x = px(i)
                 val vol = (p.volume ?: 0.0).toFloat()
@@ -1767,7 +1809,6 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
                 "${p.time} 价${fmt2(p.price)}${p.avgPrice?.let { " 均${fmt2(it)}" } ?: ""} ${p.volume?.let { "量${it.toInt()}" } ?: ""}",
                 4f, 10f
             )
-            val preClose = ctx.stockDetail?.realtime?.preClose ?: p.price
             val pct = if (preClose != 0.0) (p.price - preClose) / preClose * 100.0 else 0.0
             context.fillStyle(Color(if (pct >= 0) 0xFFFF8A80 else 0xFFA5D6A7))
             context.fillText("涨跌 ${fmtSignedPct(pct)}", 4f, 20f)
@@ -1825,6 +1866,13 @@ internal fun ViewContainer<*, *>.orderBookCard(ctx: StockDetailPage) {
 }
 
 internal fun ViewContainer<*, *>.orderBookCardContent(ctx: StockDetailPage, book: OrderBookData) {
+    // 派生量：各档量能比例条 / 委差 / 大单判定
+    val levelVols = (book.bids + book.asks).mapNotNull { it.second }.filter { it.isFinite() && it >= 0.0 }
+    val maxLevelVol = levelVols.maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
+    val meanLevelVol = if (levelVols.isEmpty()) 0.0 else levelVols.average()
+    val bidVolTotal = book.bids.sumOf { it.second ?: 0.0 }
+    val askVolTotal = book.asks.sumOf { it.second ?: 0.0 }
+    val weicha = bidVolTotal - askVolTotal  // 委差(手)：买总量 - 卖总量
 
     View {
         attr {
@@ -1875,7 +1923,9 @@ internal fun ViewContainer<*, *>.orderBookCardContent(ctx: StockDetailPage, book
 
         // 列表
         book.asks.reversed().forEachIndexed { i, (price, vol) ->
-            orderBookRow(ctx, "卖${5 - i}", price, vol, 0xFF43A047, isAsk = true)
+            val r = (vol ?: 0.0) / maxLevelVol
+            val big = vol != null && meanLevelVol > 0.0 && vol >= meanLevelVol * 1.8
+            orderBookRow(ctx, "卖${5 - i}", price, vol, 0xFF43A047, isAsk = true, ratio = r, isBig = big)
         }
         View {
             attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); margin(6f, 0f, 6f, 0f) }
@@ -1893,7 +1943,9 @@ internal fun ViewContainer<*, *>.orderBookCardContent(ctx: StockDetailPage, book
             View { attr { height(1f); backgroundColor(0xFFEEEEEE); flex(1f) } }
         }
         book.bids.forEachIndexed { i, (price, vol) ->
-            orderBookRow(ctx, "买${i + 1}", price, vol, 0xFFE53935, isAsk = false)
+            val r = (vol ?: 0.0) / maxLevelVol
+            val big = vol != null && meanLevelVol > 0.0 && vol >= meanLevelVol * 1.8
+            orderBookRow(ctx, "买${i + 1}", price, vol, 0xFFE53935, isAsk = false, ratio = r, isBig = big)
         }
 
         View {
@@ -1907,6 +1959,22 @@ internal fun ViewContainer<*, *>.orderBookCardContent(ctx: StockDetailPage, book
                         marginRight(6f)
                     }
                     Text { attr { text("委比 ${fmt2(ratio)}%"); fontSize(11f); color(0xFF666666) } }
+                }
+            }
+            // 委差（手）：买总量 - 卖总量，>0 偏多(红)、<0 偏空(绿)
+            View {
+                attr {
+                    padding(4f, 8f, 4f, 8f)
+                    backgroundColor(0xFFF5F5F5)
+                    borderRadius(8f)
+                    marginRight(6f)
+                }
+                Text {
+                    attr {
+                        text("委差 ${if (weicha >= 0) "+" else ""}${weicha.toInt()}手")
+                        fontSize(11f)
+                        color(if (weicha >= 0) 0xFFE53935 else 0xFF43A047)
+                    }
                 }
             }
             vif({ ctx.orderBookHighlightPrice > 0 }) {
@@ -1945,8 +2013,9 @@ internal fun ViewContainer<*, *>.orderBookCardContent(ctx: StockDetailPage, book
     }
 }
 
-internal fun ViewContainer<*, *>.orderBookRow(ctx: StockDetailPage, label: String, price: Double?, vol: Double?, color: Long, isAsk: Boolean) {
+internal fun ViewContainer<*, *>.orderBookRow(ctx: StockDetailPage, label: String, price: Double?, vol: Double?, color: Long, isAsk: Boolean, ratio: Double, isBig: Boolean) {
     val isHighlighted = price != null && ctx.orderBookHighlightPrice == price
+    val barFlex = (ratio.coerceIn(0.0, 1.0) * 1000).toInt().coerceIn(0, 1000)
     View {
         attr {
             flexDirectionRow()
@@ -1956,10 +2025,27 @@ internal fun ViewContainer<*, *>.orderBookRow(ctx: StockDetailPage, label: Strin
             backgroundColor(if (isHighlighted) 0xFFFFF3E8 else 0xFFFFFFFF)
             borderRadius(6f)
         }
+        // 量能比例背景条（绝对铺底、无事件，不拦截点击；靠右填充，买红/卖绿低透明度）
+        View {
+            attr { absolutePositionAllZero(); flexDirectionRow(); borderRadius(6f) }
+            View { attr { flex((1000 - barFlex).toFloat()) } }
+            View { attr { flex(barFlex.toFloat()); backgroundColor(if (isAsk) 0x1543A047L else 0x15E53935L) } }
+        }
         Text { attr { text(label); fontSize(12f); color(0xFF666666); width(36f) } }
         Text { attr { text(fmtOpt(price)); fontSize(13f); fontWeightBold(); color(color); flex(1f) } }
         Text { attr { text(fmtOpt(vol)); fontSize(11f); color(0xFF666666); width(60f); textAlignRight() } }
 
+        vif({ isBig }) {
+            View {
+                attr {
+                    marginLeft(6f)
+                    padding(2f, 5f, 2f, 5f)
+                    backgroundColor(if (isAsk) 0xFFEAF7EF else 0xFFFFF0F0)
+                    borderRadius(6f)
+                }
+                Text { attr { text("大单"); fontSize(9f); color(if (isAsk) 0xFF2E7D32 else 0xFFC62828); fontWeightBold() } }
+            }
+        }
         View {
             attr {
                 marginLeft(6f)
@@ -2213,7 +2299,16 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                 }
             }
 
-            vfor({ ObservableList(mutableListOf(listOf(ctx.getAggregatedKline(), ctx.klineStartIndex, ctx.klineVisibleCount, ctx.selectedKlineIndex, ctx.aiAnalysis, ctx.highlightedPrice, ctx.highlightedPriceLabel, ctx.klineShowMA, ctx.klineShowVolume, ctx.klinePeriod, ctx.effectiveVerdict, ctx.verdictExpanded, ctx.isAnalyzing, ctx.crosshairX, ctx.crosshairY, ctx.rangeStats, ctx.isRangeSelecting))) }) { _ ->
+            // 副图指标选择器（关 / MACD / KDJ，默认关；开启时主画布向下增高）
+            View {
+                attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginBottom(6f) }
+                Text { attr { text("副图"); fontSize(11f); color(0xFF999999); marginRight(8f) } }
+                subIndicatorChip(ctx, "none", "关")
+                subIndicatorChip(ctx, "macd", "MACD")
+                subIndicatorChip(ctx, "kdj", "KDJ")
+            }
+
+            vfor({ ObservableList(mutableListOf(listOf(ctx.getAggregatedKline(), ctx.klineStartIndex, ctx.klineVisibleCount, ctx.selectedKlineIndex, ctx.aiAnalysis, ctx.highlightedPrice, ctx.highlightedPriceLabel, ctx.klineShowMA, ctx.klineShowVolume, ctx.klinePeriod, ctx.effectiveVerdict, ctx.verdictExpanded, ctx.isAnalyzing, ctx.crosshairX, ctx.crosshairY, ctx.rangeStats, ctx.isRangeSelecting, ctx.klineSubIndicator))) }) { _ ->
             View {
                 attr { flexDirectionColumn() }
                 event { layoutFrameDidChange { ctx.klineSectionY = it.y } }
@@ -2305,6 +2400,27 @@ internal fun ViewContainer<*, *>.klinePeriodChip(ctx: StockDetailPage, period: S
     }
 }
 
+internal fun ViewContainer<*, *>.subIndicatorChip(ctx: StockDetailPage, key: String, label: String) {
+    val active = ctx.klineSubIndicator == key
+    View {
+        attr {
+            padding(3f, 10f, 3f, 10f)
+            backgroundColor(if (active) 0xFF5B7FFF else 0xFFF5F5F5)
+            borderRadius(12f)
+            marginRight(6f)
+        }
+        event { click { ctx.klineSubIndicator = key } }
+        Text {
+            attr {
+                text(label)
+                fontSize(11f)
+                fontWeightBold()
+                color(if (active) 0xFFFFFFFF else 0xFF888888)
+            }
+        }
+    }
+}
+
 internal fun ViewContainer<*, *>.klineControlBtn(ctx: StockDetailPage, label: String, action: () -> Unit) {
     View {
         attr {
@@ -2389,7 +2505,7 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, aggregat
 
     Canvas({
         attr {
-            height(if (ctx.klineShowVolume) 380f else 300f)
+            height((if (ctx.klineShowVolume) 380f else 300f) + (if (ctx.klineSubIndicator != "none") 86f else 0f))
             marginTop(2f)
             backgroundColor(0xFFFFFFFF)
         }
@@ -2412,9 +2528,15 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, aggregat
 
         val tooltipH = 36f
         val padT = 38f
-        val volTop = if (ctx.klineShowVolume) height - 70f else height - 20f
+        // 副图（MACD/KDJ）：底部预留一块高度。height 已含 +86，故 volTop 回落到 base-70，
+        // 主图与量图区域逐像素不变；副图占 [subTop, subBottom]。
+        val subOn = ctx.klineSubIndicator != "none"
+        val subReserve = if (subOn) 86f else 0f       // 76 高 + 10 间隙
+        val volTop = (if (ctx.klineShowVolume) height - 70f else height - 20f) - subReserve
         val volH = if (ctx.klineShowVolume) 44f else 0f
         val dateY = height - 10f
+        val subTop = volTop + volH + 10f
+        val subBottom = subTop + 76f
 
         // 计算可见区间价格范围，包含AI价位
         val priceList = visible.flatMap { listOf(it.high, it.low, it.open, it.close) }.toMutableList()
@@ -2584,6 +2706,124 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, aggregat
             context.fillText("成交量", width - 2f, volTop - 8f)
         }
 
+        // ============ 副图：MACD / KDJ（并入主画布，X 轴与主图逐根对齐）============
+        if (subOn) {
+            val subH = subBottom - subTop
+            // 与量图/主图的分隔线
+            context.strokeStyle(Color(0xFFE0E0E0))
+            context.lineWidth(1f)
+            context.beginPath()
+            context.moveTo(0f, subTop - 5f)
+            context.lineTo(width, subTop - 5f)
+            context.stroke()
+
+            // 在完整 aggregated 上计算（EMA/窗口预热），再按可见区间切片，与 maAt 同理
+            val closesAll = aggregated.map { it.close }
+            val subActiveIdx = ctx.crosshair.activeIndex ?: -1
+            val subActiveLocal = (subActiveIdx - visibleStart).let { if (it in 0 until nVisible) it else nVisible - 1 }
+
+            if (ctx.klineSubIndicator == "macd") {
+                val macd = computeMACD(closesAll)
+                val difV = ArrayList<Double>(nVisible)
+                val deaV = ArrayList<Double>(nVisible)
+                val histV = ArrayList<Double>(nVisible)
+                for (i in 0 until nVisible) {
+                    val gi = visibleStart + i
+                    difV.add(macd.dif.getOrElse(gi) { 0.0 })
+                    deaV.add(macd.dea.getOrElse(gi) { 0.0 })
+                    histV.add(macd.hist.getOrElse(gi) { 0.0 })
+                }
+                var lo = 0.0
+                var hi = 0.0
+                for (i in 0 until nVisible) {
+                    lo = minOf(lo, difV[i], deaV[i], histV[i])
+                    hi = maxOf(hi, difV[i], deaV[i], histV[i])
+                }
+                if (hi <= lo) hi = lo + 1.0
+                fun syToY(v: Double): Float = subTop + subH * ((hi - v) / (hi - lo)).toFloat()
+                val zeroY = syToY(0.0)
+                // 零轴
+                context.strokeStyle(Color(0xFFCCCCCC))
+                context.lineWidth(1f)
+                context.beginPath(); context.moveTo(0f, zeroY); context.lineTo(width, zeroY); context.stroke()
+                // MACD 柱（≥0 红 / <0 绿）
+                for (i in 0 until nVisible) {
+                    val cx = step * i + step / 2f
+                    val h = histV[i]
+                    val y = syToY(h)
+                    context.fillStyle(Color(if (h >= 0.0) 0xFFE53935 else 0xFF43A047))
+                    val topY = minOf(y, zeroY)
+                    val botY = maxOf(y, zeroY).coerceAtLeast(topY + 0.8f)
+                    context.beginPath()
+                    context.moveTo(cx - cw / 2f, topY)
+                    context.lineTo(cx + cw / 2f, topY)
+                    context.lineTo(cx + cw / 2f, botY)
+                    context.lineTo(cx - cw / 2f, botY)
+                    context.closePath(); context.fill()
+                }
+                fun drawSubLine(vals: List<Double>, colorValue: Long) {
+                    context.strokeStyle(Color(colorValue)); context.lineWidth(1.2f); context.beginPath()
+                    for (i in 0 until nVisible) {
+                        val cx = step * i + step / 2f
+                        val y = syToY(vals[i])
+                        if (i == 0) context.moveTo(cx, y) else context.lineTo(cx, y)
+                    }
+                    context.stroke()
+                }
+                drawSubLine(difV, 0xFF1976D2)  // DIF 蓝
+                drawSubLine(deaV, 0xFFFF9800)  // DEA 橙
+                context.fillStyle(Color(0xFF888888)); context.font(9f); context.textAlign(TextAlign.LEFT)
+                val si = subActiveLocal.coerceIn(0, nVisible - 1)
+                context.fillText("MACD(12,26,9)  DIF ${fmt2(difV[si])}  DEA ${fmt2(deaV[si])}  M ${fmt2(histV[si])}", 4f, subTop + 9f)
+            } else {
+                val highsAll = aggregated.map { it.high }
+                val lowsAll = aggregated.map { it.low }
+                val kdj = computeKDJ(highsAll, lowsAll, closesAll)
+                val kV = ArrayList<Double>(nVisible)
+                val dV = ArrayList<Double>(nVisible)
+                val jV = ArrayList<Double>(nVisible)
+                for (i in 0 until nVisible) {
+                    val gi = visibleStart + i
+                    kV.add(kdj.k.getOrElse(gi) { 50.0 })
+                    dV.add(kdj.d.getOrElse(gi) { 50.0 })
+                    jV.add(kdj.j.getOrElse(gi) { 50.0 })
+                }
+                var lo = 0.0
+                var hi = 100.0
+                for (i in 0 until nVisible) {
+                    lo = minOf(lo, kV[i], dV[i], jV[i])
+                    hi = maxOf(hi, kV[i], dV[i], jV[i])
+                }
+                if (hi <= lo) hi = lo + 1.0
+                fun syToY(v: Double): Float = subTop + subH * ((hi - v) / (hi - lo)).toFloat()
+                // 20 / 80 参考虚线
+                context.strokeStyle(Color(0xFFEEEEEE)); context.lineWidth(1f)
+                for (ref in listOf(20.0, 80.0)) {
+                    val ry = syToY(ref)
+                    var rx = 0f
+                    while (rx < width) {
+                        context.beginPath(); context.moveTo(rx, ry); context.lineTo((rx + 6f).coerceAtMost(width), ry); context.stroke()
+                        rx += 10f
+                    }
+                }
+                fun drawSubLine(vals: List<Double>, colorValue: Long) {
+                    context.strokeStyle(Color(colorValue)); context.lineWidth(1.2f); context.beginPath()
+                    for (i in 0 until nVisible) {
+                        val cx = step * i + step / 2f
+                        val y = syToY(vals[i])
+                        if (i == 0) context.moveTo(cx, y) else context.lineTo(cx, y)
+                    }
+                    context.stroke()
+                }
+                drawSubLine(kV, 0xFF1976D2)  // K 蓝
+                drawSubLine(dV, 0xFFFF9800)  // D 橙
+                drawSubLine(jV, 0xFF7B1FA2)  // J 紫
+                context.fillStyle(Color(0xFF888888)); context.font(9f); context.textAlign(TextAlign.LEFT)
+                val si = subActiveLocal.coerceIn(0, nVisible - 1)
+                context.fillText("KDJ(9,3,3)  K ${fmt2(kV[si])}  D ${fmt2(dV[si])}  J ${fmt2(jV[si])}", 4f, subTop + 9f)
+            }
+        }
+
         // 价格标签
         context.fillStyle(Color(0xFF999999))
         context.font(10f)
@@ -2617,14 +2857,15 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage, aggregat
             val localIdx = activeIdx - ctx.klineStartIndex
             val k = visible.getOrNull(localIdx)
 
-            // 竖直线（虚线）
+            // 竖直线（虚线）— 副图开启时贯穿主图 + 量图 + 副图
             context.strokeStyle(Color(0xFF666666))
             context.lineWidth(1f)
+            val vLineBottom = if (subOn) subBottom else volTop
             var vx = padT
-            while (vx < volTop) {
+            while (vx < vLineBottom) {
                 context.beginPath()
                 context.moveTo(cx, vx)
-                context.lineTo(cx, (vx + 4f).coerceAtMost(volTop))
+                context.lineTo(cx, (vx + 4f).coerceAtMost(vLineBottom))
                 context.stroke()
                 vx += 8f
             }
