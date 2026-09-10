@@ -28,6 +28,8 @@ expect object StockDb {
     fun orderBook(code: String): OrderBookData?
 
     fun fundFlow(code: String, limit: Int): List<FundFlowItem>
+    fun industryPeers(code: String): IndustrySnapshot?
+    fun sectorOfStock(code: String): SectorSnapshot?
 
     fun marketOverview(): MarketOverview
 

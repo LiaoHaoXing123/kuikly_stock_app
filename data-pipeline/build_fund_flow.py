@@ -27,6 +27,7 @@ import sys
 import time
 import json
 import argparse
+import math
 import sqlite3
 import urllib.request
 import urllib.parse
@@ -126,10 +127,13 @@ def sina_rows(code, data):
             d = str(item.get("opendate", "")).strip()
             if not d or len(d) != 10:
                 continue
-            main_net = float(item.get("r0_net") or 0.0)
-            ratio_raw = item.get("r0_ratio")
-            main_ratio = round(float(ratio_raw) * 100.0, 2) if ratio_raw is not None else 0.0
-            rows.append((code, d, main_net, main_ratio, None, None, None, None, None, None, None, None, SRC["stock_fund_flow"]))
+            datetime.strptime(d, "%Y-%m-%d")
+            main_net = _num(item.get("r0_net"))
+            ratio_raw = _num(item.get("r0_ratio"))
+            if main_net is None or ratio_raw is None:
+                continue
+            main_ratio = round(ratio_raw * 100.0, 2)
+            rows.append((code, d, main_net, main_ratio, None, None, None, None, None, None, None, None, "新浪(主力)"))
         except (TypeError, ValueError):
             continue
     return rows
@@ -162,8 +166,11 @@ def em_rows(code, df):
                         return r[k]
                 return None
 
-            main_net = float(pick("主力净流入-净额") or 0.0)
-            main_ratio = float(pick("主力净流入-净占比") or 0.0)
+            datetime.strptime(d, "%Y-%m-%d")
+            main_net = _num(pick("主力净流入-净额"))
+            main_ratio = _num(pick("主力净流入-净占比"))
+            if main_net is None or main_ratio is None:
+                continue
             super_net = _num(pick("超大单净流入-净额"))
             super_ratio = _num(pick("超大单净流入-净占比"))
             big_net = _num(pick("大单净流入-净额"))
@@ -181,7 +188,8 @@ def em_rows(code, df):
 
 def _num(v):
     try:
-        return float(v)
+        value = float(v)
+        return value if math.isfinite(value) else None
     except (TypeError, ValueError):
         return None
 
@@ -246,6 +254,7 @@ def main():
     ap.add_argument("--codes", default="", help="逗号分隔代码，默认 KLINE_CODES")
     ap.add_argument("--dry-run", action="store_true", help="只建表自检，不拉网络")
     ap.add_argument("--no-em", action="store_true", help="跳过东财降级通道")
+    ap.add_argument("--no-manifest", action="store_true", help="由主构建器统一生成 version.json")
     args = ap.parse_args()
 
     if args.codes:
@@ -282,7 +291,7 @@ def main():
                 print(f"  [{i}/{len(codes)}] {code} 新浪 ✗ {type(e).__name__}: {str(e)[:60]}")
 
             # 东财降级：只补五档，失败静默（WAF 封禁时保持新浪主力档）
-            if not args.no_em and src_rows:
+            if not args.no_em:
                 try:
                     df = fetch_em(code)
                     if df is not None:
@@ -302,19 +311,39 @@ def main():
         print(f"  东财五档命中 {em_hits}/{len(codes)}")
 
         # 质量门
-        coverage = n_codes / max(1, len(codes))
-        age = 999
-        if latest:
-            age = (datetime.now() - datetime.strptime(latest, "%Y-%m-%d")).days
-        ok = coverage >= QUALITY_MIN_COVERAGE and age <= QUALITY_MAX_AGE_DAYS
+        # 按请求代码逐只校验，不能用库内其他代码或一只新数据掩盖缺失/过期。
+        coverage, age = requested_coverage(conn, codes)
+        ok = coverage >= QUALITY_MIN_COVERAGE
         print(f"\n[质量门] 覆盖率 {coverage * 100:.1f}% (>= {QUALITY_MIN_COVERAGE * 100:.0f}%) | "
               f"最新 {latest} 距今 {age} 天 (<= {QUALITY_MAX_AGE_DAYS}) | {'✅ 通过' if ok else '❌ 未通过'}")
         if not ok:
             print("[!] 数据质量未达标，本次产物不宜发布。请检查数据源或覆盖列表。")
             sys.exit(3)
+        if not args.no_manifest:
+            meta = json.loads(bsd.OUT_VERSION.read_text(encoding="utf-8")) if bsd.OUT_VERSION.exists() else {}
+            meta.setdefault("counts", {})["stock_fund_flow"] = n_rows
+            meta["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            bsd.SRC.update(SRC)
+            bsd.write_version(meta)
         print("✅ 资金流表构建完成")
     finally:
         conn.close()
+
+
+def requested_coverage(conn, codes, today=None):
+    today = today or datetime.now()
+    codes = set(codes)
+    valid, ages = 0, []
+    for code in codes:
+        latest = conn.execute("SELECT MAX(trade_date) FROM stock_fund_flow WHERE code=?", (code,)).fetchone()[0]
+        try:
+            age = (today - datetime.strptime(latest, "%Y-%m-%d")).days
+            ages.append(age)
+            if 0 <= age <= QUALITY_MAX_AGE_DAYS:
+                valid += 1
+        except (TypeError, ValueError):
+            ages.append(999)
+    return valid / max(1, len(codes)), max(ages, default=999)
 
 
 if __name__ == "__main__":

@@ -194,7 +194,7 @@ actual object StockDb {
         }.reversed()
 
     val indicator = latestIndicator(db, code)
-    val fundFlow = fundFlow(code, 5)
+    val fundFlow = fundFlow(code, 10)
 
         if (info == null && realtime == null) { Log.w(TAG, "stockDetail " + code + " NOT FOUND"); return null }
         Log.i(TAG, "stockDetail " + code + " -> info=" + (info != null) + " realtime=" + (realtime != null) + " kline=" + kline.size + " ind=" + indicator?.tradeDate + " ff=" + fundFlow.size)
@@ -298,7 +298,7 @@ actual object StockDb {
         // 非必需表：旧库没有 stock_fund_flow 时静默返回空，不阻塞详情页
         return try {
             db.rawQuery(
-                """SELECT trade_date,main_net,main_ratio,super_net,big_net,mid_net,small_net
+                """SELECT trade_date,main_net,main_ratio,super_net,big_net,mid_net,small_net,source
                    FROM stock_fund_flow WHERE code=? ORDER BY trade_date DESC LIMIT ?""",
                 arrayOf(code, limit.toString())
             ).use { c ->
@@ -312,6 +312,7 @@ actual object StockDb {
                             bigNet = c.getDoubleOrNull("big_net"),
                             midNet = c.getDoubleOrNull("mid_net"),
                             smallNet = c.getDoubleOrNull("small_net"),
+                            source = c.getStringOrNull("source") ?: "来源未提供",
                         ))
                     }
                 }
@@ -320,6 +321,70 @@ actual object StockDb {
             Log.w(TAG, "fundFlow " + code + " 表缺失或查询失败: " + e.message)
             emptyList()
         }
+    }
+
+    actual fun industryPeers(code: String): IndustrySnapshot? {
+        val db = openDb() ?: return null
+        val industry = db.rawQuery("SELECT industry FROM stock_info WHERE code=?", arrayOf(code)).use {
+            if (it.moveToFirst()) it.getStringOrNull("industry") else null
+        }?.takeIf { it.isNotBlank() } ?: return null
+        val members = db.rawQuery(
+            """SELECT s.code,s.name,r.price,r.change_percent,r.update_time FROM stock_info s
+               LEFT JOIN stock_realtime r ON r.code=s.code WHERE s.industry=? ORDER BY s.code""",
+            arrayOf(industry)
+        ).use { c ->
+            buildList {
+                while (c.moveToNext()) add(IndustryMember(
+                    StockListItem(code = c.getStringOrEmpty("code"), name = c.getStringOrNull("name"),
+                        price = c.getDoubleOrNull("price"), changePercent = c.getDoubleOrNull("change_percent")),
+                    c.getStringOrNull("update_time").orEmpty().take(10)
+                ))
+            }
+        }
+        return IndustrySnapshot(industry, members)
+    }
+
+    actual fun sectorOfStock(code: String): SectorSnapshot? {
+        val db = openDb() ?: return null
+        // 1) 个股所属官方板块：stock_info.industry（东财行业名）与 sector_board.board_name 匹配，取最新快照
+        val board = db.rawQuery(
+            """SELECT b.board_code,b.board_name,b.change_percent,b.leader,b.leader_change,
+                      b.total_mv,b.turnover,b.up_count,b.down_count,b.fetch_date
+               FROM stock_info s JOIN sector_board b ON b.board_name=s.industry
+               WHERE s.code=? ORDER BY b.fetch_date DESC LIMIT 1""",
+            arrayOf(code)
+        ).use { c ->
+            if (!c.moveToFirst()) null
+            else SectorBoardItem(
+                boardCode = c.getStringOrEmpty("board_code"),
+                boardName = c.getStringOrEmpty("board_name"),
+                changePercent = c.getDoubleOrNull("change_percent"),
+                leader = c.getStringOrNull("leader"),
+                leaderChange = c.getDoubleOrNull("leader_change"),
+                totalMv = c.getDoubleOrNull("total_mv"),
+                turnover = c.getDoubleOrNull("turnover"),
+                upCount = c.getIntOrNull("up_count") ?: 0,
+                downCount = c.getIntOrNull("down_count") ?: 0,
+                fetchDate = c.getStringOrEmpty("fetch_date"),
+            )
+        } ?: return null
+        // 2) 板块成分股：该板块最新快照
+        val members = db.rawQuery(
+            """SELECT code,name,price,change_percent FROM sector_member
+               WHERE board_code=? AND fetch_date=(SELECT MAX(fetch_date) FROM sector_member WHERE board_code=?)
+               ORDER BY code""",
+            arrayOf(board.boardCode, board.boardCode)
+        ).use { c ->
+            buildList {
+                while (c.moveToNext()) add(SectorMemberItem(
+                    code = c.getStringOrEmpty("code"),
+                    name = c.getStringOrNull("name"),
+                    price = c.getDoubleOrNull("price"),
+                    changePercent = c.getDoubleOrNull("change_percent"),
+                ))
+            }
+        }
+        return SectorSnapshot(board, members)
     }
 
     actual fun marketOverview(): MarketOverview {
@@ -643,6 +708,10 @@ val i = getColumnIndex(col)
 return if (i < 0 || isNull(i)) null else getDouble(i)
     }
 private fun Cursor.getDoubleOrZero(col: String): Double = getDoubleOrNull(col) ?: 0.0
+private fun Cursor.getIntOrNull(col: String): Int? {
+val i = getColumnIndex(col)
+return if (i < 0 || isNull(i)) null else getInt(i)
+    }
 }
 
 private const val WATCH_PREFS = "kuikly_watch_prefs"

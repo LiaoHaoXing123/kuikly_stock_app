@@ -9,6 +9,9 @@ import com.kuikly.stock.pages.StockDetailData
 import com.kuikly.stock.pages.StockListItem
 
 actual object StockDb {
+    actual fun industryPeers(code: String): IndustrySnapshot? = null
+    actual fun sectorOfStock(code: String): SectorSnapshot? = null
+    actual fun fundFlow(code: String, limit: Int): List<com.kuikly.stock.pages.FundFlowItem> = emptyList()
 
     actual fun listStocks(
         keyword: String?,

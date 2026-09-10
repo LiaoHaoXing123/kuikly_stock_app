@@ -2,6 +2,7 @@ package com.kuikly.stock.pages
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class IndicatorSeriesTest {
@@ -61,5 +62,67 @@ class IndicatorSeriesTest {
         val kdj = computeKDJ(highs, lows, closes)
         assertEquals(50.0, kdj.k.last(), 1e-9)
         assertEquals(50.0, kdj.d.last(), 1e-9)
+    }
+
+    @Test fun emptyInputReturnsEmptyRsi() {
+        val rsi = computeRSI(emptyList())
+        assertTrue(rsi.rsi6.isEmpty() && rsi.rsi12.isEmpty() && rsi.rsi24.isEmpty())
+    }
+
+    @Test fun constantPriceKeepsRsiAtFifty() {
+        val closes = List(30) { 10.0 }
+        val rsi = computeRSI(closes)
+        assertEquals(closes.size, rsi.rsi6.size)
+        // 无波动 → gain=loss=0 → RSI=50（中性）
+        assertEquals(50.0, rsi.rsi6.last(), 1e-9)
+        assertEquals(50.0, rsi.rsi12.last(), 1e-9)
+        assertEquals(50.0, rsi.rsi24.last(), 1e-9)
+    }
+
+    @Test fun risingPricePushesRsiToHundred() {
+        val closes = (1..30).map { it.toDouble() }
+        val rsi = computeRSI(closes)
+        // 单调上涨 → 无下跌 → RSI 触顶 100
+        assertEquals(100.0, rsi.rsi6.last(), 1e-9)
+        assertTrue(rsi.rsi6.all { it in 0.0..100.0 })
+        assertTrue(rsi.rsi12.all { it.isFinite() } && rsi.rsi24.all { it.isFinite() })
+    }
+
+    @Test fun fallingPricePushesRsiToZero() {
+        val closes = (1..30).map { (31 - it).toDouble() }
+        val rsi = computeRSI(closes)
+        // 单调下跌 → 无上涨 → RSI 触底 0
+        assertEquals(0.0, rsi.rsi6.last(), 1e-9)
+        assertTrue(rsi.rsi6.all { it in 0.0..100.0 })
+    }
+
+    @Test fun tooFewBarsGiveNoTrendlines() {
+        val t = computeTrendlines(listOf(1.0, 2.0), listOf(1.0, 2.0), window = 2)
+        assertNull(t.support)
+        assertNull(t.resistance)
+    }
+
+    @Test fun descendingSwingHighsGiveFallingResistance() {
+        val highs = listOf(1.0, 5.0, 2.0, 4.0, 1.0, 3.0, 0.5)
+        val t = computeTrendlines(highs, highs, window = 1)
+        val r = t.resistance!!
+        // 最近两个摆动高（4.0@3 → 3.0@5）向右下 → 斜率为负
+        assertTrue(r.x2 > r.x1)
+        assertTrue(r.y2 < r.y1, "resistance should fall: ${r.y1} -> ${r.y2}")
+    }
+
+    @Test fun ascendingSwingLowsGiveRisingSupport() {
+        val lows = listOf(9.0, 1.0, 8.0, 2.0, 9.0, 3.0, 9.0)
+        val t = computeTrendlines(lows, lows, window = 1)
+        val s = t.support!!
+        // 最近两个摆动低（2.0@3 → 3.0@5）向右上 → 斜率为正
+        assertTrue(s.x2 > s.x1)
+        assertTrue(s.y2 > s.y1, "support should rise: ${s.y1} -> ${s.y2}")
+    }
+
+    @Test fun trendlineValueAtExtrapolatesLinearly() {
+        val line = TrendLine(0, 10.0, 10, 20.0) // 斜率 1.0
+        assertEquals(25.0, line.valueAt(15), 1e-9)
+        assertEquals(10.0, line.valueAt(0), 1e-9)
     }
 }

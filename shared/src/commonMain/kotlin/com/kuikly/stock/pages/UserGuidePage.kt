@@ -105,7 +105,7 @@ class UserGuidePage : Pager() {
                                 listOf("K线走势", "日/周/月K、均线、成交量、指标副图", "结合日期和周期读图"),
                                 listOf("分时", "分钟价格、均价和成交量", "数据可能与行情快照不同时点"),
                                 listOf("五档盘口", "买卖档位和数量", "不代表实时撮合队列"),
-                                listOf("技术指标", "MACD、RSI6、KDJ 等数值", "RSI 目前没有独立副图"),
+                                listOf("技术指标", "MACD、KDJ、RSI 数值与副图", "副图可切 MACD/KDJ/RSI"),
                                 listOf("主力资金", "最近交易日、近5日、近10日", "点击某日跳转日K"),
                                 listOf("AI智能解读", "结论、价位、风险和行情依据", "用证据核查结论"),
                                 listOf("分析记录", "本机历史分析", "查看生成时间及依据行情日期"),
@@ -119,7 +119,8 @@ class UserGuidePage : Pager() {
                         guideBullet("日K / 周K / 月K：切换观察周期。周、月K由已有日线聚合，切换不会凭空增加历史数据。")
                         guideBullet("MA：切换均线显示。")
                         guideBullet("量：切换成交量显示。")
-                        guideBullet("副图“关 / MACD / KDJ”：选择一个指标副图，与主图日期对齐。")
+                        guideBullet("副图“关 / MACD / KDJ / RSI”：选择一个指标副图，与主图日期对齐；RSI 为 6/12/24 三线，附 30/70 超买超卖参考线。")
+                        guideBullet("趋势：叠加自动支撑/压力趋势线，连接近期摆动高、低点并向右延伸。这是自动识别的参考线，不是自由绘制，也不会保存。")
                         guideBullet("“− / +”：改变可见K线数量；按钮可作为手势缩放的替代方式。")
                         guideBullet("左右箭头：移动可见区间。")
                         guideBullet("重置：恢复图表视口，便于重新观察。")
@@ -136,7 +137,7 @@ class UserGuidePage : Pager() {
                                 listOf("竖向滑动", "滚动详情页", "尽量保持明确的竖向方向"),
                             )
                         )
-                        guideNote("当前没有自由绘制、保存趋势线的工具。上述手势已接入 Android，但不同设备的手势冲突与流畅度仍需进一步回归。")
+                        guideNote("“趋势”开关提供的是自动识别的支撑/压力线；仍没有自由绘制、保存趋势线的工具。上述手势已接入 Android，但不同设备的手势冲突与流畅度仍需进一步回归。")
                         guidePara("AI 与图表如何联动：")
                         guideStep("1", "点击“AI分析”，等待结果生成。")
                         guideStep("2", "点击支撑、压力、目标或止损等价位，在K线上对照虚线标注。")
@@ -155,8 +156,8 @@ class UserGuidePage : Pager() {
                         guideBullet("查看买卖五档价格与数量，并核对是否有可用数据。")
                         guideBullet("当前不应按逐笔成交、大单追踪或完整盘口队列来使用。")
                         guidePara("技术指标：")
-                        guideBullet("先看数值，再切换K线中的 MACD 或 KDJ 副图进行对照。")
-                        guideBullet("缺数据或样本太短时，指标解释能力有限；RSI6 目前以数值展示。")
+                        guideBullet("先看数值，再切换K线中的 MACD、KDJ 或 RSI 副图进行对照。")
+                        guideBullet("缺数据或样本太短时，指标解释能力有限；RSI 既有数值也可切换副图（6/12/24 三线）。")
                     }
 
                     guideSection(ctx, "g07", "七", "主力资金", "周期、日期定位和追问") {
@@ -281,7 +282,7 @@ class UserGuidePage : Pager() {
                         guideBullet("自选与持仓记录、价格提醒、组合风险。")
                         guidePara("以下不属于当前已完成功能：")
                         guideBullet("官方实时板块指数、完整分档资金、分钟资金流叠加。")
-                        guideBullet("自由趋势线、RSI 独立副图。")
+                        guideBullet("自由绘制并保存趋势线（“趋势”开关仅提供自动支撑/压力线）。")
                         guideBullet("龙虎榜、融资融券，以及券商下单。")
                         guideNote("行情和 AI 分析用于辅助研究，结论应结合数据日期、覆盖范围及原始证据判断。")
                     }

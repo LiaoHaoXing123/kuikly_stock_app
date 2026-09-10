@@ -62,6 +62,14 @@ class StockDetailPage : Pager() {
     internal var selectedKlineIndex by observable(-1)
     internal var klineCanvasWidth by observable(0f)
     internal var watched by observable(false)
+    internal var fundFlowDays by observable(5)
+    internal var selectedFundDate by observable("")
+    internal var industrySnapshot by observable<com.kuikly.stock.data.IndustrySnapshot?>(null)
+    internal var industryExpanded by observable(false)
+    internal var industryAscending by observable(false)
+    internal var sectorSnapshot by observable<com.kuikly.stock.data.SectorSnapshot?>(null)
+    internal var sectorExpanded by observable(false)
+    internal var sectorAscending by observable(false)
 
     // --- K线增强状态 ---
     internal var klinePeriod by observable("D") // D=日 W=周 M=月
@@ -72,7 +80,8 @@ class StockDetailPage : Pager() {
     internal var highlightedPrice by observable(0.0)
     internal var highlightedPriceLabel by observable("")
     internal var klineInfoText by observable("")
-    internal var klineSubIndicator by observable("none") // none / macd / kdj，副图指标，默认关闭
+    internal var klineSubIndicator by observable("none") // none / macd / kdj / rsi，副图指标，默认关闭
+    internal var klineShowTrend by observable(false) // 自动趋势线（支撑/压力）叠加，默认关闭
 
     // --- P1 K线交互状态 ---
     internal val crosshair = CrosshairController()
@@ -166,6 +175,8 @@ class StockDetailPage : Pager() {
                         }
 
                         realtimeCard(ctx)
+                        industryCard(ctx)
+                        sectorCard(ctx)
                         View {
                             event { layoutFrameDidChange { frame -> ctx.chartAnchorY = frame.y } }
                             klineChartArea(ctx)
@@ -208,6 +219,8 @@ class StockDetailPage : Pager() {
                 delay(0)
                 if (data != null) {
                     stockDetail = data
+                    industrySnapshot = runCatching { com.kuikly.stock.data.StockDb.industryPeers(stockCode) }.getOrNull()
+                    sectorSnapshot = runCatching { com.kuikly.stock.data.StockDb.sectorOfStock(stockCode) }.getOrNull()
                     // 初始化K线视口
                     val total = data.kline?.size ?: 0
                     klineVisibleCount = when {
@@ -547,6 +560,10 @@ class StockDetailPage : Pager() {
 
     internal fun toggleVolume() {
         klineShowVolume = !klineShowVolume
+    }
+
+    internal fun toggleTrend() {
+        klineShowTrend = !klineShowTrend
     }
 
     internal fun selectKlineAtX(x: Float) {
@@ -1459,104 +1476,6 @@ internal fun ViewContainer<*, *>.indicatorItem(label: String, value: Double?) {
 
 private fun fmtInd(v: Double?): String = if (v == null) "-" else fmt3(v)
 
-/** 主力资金卡：最近 N 日主力净流入/净占比，红涨绿跌（A股配色）。无数据时不渲染。 */
-internal fun ViewContainer<*, *>.fundFlowCard(ctx: StockDetailPage) {
-    val flows = ctx.stockDetail?.fundFlow ?: return
-    if (flows.isEmpty()) return
-
-    View {
-        attr {
-            flexDirectionColumn()
-            margin(4f, 12f, 4f, 12f)
-            padding(top = 12f, left = 16f, bottom = 12f, right = 16f)
-            backgroundColor(0xFFFFFFFF)
-            borderRadius(10f)
-        }
-
-        View {
-            attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginBottom(10f) }
-            Text {
-                attr {
-                    text("主力资金（近 ${flows.size} 日）")
-                    fontSize(15f); fontWeightBold(); color(0xFF333333); flex(1f)
-                }
-            }
-            Text {
-                attr {
-                    text("主力档 · 日级")
-                    fontSize(10f); color(0xFF999999)
-                }
-            }
-        }
-
-        // 表头
-        View {
-            attr { flexDirectionRow(); padding(bottom = 6f) }
-            Text { attr { text("日期"); fontSize(11f); color(0xFF999999); width(72f) } }
-            Text { attr { text("净流入"); fontSize(11f); color(0xFF999999); flex(1f) } }
-            Text { attr { text("净占比"); fontSize(11f); color(0xFF999999); width(64f); textAlignRight() } }
-        }
-
-        // 每日行（最新在上）
-        var sum = 0.0
-        flows.forEach { f ->
-            sum += f.mainNet
-            val positive = f.mainNet >= 0
-            val color = if (positive) 0xFFEF4444 else 0xFF10B981
-            View {
-                attr { flexDirectionRow(); padding(top = 5f, bottom = 5f) }
-                Text {
-                    attr {
-                        text(f.tradeDate.takeLast(5))
-                        fontSize(12f); color(0xFF333333); width(72f)
-                    }
-                }
-                Text {
-                    attr {
-                        text(fmtMoney(f.mainNet))
-                        fontSize(12f); fontWeightBold(); color(color); flex(1f)
-                    }
-                }
-                Text {
-                    attr {
-                        text(if (f.mainRatio > 0) "+${com.kuikly.stock.data.fmt1(f.mainRatio)}%" else "${com.kuikly.stock.data.fmt1(f.mainRatio)}%")
-                        fontSize(12f); color(color); width(64f); textAlignRight()
-                    }
-                }
-            }
-        }
-
-        View {
-            attr { height(1f); backgroundColor(0xFFEEEEEE); margin(8f, 0f, 8f, 0f) }
-        }
-
-        // 区间合计
-        View {
-            attr { flexDirectionRow(); marginTop(4f) }
-            Text {
-                attr {
-                    text("近 ${flows.size} 日累计")
-                    fontSize(12f); color(0xFF666666); width(72f)
-                }
-            }
-            Text {
-                attr {
-                    text(fmtMoney(sum))
-                    fontSize(13f); fontWeightBold()
-                    color(if (sum >= 0) 0xFFEF4444 else 0xFF10B981)
-                    flex(1f)
-                }
-            }
-            Text {
-                attr {
-                    text(if (sum >= 0) "净流入" else "净流出")
-                    fontSize(11f); color(if (sum >= 0) 0xFFEF4444 else 0xFF10B981); width(64f); textAlignRight()
-                }
-            }
-        }
-    }
-}
-
 /** 元 -> 万/亿 人类可读格式（1.2亿 / 3456万 / 890元）。AI 证据与 UI 共用。 */
 internal fun fmtMoney(v: Double): String {
     val abs = kotlin.math.abs(v)
@@ -2459,16 +2378,22 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                     }
                 }
             }
-            // 副图指标选择器（关 / MACD / KDJ，默认关；开启时主画布向下增高）
+            // 副图指标选择器（关 / MACD / KDJ / RSI，默认关；开启时主画布向下增高）
             View {
                 attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginBottom(6f) }
                 Text { attr { text("副图"); fontSize(11f); color(0xFF999999); marginRight(8f) } }
                 subIndicatorChip(ctx, "none", "关")
                 subIndicatorChip(ctx, "macd", "MACD")
                 subIndicatorChip(ctx, "kdj", "KDJ")
+                subIndicatorChip(ctx, "rsi", "RSI")
                 View { attr { flex(1f) } }
                 View {
-                    attr { padding(6f); borderRadius(8f); backgroundColor(0xFFF5F7FA) }
+                    attr { padding(6f); borderRadius(8f); backgroundColor(if (ctx.klineShowTrend) 0xFFE3F2FD else 0xFFF5F7FA) }
+                    event { click { ctx.toggleTrend() } }
+                    Text { attr { text(if (ctx.klineShowTrend) "趋势 开" else "趋势 关"); fontSize(11f); color(if (ctx.klineShowTrend) 0xFF1976D2 else 0xFF627083) } }
+                }
+                View {
+                    attr { marginLeft(6f); padding(6f); borderRadius(8f); backgroundColor(0xFFF5F7FA) }
                     event { click { ctx.toggleVolume() } }
                     Text { attr { text(if (ctx.klineShowVolume) "量 开" else "量 关"); fontSize(11f); color(0xFF627083) } }
                 }
@@ -2489,6 +2414,14 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                 }
             }
             chartEvidencePanel({ ctx.getAggregatedKline() }, { ctx.selectedKlineIndex }, { ctx.aiAnalysis }, { ctx.focusCandle(it) }, { ctx.askAboutChart() })
+            vif({ ctx.selectedKlineIndex >= 0 && ctx.klinePeriod == "D" }) {
+                Text {
+                    attr {
+                        text(fundEvidence(ctx.stockDetail?.fundFlow.orEmpty(), ctx.getAggregatedKline().getOrNull(ctx.selectedKlineIndex)?.tradeDate.orEmpty()))
+                        fontSize(11f); lineHeight(18f); color(0xFF627083); marginTop(8f)
+                    }
+                }
+            }
 
             // AI价位图例
             vfor({ ObservableList(listOfNotNull(ctx.aiAnalysis).toMutableList()) }) { analysis ->
@@ -2840,6 +2773,24 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
             drawMALine(ma20Points, Color(0xFF7B1FA2))
         }
 
+        // 趋势线（自动摆动高/低连线，向右延伸；仅主图价格区）
+        if (ctx.klineShowTrend && nVisible >= 5) {
+            val trend = computeTrendlines(visible.map { it.high }, visible.map { it.low })
+            val chartBottom = padT + chartH
+            fun clampY(y: Float): Float = y.coerceIn(padT, chartBottom)
+            fun drawTrend(line: TrendLine?, colorValue: Long) {
+                line ?: return
+                val x1 = step * line.x1 + step / 2f
+                val lastX = step * (nVisible - 1) + step / 2f
+                val yA = clampY(py(line.y1))
+                val yB = clampY(py(line.valueAt(nVisible - 1)))
+                context.strokeStyle(Color(colorValue)); context.lineWidth(1.2f)
+                context.beginPath(); context.moveTo(x1, yA); context.lineTo(lastX, yB); context.stroke()
+            }
+            drawTrend(trend.resistance, 0xFFEF5350)  // 压力线：红
+            drawTrend(trend.support, 0xFF26A69A)     // 支撑线：青绿
+        }
+
         // 成交量
         if (ctx.klineShowVolume && volH > 0) {
             val maxVol = visible.maxOf { it.volume }.toFloat().coerceAtLeast(1f)
@@ -2869,7 +2820,7 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
             context.fillText("成交量", width - 2f, volTop - 8f)
         }
 
-        // ============ 副图：MACD / KDJ（并入主画布，X 轴与主图逐根对齐）============
+        // ============ 副图：MACD / KDJ / RSI（并入主画布，X 轴与主图逐根对齐）============
         if (subOn) {
             val subH = subBottom - subTop
             // 与量图/主图的分隔线
@@ -2938,6 +2889,46 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                 context.fillStyle(Color(0xFF888888)); context.font(9f); context.textAlign(TextAlign.LEFT)
                 val si = subActiveLocal.coerceIn(0, nVisible - 1)
                 context.fillText("MACD(12,26,9)  DIF ${fmt2(difV[si])}  DEA ${fmt2(deaV[si])}  M ${fmt2(histV[si])}", 4f, subTop + 9f)
+            } else if (ctx.klineSubIndicator == "rsi") {
+                val rsi = computeRSI(closesAll)
+                val r6 = ArrayList<Double>(nVisible)
+                val r12 = ArrayList<Double>(nVisible)
+                val r24 = ArrayList<Double>(nVisible)
+                for (i in 0 until nVisible) {
+                    val gi = visibleStart + i
+                    r6.add(rsi.rsi6.getOrElse(gi) { 50.0 })
+                    r12.add(rsi.rsi12.getOrElse(gi) { 50.0 })
+                    r24.add(rsi.rsi24.getOrElse(gi) { 50.0 })
+                }
+                // RSI 天然 0..100 值域，固定刻度便于横向比较
+                val lo = 0.0
+                val hi = 100.0
+                fun syToY(v: Double): Float = subTop + subH * ((hi - v) / (hi - lo)).toFloat()
+                // 30 / 70 超买超卖参考虚线
+                context.strokeStyle(Color(0xFFEEEEEE)); context.lineWidth(1f)
+                for (ref in listOf(30.0, 70.0)) {
+                    val ry = syToY(ref)
+                    var rx = 0f
+                    while (rx < width) {
+                        context.beginPath(); context.moveTo(rx, ry); context.lineTo((rx + 6f).coerceAtMost(width), ry); context.stroke()
+                        rx += 10f
+                    }
+                }
+                fun drawSubLine(vals: List<Double>, colorValue: Long) {
+                    context.strokeStyle(Color(colorValue)); context.lineWidth(1.2f); context.beginPath()
+                    for (i in 0 until nVisible) {
+                        val cx = step * i + step / 2f
+                        val y = syToY(vals[i])
+                        if (i == 0) context.moveTo(cx, y) else context.lineTo(cx, y)
+                    }
+                    context.stroke()
+                }
+                drawSubLine(r6, 0xFF1976D2)   // RSI6 蓝
+                drawSubLine(r12, 0xFFFF9800)  // RSI12 橙
+                drawSubLine(r24, 0xFF7B1FA2)  // RSI24 紫
+                context.fillStyle(Color(0xFF888888)); context.font(9f); context.textAlign(TextAlign.LEFT)
+                val si = subActiveLocal.coerceIn(0, nVisible - 1)
+                context.fillText("RSI(6,12,24)  RSI6 ${fmt2(r6[si])}  RSI12 ${fmt2(r12[si])}  RSI24 ${fmt2(r24[si])}", 4f, subTop + 9f)
             } else {
                 val highsAll = aggregated.map { it.high }
                 val lowsAll = aggregated.map { it.low }
@@ -4157,7 +4148,8 @@ data class FundFlowItem(
     val superNet: Double?,   // 超大单净额（东财通道才有，新浪主力档为 null）
     val bigNet: Double?,
     val midNet: Double?,
-    val smallNet: Double?
+    val smallNet: Double?,
+    val source: String = "来源未提供"
 )
 
 data class StockDetailData(

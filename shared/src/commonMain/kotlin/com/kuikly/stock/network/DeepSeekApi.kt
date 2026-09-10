@@ -382,6 +382,7 @@ $klineText
     }
 
     private fun buildAnalysisPrompt(detail: StockDetailData): List<Pair<String, String>> {
+        val industryText = runCatching { StockDb.industryPeers(detail.info?.code.orEmpty())?.evidence(detail.info?.code.orEmpty()) }.getOrNull().orEmpty()
         val info = detail.info
         val infoText = buildString {
             info?.let {
@@ -456,6 +457,8 @@ $datePool
 $indicatorText
 
 $fundFlowText
+
+$industryText
 
 请根据以上数据进行全面分析，需结合技术指标（均线排列、MACD金叉死叉、RSI超买超卖、KDJ钝化等）与主力资金流向（净流入/净流出趋势、占比变化）给出专业判断。"""
 
@@ -589,7 +592,8 @@ val marketLines = mutableListOf<String>()
 val indexLines = mutableListOf<String>()
 for (s in mentioned) {
 if (s.isIndex) { appendIndexLines(indexLines, s); continue }
-val detail = try { StockDb.stockDetail(s.code) } catch (e: Throwable) { null } ?: continue
+  val detail = try { StockDb.stockDetail(s.code) } catch (e: Throwable) { null } ?: continue
+  runCatching { StockDb.industryPeers(s.code)?.evidence(s.code) }.getOrNull()?.let { stockLines.add(it) }
 val r: RealtimeQuoteData = detail.realtime ?: continue
 stockLines.add(
                 "- ${r.name ?: s.code}(${s.code}): 最新价 ${r.price}, 涨跌幅 ${r.changePercent}%, " +
@@ -610,7 +614,7 @@ stockLines.add(
                         "RSI6=${fmt(ind.rsi6)}, KDJ(K=${fmt(ind.kdjK)}/D=${fmt(ind.kdjD)}/J=${fmt(ind.kdjJ)})"
                 )
             }
-detail.fundFlow?.take(5)?.let { ff ->
+detail.fundFlow?.takeLast(5)?.let { ff ->
 if (ff.isNotEmpty()) {
 val sum = ff.sumOf { it.mainNet }
 stockLines.add(

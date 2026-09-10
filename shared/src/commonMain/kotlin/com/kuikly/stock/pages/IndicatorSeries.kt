@@ -91,3 +91,100 @@ internal fun computeKDJ(
     }
     return KdjSeries(k, d, j)
 }
+
+internal data class RsiSeries(
+    val rsi6: List<Double>,
+    val rsi12: List<Double>,
+    val rsi24: List<Double>,
+)
+
+/**
+ * 单周期 RSI（Wilder 平滑）：逐日涨跌拆成 gain/loss，前 period 根用累积均值播种、
+ * 其后按 Wilder 递推；RS = 平均涨 / 平均跌，RSI = 100 - 100/(1+RS)。
+ * 全涨→100、全跌→0、无波动（常数价）→50（中性，避免除零）。
+ * 返回与 closes 同长、全非空、值域 [0,100]；index0 无前值故播种 50。
+ */
+private fun rsiSeries(closes: List<Double>, period: Int): List<Double> {
+    val n = closes.size
+    if (n == 0) return emptyList()
+    val out = DoubleArray(n) { 50.0 }
+    val p = period.coerceAtLeast(1)
+    var avgGain = 0.0
+    var avgLoss = 0.0
+    for (i in 1 until n) {
+        val diff = closes[i] - closes[i - 1]
+        val gain = if (diff > 0.0) diff else 0.0
+        val loss = if (diff < 0.0) -diff else 0.0
+        if (i <= p) {
+            avgGain = (avgGain * (i - 1) + gain) / i
+            avgLoss = (avgLoss * (i - 1) + loss) / i
+        } else {
+            avgGain = (avgGain * (p - 1) + gain) / p
+            avgLoss = (avgLoss * (p - 1) + loss) / p
+        }
+        out[i] = when {
+            avgGain == 0.0 && avgLoss == 0.0 -> 50.0
+            avgLoss == 0.0 -> 100.0
+            else -> 100.0 - 100.0 / (1.0 + avgGain / avgLoss)
+        }
+    }
+    return out.toList()
+}
+
+/** RSI 三线（国内 6/12/24 口径）。在完整历史上计算，调用方再按可见区间切片。 */
+internal fun computeRSI(
+    closes: List<Double>,
+    p1: Int = 6,
+    p2: Int = 12,
+    p3: Int = 24,
+): RsiSeries = RsiSeries(rsiSeries(closes, p1), rsiSeries(closes, p2), rsiSeries(closes, p3))
+
+/** 一条趋势线（数据坐标：横轴为 K 线序号，纵轴为价格）。 */
+internal data class TrendLine(val x1: Int, val y1: Double, val x2: Int, val y2: Double) {
+    /** 线性外推到任意序号 x（把趋势线向右延伸到画布边缘时用）。 */
+    fun valueAt(x: Int): Double {
+        if (x2 == x1) return y2
+        val slope = (y2 - y1) / (x2 - x1).toDouble()
+        return y1 + slope * (x - x1)
+    }
+}
+
+internal data class TrendLines(val support: TrendLine?, val resistance: TrendLine?)
+
+/**
+ * 自动趋势线：在给定（通常已切到可见区间）的 highs/lows 上找摆动高/低点
+ * —— pivot 定义为在 ±window 邻域内的严格极值；压力线连最近两个摆动高、
+ * 支撑线连最近两个摆动低。摆动点不足两个则对应线为 null。纯几何，无 UI 依赖。
+ */
+internal fun computeTrendlines(
+    highs: List<Double>,
+    lows: List<Double>,
+    window: Int = 2,
+): TrendLines {
+    val n = minOf(highs.size, lows.size)
+    val w = window.coerceAtLeast(1)
+    if (n < 2 * w + 1) return TrendLines(null, null)
+    val pivotHighs = ArrayList<Int>()
+    val pivotLows = ArrayList<Int>()
+    for (i in w until n - w) {
+        var isHigh = true
+        var isLow = true
+        for (j in i - w..i + w) {
+            if (j == i) continue
+            if (highs[j] >= highs[i]) isHigh = false
+            if (lows[j] <= lows[i]) isLow = false
+        }
+        if (isHigh) pivotHighs.add(i)
+        if (isLow) pivotLows.add(i)
+    }
+    fun lineFromLastTwo(idx: List<Int>, src: List<Double>): TrendLine? {
+        if (idx.size < 2) return null
+        val a = idx[idx.size - 2]
+        val b = idx[idx.size - 1]
+        return TrendLine(a, src[a], b, src[b])
+    }
+    return TrendLines(
+        support = lineFromLastTwo(pivotLows, lows),
+        resistance = lineFromLastTwo(pivotHighs, highs),
+    )
+}

@@ -1371,6 +1371,19 @@ def main():
         # 构建产物可信度校验：SQLite 完整性 + 数据质量门槛，不达标则阻止发布。
         _check_integrity(OUT_DB)
         validate_quality(meta.get("counts", {}), meta.get("latest_trade_date"))
+        # 所有发布入口共用此 main；扩展表必须在最终 hash/大小计算之前写入。
+        import subprocess
+        subprocess.run([sys.executable, str(Path(__file__).with_name("build_fund_flow.py")), "--no-manifest"], check=True)
+        with sqlite3.connect(OUT_DB) as fund_conn:
+            meta.setdefault("counts", {})["stock_fund_flow"] = fund_conn.execute("SELECT COUNT(*) FROM stock_fund_flow").fetchone()[0]
+        SRC["stock_fund_flow"] = "新浪(主力)+东财(五档降级)"
+        subprocess.run([sys.executable, str(Path(__file__).with_name("build_sector.py")), "--no-manifest"], check=True)
+        with sqlite3.connect(OUT_DB) as sector_conn:
+            meta.setdefault("counts", {})["sector_board"] = sector_conn.execute("SELECT COUNT(*) FROM sector_board").fetchone()[0]
+            meta.setdefault("counts", {})["sector_member"] = sector_conn.execute("SELECT COUNT(*) FROM sector_member").fetchone()[0]
+        SRC["sector_board"] = "东方财富·官方行业板块"
+        SRC["sector_member"] = "东方财富·官方行业板块成分股"
+        _check_integrity(OUT_DB)
         write_version(meta)
         print(f"  库文件 {OUT_DB.stat().st_size / 1024 / 1024:.2f} MB")
         if args.export_sql:
