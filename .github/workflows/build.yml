@@ -127,10 +127,20 @@ jobs:
           key: pods-${{ runner.os }}-${{ hashFiles('iosApp/Podfile') }}
           restore-keys: pods-${{ runner.os }}-
 
+      - name: Pod diagnostics
+        run: |
+          echo "=== pod version ==="; pod --version
+          echo "=== pod repo list ==="; pod repo list
+          echo "=== iosApp dir before install ==="; ls -la iosApp/
+          echo "=== Podfile ==="; cat iosApp/Podfile
+          # 清理放错位置的 workspace 文件（pod install 会重新生成正确的）
+          rm -f iosApp/contents.xcworkspacedata
+          rm -rf iosApp/iosApp.xcworkspace iosApp/Pods
+
       - name: Pod install
         run: |
           set -o pipefail
-          (cd iosApp && pod install) 2>&1 | tee -a build-ios.log
+          (cd iosApp && pod install --verbose) 2>&1 | tee -a build-ios.log
 
       - name: Xcode build (simulator, no signing)
         run: |
