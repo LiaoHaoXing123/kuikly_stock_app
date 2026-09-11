@@ -36,6 +36,22 @@ jobs:
             echo "Tencent Gradle mirror unreachable, fell back to services.gradle.org"
           fi
 
+      - name: Maven mirror fallback (Kuikly deps)
+        run: |
+          if ! curl -sI -m 20 https://mirrors.tencent.com/repository/maven-tencent/ | head -n 1 | grep -qE '200|301|302'; then
+            echo "Tencent maven mirror unreachable, applying ghproxy proxy..."
+            sed -i 's|https://mirrors.tencent.com/|https://ghproxy.com/https://mirrors.tencent.com/|g' settings.gradle.kts build.gradle.kts
+            echo "Maven mirror proxied via ghproxy"
+          else
+            echo "Tencent maven mirror reachable"
+          fi
+          cat >> gradle.properties << 'PROPEOF'
+          systemProp.http.connectionTimeout=120000
+          systemProp.http.socketTimeout=120000
+          org.gradle.internal.http.connectionTimeout=120000
+          org.gradle.internal.http.socketTimeout=120000
+          PROPEOF
+
       - name: Build
         run: |
           set -o pipefail
@@ -82,6 +98,22 @@ jobs:
             rm -f gradle/wrapper/gradle-wrapper.properties.bak
             echo "Tencent Gradle mirror unreachable, fell back to services.gradle.org"
           fi
+
+      - name: Maven mirror fallback (Kuikly deps)
+        run: |
+          if ! curl -sI -m 20 https://mirrors.tencent.com/repository/maven-tencent/ | head -n 1 | grep -qE '200|301|302'; then
+            echo "Tencent maven mirror unreachable, applying ghproxy proxy..."
+            sed -i 's|https://mirrors.tencent.com/|https://ghproxy.com/https://mirrors.tencent.com/|g' settings.gradle.kts build.gradle.kts
+            echo "Maven mirror proxied via ghproxy"
+          else
+            echo "Tencent maven mirror reachable"
+          fi
+          cat >> gradle.properties << 'PROPEOF'
+          systemProp.http.connectionTimeout=120000
+          systemProp.http.socketTimeout=120000
+          org.gradle.internal.http.connectionTimeout=120000
+          org.gradle.internal.http.socketTimeout=120000
+          PROPEOF
 
       - name: Compile shared for iOS targets
         run: |
