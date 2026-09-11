@@ -346,14 +346,14 @@ object LocalDataService {
                 mapOf(
                     "type" to "risk_card", "title" to "风险提示",
                     "content" to "本分析基于本地模板，不构成投资建议。股市有风险，投资需谨慎。",
-                    "color" to "#E53935"
+                    "color" to StockColors.UP_HEX
                 ),
                 mapOf(
                     "type" to "suggestion_card", "title" to "操作建议",
                     "suggestion" to suggestion,
                     "target_price" to fmt2(price * 1.05),
                     "stop_loss" to fmt2(price * 0.95),
-                    "color" to "#43A047"
+                    "color" to StockColors.DOWN_HEX
                 ),
                 mapOf(
                     "type" to "summary_card", "title" to "总结",
@@ -422,14 +422,14 @@ object LocalDataService {
                 mapOf(
                     "type" to "risk_card", "title" to "风险提示",
                     "content" to "本分析基于本地模板，不构成投资建议。市场有风险，投资需谨慎。",
-                    "color" to "#E53935"
+                    "color" to StockColors.UP_HEX
                 ),
                 mapOf(
                     "type" to "suggestion_card", "title" to "操作建议",
                     "suggestion" to suggestion,
                     "target_price" to fmt2(price * 1.03),
                     "stop_loss" to fmt2(price * 0.97),
-                    "color" to "#43A047"
+                    "color" to StockColors.DOWN_HEX
                 ),
                 mapOf(
                     "type" to "summary_card", "title" to "总结",

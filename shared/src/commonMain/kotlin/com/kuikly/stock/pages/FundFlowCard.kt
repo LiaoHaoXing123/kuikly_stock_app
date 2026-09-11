@@ -1,4 +1,5 @@
 package com.kuikly.stock.pages
+import com.kuikly.stock.data.StockColors
 
 import com.kuikly.stock.data.fmt1
 import com.tencent.kuikly.core.base.*
@@ -43,7 +44,7 @@ internal fun ViewContainer<*, *>.fundFlowCard(ctx: StockDetailPage) {
                 val maxNet = flows.maxOfOrNull { abs(it.mainNet) }?.coerceAtLeast(1.0) ?: 1.0
                 Text { attr { text("截至 ${flows.lastOrNull()?.tradeDate ?: "—"} · 实际 ${flows.size} 个交易日 · 单位：元"); fontSize(10f); color(0xFF8A9099); marginTop(8f) } }
                 flows.asReversed().forEach { row ->
-                    val tint = if (row.mainNet > 0) 0xFFEF4444 else if (row.mainNet < 0) 0xFF10B981 else 0xFF8A9099
+                    val tint = if (row.mainNet > 0) StockColors.UP else if (row.mainNet < 0) StockColors.DOWN else 0xFF8A9099
                     View {
                         attr { padding(8f); marginTop(4f); borderRadius(6f); backgroundColor(if (selected == row.tradeDate) 0xFFE8F2FF else 0xFFF8FAFC) }
                         event { click { ctx.selectedFundDate = row.tradeDate; ctx.focusEvidenceDate(row.tradeDate) } }

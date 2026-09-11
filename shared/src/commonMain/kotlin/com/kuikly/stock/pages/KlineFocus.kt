@@ -1,4 +1,5 @@
 package com.kuikly.stock.pages
+import com.kuikly.stock.data.StockColors
 
 /**
  * 详情页与 K 线图统一联动动作
@@ -28,8 +29,8 @@ sealed interface KlineFocus {
 }
 
 fun directionColorValue(direction: String?): Long = when (direction) {
-    "多" -> 0xFFE64545
-    "空" -> 0xFF17A67A
+    "多" -> StockColors.UP
+    "空" -> StockColors.DOWN
     else -> 0xFF8A9099
 }
 

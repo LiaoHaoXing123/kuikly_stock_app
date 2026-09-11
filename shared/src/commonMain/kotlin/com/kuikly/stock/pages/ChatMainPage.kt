@@ -1,6 +1,7 @@
 // AI 聊天主页：会话管理、消息列表、卡片渲染与手动刷新数据都在这里。
 
 package com.kuikly.stock.pages
+import com.kuikly.stock.data.StockColors
 
 import com.tencent.kuikly.core.annotations.Page
 import com.tencent.kuikly.core.base.*
@@ -1110,8 +1111,8 @@ internal fun ViewContainer<*, *>.compareTableLine(cells: List<String>, colCount:
             val weight = if (ci == 0) 1.5f else 1f
             val tint = when {
                 isHeader -> 0xFF1976D2
-                cell.startsWith("+") -> 0xFFE53935
-                cell.startsWith("-") -> 0xFF43A047
+                cell.startsWith("+") -> StockColors.UP
+                cell.startsWith("-") -> StockColors.DOWN
                 else -> 0xFF333333
             }
             View {
@@ -1471,7 +1472,7 @@ internal fun ViewContainer<*, *>.stockCard(
                 text(price)
                 fontSize(14f)
                 fontWeightBold()
-                color(if (changePercent.contains("+")) 0xFFE53935 else 0xFF43A047)
+                color(if (changePercent.contains("+")) StockColors.UP else StockColors.DOWN)
                 marginLeft(8f)
             }
         }
@@ -1479,7 +1480,7 @@ internal fun ViewContainer<*, *>.stockCard(
             attr {
                 text(changePercent)
                 fontSize(12f)
-                color(if (changePercent.contains("+")) 0xFFE53935 else 0xFF43A047)
+                color(if (changePercent.contains("+")) StockColors.UP else StockColors.DOWN)
                 marginLeft(4f)
             }
         }
@@ -1548,7 +1549,7 @@ internal fun ViewContainer<*, *>.indexCard(
                 text(price)
                 fontSize(14f)
                 fontWeightBold()
-                color(if (changePercent.contains("+")) 0xFFE53935 else 0xFF43A047)
+                color(if (changePercent.contains("+")) StockColors.UP else StockColors.DOWN)
                 marginLeft(8f)
             }
         }
@@ -1556,7 +1557,7 @@ internal fun ViewContainer<*, *>.indexCard(
             attr {
                 text(changePercent)
                 fontSize(12f)
-                color(if (changePercent.contains("+")) 0xFFE53935 else 0xFF43A047)
+                color(if (changePercent.contains("+")) StockColors.UP else StockColors.DOWN)
                 marginLeft(4f)
             }
         }
@@ -2559,7 +2560,7 @@ internal fun ViewContainer<*, *>.msgActionItem(ctx: ChatMainPage, label: String,
             attr {
                 text(label)
                 fontSize(16f)
-                color(if (label == "删除") 0xFFE53935 else 0xFF1976D2)
+                color(if (label == "删除") StockColors.UP else 0xFF1976D2)
             }
         }
     }

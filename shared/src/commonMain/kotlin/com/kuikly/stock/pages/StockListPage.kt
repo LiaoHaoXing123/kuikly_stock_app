@@ -1,6 +1,7 @@
 // 股票列表页：支持搜索、排序与分页加载。
 
 package com.kuikly.stock.pages
+import com.kuikly.stock.data.StockColors
 
 import com.tencent.kuikly.core.annotations.Page
 import com.tencent.kuikly.core.base.*
@@ -382,8 +383,8 @@ internal fun ViewContainer<*, *>.sortBar(ctx: StockListPage) {
 
         View { attr { flex(1f) } }
 
-        legendItem(0xFFE53935, "涨")
-        legendItem(0xFF43A047, "跌")
+        legendItem(StockColors.UP, "涨")
+        legendItem(StockColors.DOWN, "跌")
         legendItem(0xFF999999, "平")
     }
 }
@@ -465,8 +466,8 @@ internal fun ViewContainer<*, *>.stockListItem(
     val pct = stock.changePercent
     val changeColor = when {
         pct == null || pct == 0.0 -> 0xFF999999
-        pct > 0 -> 0xFFE53935
-        else -> 0xFF43A047
+        pct > 0 -> StockColors.UP
+        else -> StockColors.DOWN
     }
     val priceText = stock.price?.let { fmt2(it) } ?: "-"
     val changeText = stock.change?.let { fmtSigned2(it) } ?: "-"
@@ -500,7 +501,7 @@ internal fun ViewContainer<*, *>.stockListItem(
                         text(seg)
                         fontSize(15f)
                         fontWeightBold()
-                        color(if (hit) 0xFFE53935 else 0xFF333333)
+                        color(if (hit) StockColors.UP else 0xFF333333)
                     }
                 }
             }
@@ -517,7 +518,7 @@ internal fun ViewContainer<*, *>.stockListItem(
                         text(seg)
                         fontSize(12f)
                         fontWeightBold()
-                        color(if (hit) 0xFFE53935 else 0xFF888888)
+                        color(if (hit) StockColors.UP else 0xFF888888)
                     }
                 }
             }
@@ -605,7 +606,7 @@ internal fun ViewContainer<*, *>.loadErrorView(ctx: StockListPage) {
             attr {
                 text("加载失败\n\n${ctx.loadErrorMessage}")
                 fontSize(14f)
-                color(0xFFE53935)
+                color(StockColors.UP)
                 textAlignCenter()
             }
         }

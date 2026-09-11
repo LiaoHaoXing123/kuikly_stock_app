@@ -1,4 +1,5 @@
 package com.kuikly.stock.pages
+import com.kuikly.stock.data.StockColors
 
 import com.kuikly.stock.data.fmt2
 import com.kuikly.stock.data.fmtSignedPct
@@ -52,7 +53,7 @@ internal fun ViewContainer<*, *>.industryCard(ctx: StockDetailPage) {
                             event { click { ctx.acquireModule<RouterModule>(RouterModule.MODULE_NAME).openPage("stock_detail", JSONObject().apply { put("code", stock.code) }) } }
                             Text { attr { text("${stock.name ?: stock.code}\n${stock.code}"); fontSize(11f); lineHeight(16f); flex(1f); color(0xFF26384A) } }
                             Text { attr { text(stock.price?.let { fmt2(it) } ?: "—"); fontSize(12f); width(64f); color(0xFF627083) } }
-                            Text { attr { text(stock.changePercent?.let { fmtSignedPct(it) } ?: "—"); fontSize(12f); color(if ((stock.changePercent ?: 0.0) >= 0) 0xFFEF4444 else 0xFF10B981) } }
+                            Text { attr { text(stock.changePercent?.let { fmtSignedPct(it) } ?: "—"); fontSize(12f); color(if ((stock.changePercent ?: 0.0) >= 0) StockColors.UP else StockColors.DOWN) } }
                         }
                     }
                 }

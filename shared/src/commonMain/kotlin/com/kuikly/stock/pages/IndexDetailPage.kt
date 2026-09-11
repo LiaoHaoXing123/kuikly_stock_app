@@ -2,6 +2,7 @@
 // 增强版：K线多周期/缩放/平移/AI价位联动，AI分析卡片化
 
 package com.kuikly.stock.pages
+import com.kuikly.stock.data.StockColors
 
 import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
 import com.tencent.kuikly.core.annotations.Page
@@ -32,7 +33,7 @@ import com.kuikly.stock.data.fmtSignedPct
 import kotlin.math.abs
 
 @Page("index_detail")
-class IndexDetailPage : Pager() {
+class IndexDetailPage : Pager(), KlineInteractionHost {
 
     internal var indexCode by observable("")
     internal var indexDetail by observable<StockDetailData?>(null)
@@ -46,18 +47,26 @@ class IndexDetailPage : Pager() {
     internal var isAnalyzing by observable(false)
     internal var loadErrorMessage by observable("")
     internal var dataSourceText by observable("")
-    internal var selectedKlineIndex by observable(-1)
-    internal var klineCanvasWidth by observable(0f)
+    override var selectedKlineIndex by observable(-1)
+    override var klineCanvasWidth by observable(0f)
 
     // K线增强
     internal var klinePeriod by observable("D")
-    internal var klineVisibleCount by observable(30)
-    internal var klineStartIndex by observable(0)
+    override var klineVisibleCount by observable(30)
+    override var klineStartIndex by observable(0)
     internal var highlightedPrice by observable(0.0)
     internal var highlightedPriceLabel by observable("")
     internal var klineInfoText by observable("")
     internal var aiExpandedKeys: ObservableList<String> by observableList()
     internal var aiToast by observable("")
+
+    // --- K线交互状态（与个股页共用 chartTouchLayer / KlineInteractionHost） ---
+    override val crosshair = CrosshairController()
+    override val nativeChartGestures: Boolean get() = pagerData.params.optBoolean("nativeChartGestures", false)
+    internal var crosshairX by observable(-1f)
+    internal var crosshairY by observable(-1f)
+    internal var rangeStats: RangeStats? by observable(null)
+    internal var isRangeSelecting by observable(false)
 
     override fun didInit() {
         super.didInit()
@@ -195,7 +204,7 @@ class IndexDetailPage : Pager() {
     }
 
     // K线逻辑复用个股页聚合函数
-    internal fun getAggregatedKline(): List<KLineDataItem> {
+    override fun getAggregatedKline(): List<KLineDataItem> {
         val original = indexDetail?.kline ?: return emptyList()
         return when (klinePeriod) {
             "W" -> aggregateToWeekly(original)
@@ -290,10 +299,83 @@ class IndexDetailPage : Pager() {
         }
     }
 
-    internal fun clearChartSelection() {
+    override fun clearChartSelection() {
+        clearInteraction()
+    }
+
+    // ---- 十字光标 / 区间框选（与个股页一致，供 chartTouchLayer 调用） ----
+    override fun updateCrosshair(x: Float, y: Float) {
+        crosshairX = x
+        crosshairY = y
+        val agg = getAggregatedKline()
+        if (agg.isEmpty() || klineCanvasWidth <= 0f) return
+        val globalIdx = (klineStartIndex + chartHitIndex(x, klineCanvasWidth, getVisibleKline().size)).coerceIn(0, agg.size - 1)
+        crosshair.onMove(globalIdx)
+        agg.getOrNull(globalIdx)?.let { k ->
+            val changePct = if (k.open != 0.0) (k.close - k.open) / k.open * 100.0 else 0.0
+            klineInfoText = "${k.tradeDate} 开${fmt2(k.open)} 收${fmt2(k.close)} 高${fmt2(k.high)} 低${fmt2(k.low)} ${fmtSignedPct(changePct)}"
+        }
+    }
+
+    override fun tapCrosshair(x: Float) {
+        val agg = getAggregatedKline()
+        if (agg.isEmpty() || klineCanvasWidth <= 0f) return
+        val globalIdx = (klineStartIndex + chartHitIndex(x, klineCanvasWidth, getVisibleKline().size)).coerceIn(0, agg.size - 1)
+        crosshair.onTap(globalIdx)
+        crosshairY = -1f
+        val locked = crosshair.state is InteractionState.Locked
+        selectedKlineIndex = if (locked) globalIdx else -1
+        crosshairX = if (locked) x else -1f
+        if (!locked) {
+            klineInfoText = ""
+            rangeStats = null
+        } else {
+            agg.getOrNull(globalIdx)?.let { k ->
+                val changePct = if (k.open != 0.0) (k.close - k.open) / k.open * 100.0 else 0.0
+                klineInfoText = "${k.tradeDate} 开${fmt2(k.open)} 收${fmt2(k.close)} 高${fmt2(k.high)} 低${fmt2(k.low)} ${fmtSignedPct(changePct)}"
+            }
+        }
+    }
+
+    override fun beginRangeSelect(x: Float) {
+        val agg = getAggregatedKline()
+        if (agg.isEmpty() || klineCanvasWidth <= 0f) return
+        val globalIdx = (klineStartIndex + chartHitIndex(x, klineCanvasWidth, getVisibleKline().size)).coerceIn(0, agg.size - 1)
+        crosshair.onRangeStart(globalIdx)
+        isRangeSelecting = true
+        crosshairX = x
+    }
+
+    override fun updateRangeSelect(x: Float) {
+        if (!isRangeSelecting) return
+        val agg = getAggregatedKline()
+        if (agg.isEmpty() || klineCanvasWidth <= 0f) return
+        val globalIdx = (klineStartIndex + chartHitIndex(x, klineCanvasWidth, getVisibleKline().size)).coerceIn(0, agg.size - 1)
+        crosshair.onRangeUpdate(globalIdx)
+        crosshairX = x
+        (crosshair.state as? InteractionState.RangeSelect)?.let {
+            rangeStats = summarizeRange(agg, it.startGlobalIdx, it.endGlobalIdx)
+        }
+    }
+
+    override fun endRangeSelect() {
+        crosshair.onRangeEnd()
+        isRangeSelecting = false
+        (crosshair.state as? InteractionState.Locked)?.let { selectedKlineIndex = it.globalIdx }
+    }
+
+    override fun clearInteraction() {
+        crosshair.reset()
+        crosshairX = -1f
+        crosshairY = -1f
+        rangeStats = null
+        isRangeSelecting = false
         selectedKlineIndex = -1
         klineInfoText = ""
     }
+
+    /** 指数页无分时图，接口空实现 */
+    override fun selectMinuteAtX(x: Float) {}
 
     internal fun scrollToChart() {
         detailScrollerRef?.view?.setContentOffset(offsetX = 0f, offsetY = chartAnchorY.coerceAtLeast(0f), animated = true)
@@ -453,8 +535,8 @@ internal fun ViewContainer<*, *>.indexRealtimeCard(ctx: IndexDetailPage) {
     val pct = realtime.changePercent
     val priceColor = when {
         pct == null || pct == 0.0 -> 0xFF999999
-        pct > 0 -> 0xFFE53935
-        else -> 0xFF43A047
+        pct > 0 -> StockColors.UP
+        else -> StockColors.DOWN
     }
 
     View {
@@ -724,7 +806,30 @@ internal fun ViewContainer<*, *>.indexKlineChartArea(ctx: IndexDetailPage) {
             vfor({ ObservableList(mutableListOf(listOf(ctx.getAggregatedKline(), ctx.klineStartIndex, ctx.klineVisibleCount, ctx.selectedKlineIndex, ctx.aiAnalysis, ctx.highlightedPrice, ctx.highlightedPriceLabel, ctx.klinePeriod))) }) { _ ->
             View {
                 attr { flexDirectionColumn() }
-                indexKlineChartCanvas(ctx, ctx.getAggregatedKline())
+                vif({ ctx.rangeStats != null || ctx.selectedKlineIndex >= 0 }) {
+                    View {
+                        attr {
+                            flexDirectionRow(); alignItems(FlexAlign.CENTER)
+                            backgroundColor(0xFFF0F3F8); borderRadius(8f)
+                            padding(4f, 8f, 4f, 8f); marginBottom(6f)
+                        }
+                        Text {
+                            attr {
+                                text(if (ctx.rangeStats != null) "已框选区间 · 查看统计" else "已锁定单根 K 线")
+                                fontSize(11f); color(0xFF627083); flex(1f)
+                            }
+                        }
+                        View {
+                            attr { padding(2f, 10f, 2f, 10f); backgroundColor(0xFFFFFFFF); borderRadius(6f) }
+                            event { click { ctx.clearInteraction() } }
+                            Text { attr { text("✕ 退出"); fontSize(11f); color(0xFF1976D2) } }
+                        }
+                    }
+                }
+                View {
+                    indexKlineChartCanvas(ctx, ctx.getAggregatedKline())
+                    chartTouchLayer(ctx)
+                }
                 indexKlineSummary(ctx, ctx.getVisibleKline())
             }
             }
@@ -879,10 +984,7 @@ internal fun ViewContainer<*, *>.indexKlineChartCanvas(ctx: IndexDetailPage, agg
             height(360f)
             marginTop(2f)
         }
-        event {
-            longPress { params -> ctx.selectKlineAtX(params.x) }
-            click { params -> ctx.selectKlineAtX(params.x) }
-        }
+        // 手势统一由外层 chartTouchLayer 处理（点选锁定 / 长按框选 / 平移 / 缩放）
     }) { context, width, height ->
         val nTotal = aggregated.size
         val nVisible = visible.size
@@ -962,7 +1064,7 @@ internal fun ViewContainer<*, *>.indexKlineChartCanvas(ctx: IndexDetailPage, agg
         visible.forEachIndexed { i, k ->
             val cx = step * i + step / 2f
             val up = k.close >= k.open
-            val color = if (up) Color(0xFFE53935) else Color(0xFF43A047)
+            val color = if (up) Color(StockColors.UP) else Color(StockColors.DOWN)
             context.strokeStyle(color)
             context.lineWidth(1f)
             context.beginPath()
@@ -993,7 +1095,7 @@ internal fun ViewContainer<*, *>.indexKlineChartCanvas(ctx: IndexDetailPage, agg
         visible.forEachIndexed { i, k ->
             val cx = step * i + step / 2f
             val up = k.close >= k.open
-            val color = if (up) Color(0xFFE53935) else Color(0xFF43A047)
+            val color = if (up) Color(StockColors.UP) else Color(StockColors.DOWN)
             val vh = (volH * (k.volume.toFloat() / maxVol)).coerceAtLeast(1.2f)
             context.fillStyle(color)
             context.beginPath()
@@ -1091,6 +1193,43 @@ internal fun ViewContainer<*, *>.indexKlineChartCanvas(ctx: IndexDetailPage, agg
                     }
                 }
             }
+        }
+
+        // 区间框选遮罩（长按拖选）
+        (ctx.crosshair.state as? InteractionState.RangeSelect)?.let { rs ->
+            val startLocal = rs.startGlobalIdx - ctx.klineStartIndex
+            val endLocal = rs.endGlobalIdx - ctx.klineStartIndex
+            if (startLocal in visible.indices || endLocal in visible.indices) {
+                val lo = minOf(startLocal, endLocal).coerceIn(0, nVisible - 1)
+                val hi = maxOf(startLocal, endLocal).coerceIn(0, nVisible - 1)
+                val x0 = step * lo
+                val x1 = step * (hi + 1)
+                context.fillStyle(Color(0x1A1976D2))
+                context.beginPath()
+                context.moveTo(x0, padT); context.lineTo(x1, padT)
+                context.lineTo(x1, volTop); context.lineTo(x0, volTop)
+                context.closePath(); context.fill()
+                context.strokeStyle(Color(0x801976D2)); context.lineWidth(1f)
+                context.beginPath()
+                context.moveTo(x0, padT); context.lineTo(x0, volTop)
+                context.moveTo(x1, padT); context.lineTo(x1, volTop)
+                context.stroke()
+            }
+        }
+
+        // 区间统计浮层
+        ctx.rangeStats?.let { stats ->
+            val statsH = 28f
+            val statsY = padT + 4f
+            context.fillStyle(Color(0xE622263F))
+            context.beginPath()
+            context.moveTo(0f, statsY); context.lineTo(width, statsY)
+            context.lineTo(width, statsY + statsH); context.lineTo(0f, statsY + statsH)
+            context.closePath(); context.fill()
+            context.fillStyle(Color(0xFFFFE082)); context.font(9f); context.textAlign(TextAlign.LEFT)
+            context.fillText("区间统计: ${stats.summary}", 4f, statsY + 12f)
+            context.fillStyle(Color(0xFFB0BEC5))
+            context.fillText("${stats.startDate} ~ ${stats.endDate}", 4f, statsY + 24f)
         }
     }
 }
@@ -1451,7 +1590,7 @@ internal fun ViewContainer<*, *>.indexPriceLevelRow(
         Text { attr { text(label); fontSize(12f); color(0xFF666666); width(60f) } }
         Text { attr { text(fmt2(price)); fontSize(13f); fontWeightBold(); color(color); flex(1f) } }
         if (distText.isNotEmpty()) {
-            Text { attr { text(distText); fontSize(11f); color(if (dist >= 0) 0xFFE53935 else 0xFF43A047); marginRight(8f) } }
+            Text { attr { text(distText); fontSize(11f); color(if (dist >= 0) StockColors.UP else StockColors.DOWN); marginRight(8f) } }
         }
         View {
             attr { padding(4f, 8f, 4f, 8f); backgroundColor(0xFFE8F5E9); borderRadius(10f) }
@@ -1577,7 +1716,7 @@ internal fun ViewContainer<*, *>.indexErrorView(ctx: IndexDetailPage) {
             attr {
                 text("加载失败")
                 fontSize(16f)
-                color(0xFFE53935)
+                color(StockColors.UP)
             }
         }
 

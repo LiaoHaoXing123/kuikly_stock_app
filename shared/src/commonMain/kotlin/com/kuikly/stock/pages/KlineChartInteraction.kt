@@ -100,15 +100,16 @@ internal class ChartCoordinateMapper(
 
 // -----------------------------------------------------------------------------
 // 交互状态机：Idle（默认）/ Hover（跟随）/ Locked（点击锁定）/ RangeSelect（区间框选）
+// 注：public 以便 KlineInteractionHost（个股/指数页共用）暴露 crosshair 而不泄露内部类型
 // -----------------------------------------------------------------------------
-internal sealed interface InteractionState {
+sealed interface InteractionState {
     data object Idle : InteractionState
     data class Hover(val globalIdx: Int) : InteractionState
     data class Locked(val globalIdx: Int) : InteractionState
     data class RangeSelect(val startGlobalIdx: Int, val endGlobalIdx: Int) : InteractionState
 }
 
-internal class CrosshairController {
+class CrosshairController {
     var state: InteractionState = InteractionState.Idle
         private set
 
@@ -119,13 +120,15 @@ internal class CrosshairController {
         }
     }
 
-    /** 点击：锁定 / 解锁 */
+    /** 点击：锁定 / 解锁 / 退出框选 */
     fun onTap(globalIdx: Int) {
-        val cur = state
-        state = if (cur is InteractionState.Locked && cur.globalIdx == globalIdx) {
-            InteractionState.Idle
-        } else {
-            InteractionState.Locked(globalIdx)
+        state = when (val cur = state) {
+            // 已框选区间：点击直接退出，取消遮罩与统计
+            is InteractionState.RangeSelect -> InteractionState.Idle
+            // 已锁定同一根：再次点击解锁；否则锁定新的一根
+            is InteractionState.Locked ->
+                if (cur.globalIdx == globalIdx) InteractionState.Idle else InteractionState.Locked(globalIdx)
+            else -> InteractionState.Locked(globalIdx)
         }
     }
 
@@ -147,10 +150,11 @@ internal class CrosshairController {
         val cur = state
         if (cur is InteractionState.RangeSelect) {
             if (abs(cur.startGlobalIdx - cur.endGlobalIdx) < 2) {
-                // 区间太小，视为点击锁定
+                // 区间太小，视为点击锁定单根
                 state = InteractionState.Locked(cur.endGlobalIdx)
             }
-            // 否则保持 RangeSelect 状态
+            // 否则驻留 RangeSelect 以保留遮罩+统计浮层；退出走 onTap()（点击图表）或
+            // 状态条上的“✕ 退出”按钮（clearInteraction），或开始平移(pan)自动清除。
         }
     }
 
@@ -169,6 +173,35 @@ internal class CrosshairController {
             is InteractionState.RangeSelect -> s.endGlobalIdx
             InteractionState.Idle -> null
         }
+}
+
+// -----------------------------------------------------------------------------
+// K线交互宿主：个股页与指数页共用同一套手势层(chartTouchLayer)。
+// 两页均为 Pager 子类、K线状态几乎一致，抽出此接口即可复用手势逻辑。
+// 方法体仍由各页各自实现（P2 再考虑下沉为默认实现以去重）。
+// -----------------------------------------------------------------------------
+internal interface KlineInteractionHost {
+    /** 是否使用原生手势视图(StockChartGestureView)，由入口参数 nativeChartGestures 决定 */
+    val nativeChartGestures: Boolean
+
+    var klineStartIndex: Int
+    var klineVisibleCount: Int
+    var selectedKlineIndex: Int
+    val klineCanvasWidth: Float
+    val crosshair: CrosshairController
+
+    fun getAggregatedKline(): List<KLineDataItem>
+
+    fun updateCrosshair(x: Float, y: Float)
+    fun tapCrosshair(x: Float)
+    fun beginRangeSelect(x: Float)
+    fun updateRangeSelect(x: Float)
+    fun endRangeSelect()
+    fun clearInteraction()
+    fun clearChartSelection()
+
+    /** 分时选点；指数页无分时，实现为空即可 */
+    fun selectMinuteAtX(x: Float)
 }
 
 // -----------------------------------------------------------------------------

@@ -1,4 +1,5 @@
 package com.kuikly.stock.pages
+import com.kuikly.stock.data.StockColors
 
 import com.tencent.kuikly.core.annotations.Page
 import com.tencent.kuikly.core.base.*
@@ -129,8 +130,8 @@ class WatchlistPage : Pager() {
         val pct = rt?.changePercent ?: 0.0
         val change = rt?.change ?: 0.0
         val color = when {
-            pct > 0 -> 0xFFE53935
-            pct < 0 -> 0xFF43A047
+            pct > 0 -> StockColors.UP
+            pct < 0 -> StockColors.DOWN
             else -> 0xFF888888
         }
         val alerts = WatchStore.alertsOf(h.code).filter { it.enabled }
@@ -477,7 +478,7 @@ internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowD
                     attr {
                         text("盈亏 " + row.pnlText + (if (row.pnlPctText.isNotEmpty()) " (" + row.pnlPctText + ")" else ""))
                         fontSize(11f)
-                        color(if (row.pnlText.startsWith("-")) 0xFF43A047 else 0xFFE53935)
+                        color(if (row.pnlText.startsWith("-")) StockColors.DOWN else StockColors.UP)
                     }
                 }
             }
@@ -490,7 +491,7 @@ internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowD
                     attr {
                         text("今日 " + row.todayPnlText)
                         fontSize(11f)
-                        color(if (row.todayPnlText.startsWith("-")) 0xFF43A047 else 0xFFE53935)
+                        color(if (row.todayPnlText.startsWith("-")) StockColors.DOWN else StockColors.UP)
                         flex(1f)
                     }
                 }
@@ -577,7 +578,7 @@ internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowD
                     attr {
                         text("移出自选及提醒")
                         fontSize(12f)
-                        color(0xFFE53935)
+                        color(StockColors.UP)
                     }
                 }
             }

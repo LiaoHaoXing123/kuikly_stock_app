@@ -1,4 +1,5 @@
 package com.kuikly.stock.pages
+import com.kuikly.stock.data.StockColors
 
 import com.kuikly.stock.data.SectorSnapshot
 import com.kuikly.stock.data.fmt2
@@ -24,7 +25,7 @@ internal fun ViewContainer<*, *>.sectorCard(ctx: StockDetailPage) {
                     attr {
                         text(ctx.sectorSnapshot?.board?.changePercent?.let { fmtSignedPct(it) } ?: "—")
                         fontSize(13f); fontWeightBold()
-                        color(if ((ctx.sectorSnapshot?.board?.changePercent ?: 0.0) >= 0) 0xFFEF4444 else 0xFF10B981)
+                        color(if ((ctx.sectorSnapshot?.board?.changePercent ?: 0.0) >= 0) StockColors.UP else StockColors.DOWN)
                     }
                 }
                 Text { attr { text(if (ctx.sectorExpanded) " 收起 ∧" else " 排行 ›"); fontSize(12f); color(0xFF1976D2) } }
@@ -70,7 +71,7 @@ internal fun ViewContainer<*, *>.sectorCard(ctx: StockDetailPage) {
                             event { click { ctx.acquireModule<RouterModule>(RouterModule.MODULE_NAME).openPage("stock_detail", JSONObject().apply { put("code", member.code) }) } }
                             Text { attr { text("${member.name ?: member.code}\n${member.code}"); fontSize(11f); lineHeight(16f); flex(1f); color(0xFF26384A) } }
                             Text { attr { text(member.price?.let { fmt2(it) } ?: "—"); fontSize(12f); width(64f); color(0xFF627083) } }
-                            Text { attr { text(member.changePercent?.let { fmtSignedPct(it) } ?: "—"); fontSize(12f); color(if ((member.changePercent ?: 0.0) >= 0) 0xFFEF4444 else 0xFF10B981) } }
+                            Text { attr { text(member.changePercent?.let { fmtSignedPct(it) } ?: "—"); fontSize(12f); color(if ((member.changePercent ?: 0.0) >= 0) StockColors.UP else StockColors.DOWN) } }
                         }
                     }
                 }

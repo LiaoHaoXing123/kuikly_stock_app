@@ -16,12 +16,12 @@ data class AIVerdict(
     val targetValue: Double? = null,
     val stopLossValue: Double? = null,
 ) {
-    /** A股配色：涨红跌绿 */
+    /** A股配色：涨红跌绿（统一自 StockColors） */
     val colorValue: Long
         get() = when (bias) {
-            "偏多" -> 0xFFE64545
-            "偏空" -> 0xFF17A67A
-            else -> 0xFF8A9099
+            "偏多" -> StockColors.UP
+            "偏空" -> StockColors.DOWN
+            else -> StockColors.FLAT
         }
 
     val color: Color get() = Color(colorValue)

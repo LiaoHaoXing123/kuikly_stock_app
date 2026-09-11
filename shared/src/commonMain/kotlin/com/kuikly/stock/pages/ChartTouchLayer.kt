@@ -11,8 +11,8 @@ private class ChartTouchView(private val native: Boolean) : ViewContainer<Contai
     override fun viewName() = if (native) "StockChartGestureView" else ViewConst.TYPE_VIEW
 }
 
-internal fun ViewContainer<*, *>.chartTouchLayer(ctx: StockDetailPage, minute: Boolean = false) {
-    val native = ctx.pagerData.params.optBoolean("nativeChartGestures", false)
+internal fun ViewContainer<*, *>.chartTouchLayer(ctx: KlineInteractionHost, minute: Boolean = false) {
+    val native = ctx.nativeChartGestures
     var startX = 0f
     var startIndex = 0
     var startCount = 0
