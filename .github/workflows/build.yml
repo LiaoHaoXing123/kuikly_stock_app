@@ -120,6 +120,11 @@ jobs:
           set -o pipefail
           ./gradlew :shared:compileKotlinIosArm64 :shared:compileKotlinIosSimulatorArm64 :shared:compileKotlinIosX64 --stacktrace --console=plain 2>&1 | tee build-ios.log
 
+      - name: Build shared iOS framework (podspec + link)
+        run: |
+          set -o pipefail
+          ./gradlew :shared:podspec :shared:linkPodDebugFrameworkIosArm64 :shared:linkPodDebugFrameworkIosSimulatorArm64 :shared:linkPodDebugFrameworkIosX64 --stacktrace --console=plain 2>&1 | tee -a build-ios.log
+
       - name: Cache CocoaPods
         uses: actions/cache@v4
         with:
