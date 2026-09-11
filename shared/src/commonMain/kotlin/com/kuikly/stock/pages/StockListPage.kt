@@ -19,6 +19,7 @@ import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.observable
 import com.tencent.kuikly.core.reactive.handler.observableList
 import com.kuikly.stock.data.StockRepository
+import com.kuikly.stock.data.StockDb
 import com.tencent.kuikly.core.coroutines.delay
 import com.tencent.kuikly.core.coroutines.launch
 import com.kuikly.stock.data.fmt2
@@ -48,6 +49,8 @@ class StockListPage : Pager() {
 
     internal var sortOption by observable("默认")
 
+    internal var listMode by observable("股票")
+
     internal var totalCount by observable(0)
 
     internal var searchInput: com.tencent.kuikly.core.views.InputView? = null
@@ -63,6 +66,8 @@ class StockListPage : Pager() {
                 }
 
                 navigationBar(ctx)
+
+                modeTabBar(ctx)
 
                 searchBar(ctx)
 
@@ -126,6 +131,16 @@ class StockListPage : Pager() {
         loadStockList(isRefresh = true)
     }
 
+    internal fun switchMode(mode: String) {
+        if (isLoading || listMode == mode) return
+        listMode = mode
+        currentPage = 1
+        currentKeyword = searchKeyword
+        sortOption = "默认"
+        showHint(if (mode == "指数") "切换到指数行情" else "切换到股票行情")
+        loadStockList(isRefresh = true)
+    }
+
     private fun sortParams(): Pair<String?, String?> {
         return when (sortOption) {
             "涨幅" -> "change_percent" to "desc"
@@ -169,26 +184,35 @@ class StockListPage : Pager() {
 
         lifecycleScope.launch {
             try {
-                val (sortCol, sortDir) = sortParams()
-                val (total, localList) = StockRepository.loadStockListWithTotal(
-                    currentKeyword.ifBlank { null }, sortCol, sortDir
-                )
-
-                val startIdx = if (isRefresh) 0 else stockList.size
-                val pageItems = localList.drop(startIdx).take(20)
-
-                delay(0)
-                totalCount = total
-                if (pageItems.isNotEmpty()) {
-                    stockList.addAll(pageItems)
-                    hasMore = pageItems.size >= 20
-                    showHint(if (isRefresh) "已刷新，共 ${stockList.size} 只股票" else "已加载 ${pageItems.size} 条")
-                } else if (stockList.isEmpty()) {
+                if (listMode == "指数") {
+                    val indices = StockDb.listIndices(currentKeyword.ifBlank { null })
+                    delay(0)
+                    totalCount = indices.size
+                    stockList.addAll(indices)
                     hasMore = false
-                    showHint("未找到相关股票")
+                    showHint(if (indices.isNotEmpty()) "共 ${indices.size} 只指数" else "未找到相关指数")
                 } else {
-                    hasMore = false
-                    showHint("没有更多了")
+                    val (sortCol, sortDir) = sortParams()
+                    val (total, localList) = StockRepository.loadStockListWithTotal(
+                        currentKeyword.ifBlank { null }, sortCol, sortDir
+                    )
+
+                    val startIdx = if (isRefresh) 0 else stockList.size
+                    val pageItems = localList.drop(startIdx).take(20)
+
+                    delay(0)
+                    totalCount = total
+                    if (pageItems.isNotEmpty()) {
+                        stockList.addAll(pageItems)
+                        hasMore = pageItems.size >= 20
+                        showHint(if (isRefresh) "已刷新，共 ${stockList.size} 只股票" else "已加载 ${pageItems.size} 条")
+                    } else if (stockList.isEmpty()) {
+                        hasMore = false
+                        showHint("未找到相关股票")
+                    } else {
+                        hasMore = false
+                        showHint("没有更多了")
+                    }
                 }
             } catch (e: Throwable) {
                 delay(0)
@@ -228,7 +252,7 @@ internal fun ViewContainer<*, *>.navigationBar(ctx: StockListPage) {
 
         Text {
             attr {
-                text("股票行情")
+                text(if (ctx.listMode == "指数") "指数行情" else "股票行情")
                 fontSize(17f)
                 fontWeightBold()
                 color(0xFFFFFFFF)
@@ -239,7 +263,7 @@ internal fun ViewContainer<*, *>.navigationBar(ctx: StockListPage) {
         vif({ ctx.totalCount > 0 }) {
             Text {
                 attr {
-                    text("共 ${ctx.totalCount} 只")
+                    text("共 ${ctx.totalCount} " + if (ctx.listMode == "指数") "只" else "只")
                     fontSize(12f)
                     color(0xFFB3D9FF)
                     marginLeft(6f)
@@ -249,7 +273,7 @@ internal fun ViewContainer<*, *>.navigationBar(ctx: StockListPage) {
         vif({ ctx.totalCount <= 0 }) {
             Text {
                 attr {
-                    text("共 ${ctx.stockList.size} 只")
+                    text("共 ${ctx.stockList.size} " + if (ctx.listMode == "指数") "只" else "只")
                     fontSize(12f)
                     color(0xFFB3D9FF)
                     marginLeft(6f)
@@ -310,7 +334,6 @@ internal fun ViewContainer<*, *>.searchBar(ctx: StockListPage) {
                     fontSize(14f)
                     color(Color(0xFF333333))
                     editable(true)
-                    autofocus(true)
                     returnKeyTypeSearch()
                     maxTextLength(20)
                 }
@@ -329,7 +352,7 @@ internal fun ViewContainer<*, *>.searchBar(ctx: StockListPage) {
             vif({ ctx.searchKeyword.isEmpty() }) {
                 Text {
                     attr {
-                        text("搜索股票代码或名称...")
+                        text(if (ctx.listMode == "指数") "搜索指数代码或名称..." else "搜索股票代码或名称...")
                         fontSize(14f)
                         color(0xFF999999)
                         absolutePosition(left = 12f, top = 9f)
@@ -368,6 +391,23 @@ internal fun ViewContainer<*, *>.searchBar(ctx: StockListPage) {
     }
 }
 
+internal fun ViewContainer<*, *>.modeTabBar(ctx: StockListPage) {
+    View {
+        attr {
+            flexDirectionRow()
+            alignItems(FlexAlign.CENTER)
+            padding(left = 12f, top = 8f, right = 12f, bottom = 8f)
+            backgroundColor(0xFFFFFFFF)
+        }
+
+        listOf("股票", "指数").forEach { mode ->
+            selectionChip(mode, { ctx.listMode == mode }) { ctx.switchMode(mode) }
+        }
+
+        View { attr { flex(1f) } }
+    }
+}
+
 internal fun ViewContainer<*, *>.sortBar(ctx: StockListPage) {
     View {
         attr {
@@ -377,8 +417,10 @@ internal fun ViewContainer<*, *>.sortBar(ctx: StockListPage) {
             backgroundColor(0xFFFFFFFF)
         }
 
-        listOf("默认", "涨幅", "跌幅", "成交量").forEach { option ->
-            selectionChip(option, { ctx.sortOption == option }) { ctx.applySort(option) }
+        vif({ ctx.listMode != "指数" }) {
+            listOf("默认", "涨幅", "跌幅", "成交量").forEach { option ->
+                selectionChip(option, { ctx.sortOption == option }) { ctx.applySort(option) }
+            }
         }
 
         View { attr { flex(1f) } }
@@ -485,8 +527,9 @@ internal fun ViewContainer<*, *>.stockListItem(
             click {
                 val params = JSONObject()
                 params.put("code", stock.code)
+                val route = if (ctx.listMode == "指数") "index_detail" else "stock_detail"
                 ctx.acquireModule<RouterModule>(RouterModule.MODULE_NAME)
-                    .openPage("stock_detail", params)
+                    .openPage(route, params)
             }
         }
 
