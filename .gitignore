@@ -60,3 +60,8 @@ data-pipeline/venv
 
 # 本地构建/测试日志（不入库）
 *.log
+
+# 模拟器/真机调试截图与 UI dump（本地验证产物，不入库）
+emulator_*.png
+debug.png
+ui.xml

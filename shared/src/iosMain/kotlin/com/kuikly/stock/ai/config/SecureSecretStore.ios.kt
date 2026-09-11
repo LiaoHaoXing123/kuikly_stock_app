@@ -5,20 +5,21 @@
 package com.kuikly.stock.ai.config
 
 import kotlinx.cinterop.ByteVar
-import kotlinx.cinterop.CPointed
-import kotlinx.cinterop.CPointer
-import kotlinx.cinterop.CPointerVarOf
+import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.alloc
-import kotlinx.cinterop.cstr
 import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.ptr
 import kotlinx.cinterop.readBytes
 import kotlinx.cinterop.reinterpret
+import kotlinx.cinterop.usePinned
+import kotlinx.cinterop.value
 import platform.CoreFoundation.CFDataCreate
 import platform.CoreFoundation.CFDictionaryAddValue
 import platform.CoreFoundation.CFDictionaryCreateMutable
 import platform.CoreFoundation.CFDictionaryRef
 import platform.CoreFoundation.CFRelease
 import platform.CoreFoundation.CFStringCreateWithCString
+import platform.CoreFoundation.CFTypeRefVar
 import platform.CoreFoundation.kCFBooleanTrue
 import platform.CoreFoundation.kCFStringEncodingUTF8
 import platform.Foundation.CFBridgingRelease
@@ -45,7 +46,7 @@ internal actual object SecureSecretStore {
             val query = buildQuery(profileId) ?: return null
             try {
                 CFDictionaryAddValue(query, kSecReturnData, kCFBooleanTrue)
-                val result = alloc<CPointerVarOf<CPointer<out CPointed>>>()
+                val result = alloc<CFTypeRefVar>()
                 val status = SecItemCopyMatching(query, result.ptr)
                 if (status != errSecSuccess) return null
                 val nsData = CFBridgingRelease(result.value) as? NSData ?: return null
@@ -101,11 +102,15 @@ internal actual object SecureSecretStore {
         CFDictionaryAddValue(query, kSecAttrService, service)
         CFDictionaryAddValue(query, kSecAttrAccount, account)
         if (secret != null) {
-            val cstr = secret.cstr
-            // cstr 末尾含 NUL，存入 Keychain 的长度需减 1，否则读出的 Key 会多一个 '\0'
-            val data = CFDataCreate(null, cstr, (cstr.size - 1).toLong())
-            CFDictionaryAddValue(query, kSecValueData, data)
-            if (data != null) CFRelease(data)
+            // 直接取 UTF-8 字节数组（不含 NUL 结尾），避免 cstr 尾巴的 '\0' 被写进 Keychain
+            val bytes = secret.encodeToByteArray()
+            if (bytes.isNotEmpty()) {
+                val data = bytes.usePinned { pinned ->
+                    CFDataCreate(null, pinned.addressOf(0).reinterpret(), bytes.size.toLong())
+                }
+                CFDictionaryAddValue(query, kSecValueData, data)
+                if (data != null) CFRelease(data)
+            }
         }
         if (service != null) CFRelease(service)
         if (account != null) CFRelease(account)

@@ -174,7 +174,7 @@ object DeepSeekApi {
         val messages = buildAnalysisPrompt(detail)
         val raw = chat(messages)
         val klineDates = detail.kline.orEmpty().map { it.tradeDate }.toSet()
-        val generatedAt = System.currentTimeMillis()
+        val generatedAt = nowMillis()
         val dataDate = detail.kline?.lastOrNull()?.tradeDate ?: detail.indicator?.tradeDate.orEmpty()
 
         // ---------- L1: 严格 v2 ----------

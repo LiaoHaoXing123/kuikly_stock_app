@@ -1,3 +1,5 @@
+@file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+
 // iOS 平台的本地数据服务实现。
 
 package com.kuikly.stock.data

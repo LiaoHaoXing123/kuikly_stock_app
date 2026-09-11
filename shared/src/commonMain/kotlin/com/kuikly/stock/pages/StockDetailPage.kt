@@ -24,6 +24,7 @@ import com.tencent.kuikly.core.views.*
 import com.tencent.kuikly.core.views.TextAlign
 import com.kuikly.stock.data.StockRepository
 import com.kuikly.stock.data.WatchStore
+import com.kuikly.stock.data.nowMillis
 import com.kuikly.stock.data.AIVerdict
 import com.kuikly.stock.ai.protocol.VerdictSynthesizer
 import com.kuikly.stock.network.DeepSeekApi
@@ -310,7 +311,7 @@ class StockDetailPage : Pager(), KlineInteractionHost {
         clearInteraction()
         pendingFocus = f
         klineFocusState.focus = f
-        klineFocusState.focusSetAt = System.currentTimeMillis()
+        klineFocusState.focusSetAt = nowMillis()
         if (f is KlineFocus.Price) {
             highlightedPrice = f.value
             highlightedPriceLabel = f.label
