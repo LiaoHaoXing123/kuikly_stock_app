@@ -58,9 +58,13 @@ internal const val NAV_TRANSITION_FADE = "fade"
  * （返回时还朝反方向再滑一次），这是「切换不平滑」的来源。
  *
  * 所以这里给同级目的地打上 [NAV_TRANSITION_FADE] 标记，由各平台宿主换成淡入淡出：
- *   - Android：`KRRouterAdapter` 换成「新页面淡入」的窗口动画（Material fade through 的入场段）；
- *   - iOS：`KRRouterHandler` 换成 cross-dissolve；
- *   - 详情页等层级下钻不做标记，继续走系统横切。
+ *   - Android：`NavTransition` 换成「新页面淡入」（Material fade through 的入场段）；
+ *   - iOS：`KRRouterHandler` 换成 cross-dissolve（打开和关闭都是）；
+ *   - 鸿蒙：`pages/Index.pageTransition` 按标记走 opacity，因为 `router.pushUrl` 没有动画入参。
+ *
+ * 详情页等层级下钻**不打标**。宿主按 iOS push/pop 做方向性横切：
+ * 进入时新页从右侧滑入（旧页视差左移），返回时当前页从右侧滑出。
+ * 不再依赖各系统默认 Activity / pageTransition 观感（Android 默认常是淡入+缩放，方向不明）。
  */
 internal fun Pager.openModule(route: String, params: JSONObject = JSONObject()) {
     val data = if (route in MODULE_ROUTES) params.put(NAV_TRANSITION_KEY, NAV_TRANSITION_FADE) else params

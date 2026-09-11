@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  返回时下层页面的入场：从左侧 30% 视差位回到原位，镜像 kr_slide_out_left。
+-->
+<translate xmlns:android="http://schemas.android.com/apk/res/android"
+    android:interpolator="@interpolator/kr_emphasized"
+    android:duration="300"
+    android:fromXDelta="-30%p"
+    android:toXDelta="0" />

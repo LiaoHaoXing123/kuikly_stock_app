@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  同级模块返回：当前页淡出，下层页保持不透明（入场动画资源为 0）。
+  时长/曲线与 kr_module_fade_in 对齐，避免 Tab 进淡出切。
+-->
+<alpha xmlns:android="http://schemas.android.com/apk/res/android"
+    android:interpolator="@interpolator/kr_decelerate"
+    android:duration="210"
+    android:fromAlpha="1.0"
+    android:toAlpha="0.0" />

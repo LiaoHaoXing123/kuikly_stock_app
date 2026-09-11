@@ -19,7 +19,11 @@
 7. 刷新按钮点击后浅蓝底不消失（bug）
 8. 底部模块（Tab）切换只有横切过渡，要求找成熟方案并落地更合适的转场
 
-## 二、已优化（已落地，含本次未提交工作）
+**第三轮（方向性转场，本轮）**
+9. 下钻进入从右滑入、返回从右滑出（iOS push/pop 镜像），替换 Android 系统默认的淡入+缩放
+10. 鸿蒙 `router.pushUrl` 无动画入参，fade 标记要在页面级 `pageTransition` 落地
+
+## 二、已优化
 
 ### P0 交互成熟度（已提交 `2bc1566`）
 - 空态行动出口：自选空列表加「去行情添加」入口
@@ -27,26 +31,32 @@
 - 数字补间动画（NumberRoll）、弹窗淡入（Overlay）、AI 分析三点波浪动效（aiDotWaveDots）、按钮按压缩放（StepPulse）——均已接入页面
 - 框架能力先核实再动手：确认 Kuikly 2.7.0 可动画属性仅 opacity/transform/backgroundColor/frame，避免走不通的路
 
-### 收尾修复（本次提交）
+### 收尾修复（`b713caf`）
 - **AI 卡片渲染**：`level_card` 缺失渲染分支，原始 `Map.toString()` 直接摊到界面 → 补齐操作倾向/价位四行渲染（价位可点击标注、可设提醒），兜底只渲染白名单字段
 - **数据日期口径统一**：首页只取自选第一只股票日期导致与个股页「断裂」→ 新增 `StockDb.latestTradeDate()`，三端统一读日线表最大值
+- **刷新按钮浅蓝底不消失**：按压态 `Attr.animate` 丢帧 → 改硬切
+- **模块切换转场**：同级 Tab 打 `transition=fade`（210ms 淡入）；下钻当时仍走系统默认横切
 
-### 修复轮（本次提交）
-- **刷新按钮浅蓝底不消失**：根因是按压态用了 `Attr.animate`（120ms 属性动画），按压「抬起」那次的 prop 更新会丢，元素永久停在按压底色 → 按压态改硬切，删除动画，长按/微拖/大拖/点按全部干净
-- **模块切换转场**：调研结论（Material 3 同级用 fade-through、iOS Tab 无动画、Flutter 默认 FadeThrough、主流券商 App 底部 Tab 均无横切）→ 新增 `Pager.openModule`，底部 Tab 5 页及同级跳转带 `transition=fade`，Android 210ms 淡入 + decelerate 曲线、iOS cross-dissolve；详情页等下钻保留系统横切
+### 方向性转场（本轮）
+- **Android**：新增 `NavTransition`。下钻 open = `kr_slide_in_right` + 旧页视差 `kr_slide_out_left`（30%）；close = 镜像从右滑出。同级 fade 的关闭补了 `kr_module_fade_out`。系统返回键走 `Activity.finish`，与 `closePage` 同一套动画。API 34 用 `overrideActivityTransition` 在 `onCreate` 登记（修掉原先登记在源 Activity 上、对「这一次」打开无效的问题）；API 33- 仍紧挨 `startActivity` / `finish` 调 `overridePendingTransition`。启动页 `NavMotion.NONE`，不会从桌面滑进来。
+- **iOS**：下钻继续系统 `push/pop animated:YES`（本身就是从右滑入 / 从右滑出 + 视差）。同级模块关闭改为 cross-dissolve，与打开对称，避免「进淡、出切」。
+- **鸿蒙**：`router.pushUrl` 确实没有动画入参。在 `pages/Index.pageTransition` 按本页 `pageData.transition` 分支：fade → opacity 210ms；下钻 → `SlideEffect.Right/Left` 300ms 的 push/pop 镜像。读的是本实例参数，出场不会误用栈顶页的标记。
 
-## 三、待优化（下一步）
+时长/曲线（按位移选，不再一律 200ms）：
+- 同级淡入：210ms + decelerate / FastOutSlowIn / iOS cross-dissolve
+- 下钻横切：300ms + Material 3 emphasized `cubic-bezier(0.2, 0, 0, 1)`；iOS 用系统导航曲线（约 350ms）
 
-1. **页面切换方向性转场（用户 09-11 补充）**：下钻/返回要更自然——进入时新页面从右侧滑入，返回时反向滑出（iOS 风格 push/pop 镜像），替换当前「系统默认」的不明确观感
-2. 鸿蒙端 `router.pushUrl` 无动画入参，fade 标记未处理，需单独评估
-3. iOS 转场改动本地无编译环境，待 CI 验证
-4. 转场中途观感（200ms 量级）建议真机确认，必要时调时长/曲线
-5. 历史遗留：完整分档资金、分钟资金流叠加、自由绘制保存趋势线、龙虎榜、融资融券、券商下单（超出本分支范围）
+## 三、待优化
+
+1. 转场观感建议真机确认 300ms / 30% 视差是否要微调（本环境无真机）
+2. iOS 无本地编译环境，改动未在 Xcode 过一遍
+3. 鸿蒙 `pageTransition` 无本地 DevEco 编译
+4. 历史遗留：完整分档资金、分钟资金流叠加、自由绘制保存趋势线、龙虎榜、融资融券、券商下单（超出本分支范围）
 
 ## 四、产生的影响
 
-- **转场语义修正**：底部 Tab 从「横切（下钻语义）」改为「淡入（同级语义）」，不再误导导航栈关系
-- **按压反馈回归原生手感**：硬切更接近系统按钮，同时消除了动画丢帧导致的视觉残留
-- **数据口径收敛**：首页/我的/个股页的日期不再因自选第一只股票的更新进度而漂移
-- **兼容性**：Android 按 SDK 34 上下分流（`overrideActivityTransition` / `overridePendingTransition`）；iOS 用标准 UIKit cross-dissolve；shared 侧纯 common 代码，三端编译不受影响
-- **验证情况**：`shared:testDebugUnitTest`、`compileKotlinJs`、`androidApp:assembleDebug` 全绿；模拟器实机验证按压手势与 5 Tab 导航无异常；logcat 无崩溃
+- **转场语义**：同级 = 淡入淡出；下钻 = 从右滑入 / 返回从右滑出。Android 不再吃系统默认的淡入+缩放。
+- **返回键对齐**：Android 系统返回与页面返回按钮用同一套 CLOSE 动画。
+- **鸿蒙 fade 不再是空操作**：标记真正驱动 `pageTransition`。
+- **兼容性**：Android SDK 23–34；shared 侧只改了注释，三端 Kotlin/JS 编译不受影响。
+- **CI**：按用户要求本轮提交带 `[skip ci]`，不跑 GitHub Actions。

@@ -63,6 +63,11 @@
 
 #pragma mark - private
 
+- (BOOL)usesFadeTransition {
+    id value = _pageData[@"transition"];
+    return [value isKindOfClass:[NSString class]] && [value isEqualToString:@"fade"];
+}
+
 - (NSDictionary *)p_mergeExtParamsWithOriditalParam:(NSDictionary *)pageParam {
     NSMutableDictionary *mParam = [(pageParam ?: @{}) mutableCopy];
 

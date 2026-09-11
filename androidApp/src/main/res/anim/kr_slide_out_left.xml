@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  下钻进入时旧页面的出场：只向左挪 30% 屏宽（iOS UINavigationController 的视差），
+  不是整页推走。新页从右覆盖过来时，旧页还露着一截在往左退，方向感才清楚。
+-->
+<translate xmlns:android="http://schemas.android.com/apk/res/android"
+    android:interpolator="@interpolator/kr_emphasized"
+    android:duration="300"
+    android:fromXDelta="0"
+    android:toXDelta="-30%p" />

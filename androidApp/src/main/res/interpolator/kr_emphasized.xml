@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Material 3 emphasized：cubic-bezier(0.2, 0.0, 0.0, 1.0)。
+  空间位移（从右滑入 / 返回滑出）用它——前段快、末端稳稳停住，比线性或 decelerate
+  更接近 iOS UINavigationController 的 settle。淡入仍用 kr_decelerate。
+-->
+<pathInterpolator xmlns:android="http://schemas.android.com/apk/res/android"
+    android:controlX1="0.2"
+    android:controlY1="0.0"
+    android:controlX2="0.0"
+    android:controlY2="1.0" />

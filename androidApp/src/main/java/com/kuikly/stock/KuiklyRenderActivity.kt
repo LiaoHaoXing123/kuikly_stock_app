@@ -51,6 +51,8 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // API 34+ 必须在 onCreate 登记，才会作用于「这一次」打开和之后的关闭。
+        NavTransition.registerForApi34(this, navMotion())
 
         setContentView(R.layout.activity_hr)
         setupImmersiveMode()
@@ -61,10 +63,18 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
         kuiklyRenderViewDelegator.onAttach(hrContainerView, "", pageName, createPageData())
     }
 
+    override fun finish() {
+        super.finish()
+        // API 33-：系统返回键和 Router.closePage 都走 finish，转场不会漏。
+        NavTransition.pendingClose(this, navMotion())
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         kuiklyRenderViewDelegator.onDetach()
     }
+
+    private fun navMotion(): NavMotion = NavTransition.motionOfJson(intent.getStringExtra(KEY_PAGE_DATA))
 
     override fun onPause() {
         super.onPause()
@@ -142,6 +152,8 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
             starter.putExtra(KEY_PAGE_NAME, pageName)
             starter.putExtra(KEY_PAGE_DATA, pageData.toString())
             context.startActivity(starter)
+            // API 33- 必须紧挨 startActivity；API 34+ 由目标 Activity.onCreate 登记。
+            NavTransition.pendingOpen(context as? Activity, NavTransition.motionOf(pageData))
         }
 
         private fun initKuiklyAdapter() {
