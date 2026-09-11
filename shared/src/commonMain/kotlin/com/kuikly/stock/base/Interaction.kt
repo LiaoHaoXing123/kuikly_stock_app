@@ -30,7 +30,11 @@
 // 纪律：
 //   - 按压态只改「表现」，绝不改业务状态，也不动 click 的既有逻辑；
 //   - 同一时刻只允许一个元素处于按下态（单指触摸的天然约束），所以用一个
-//     全局 key 表达即可，不必给每个元素各配一份状态。
+//     全局 key 表达即可，不必给每个元素各配一份状态；
+//   - **按压底色/缩放不做属性动画**：`Attr.animate` 在「按下→抬起」这条反向路径上
+//     会漏掉 prop 更新，元素会永久停在按下态（详情页顶栏刷新按钮一直顶着一块浅蓝底，
+//     就是这个原因——按下那一下渲染出来了，抬起那一下没渲染回去）。
+//     原生按钮的按压态本来就是硬切，不做过渡也不损失什么。
 
 package com.kuikly.stock.base
 
@@ -68,12 +72,6 @@ internal const val PRESS_BG_NONE: Long = 0x00FFFFFF
 
 /** 按下时的缩放比例。0.96 是 iOS/Android 原生按钮反馈的常见幅度：能感觉到，但不跳。 */
 internal const val PRESS_SCALE = 0.96f
-
-/**
- * 按压过渡动画。按下/抬起共用一份：`Animation` 只在 build 属性串时被读取，
- * 不做任何按视图写入，所以同一实例可以安全复用（见文件头部说明）。
- */
-internal val PRESS_ANIMATION: Animation = Animation.easeOut(0.12f)
 
 // --- 骨架屏扫光参数 ---
 
@@ -126,6 +124,10 @@ internal class MountPulse(scope: PagerScope) {
  * 为什么不给每个元素单独配状态：手指只有一个，同一时刻只可能有一个元素被按下，
  * 用「当前被按下的 key」这一个值就够了。这样按下时只会重跑两处 attr 块
  * （旧的恢复、新的高亮），不会把整个列表刷一遍。
+ *
+ * 状态只有「按下」「抬起」两个事件驱动，抬手时由 [release] 清空。
+ * 注意：高亮的**显示**必须是硬切，不能给它套属性动画——见 [pressedBg] 的说明，
+ * 动画会让反向（抬起）那次 prop 更新丢失，高亮就永久留在元素上。
  */
 internal class PressState(scope: PagerScope) {
 
@@ -151,22 +153,24 @@ internal class PressState(scope: PagerScope) {
 }
 
 /**
- * 在 `attr { }` 里声明按压底色。读的是 [PressState]，所以按下/抬起会自动重跑，
- * 并按 [PRESS_ANIMATION] 过渡——不做动画的话，底色是硬切的，按下去像闪了一下。
+ * 在 `attr { }` 里声明按压底色。读的是 [PressState]，所以按下/抬起会自动重跑 attr 块。
+ *
+ * **不做过渡动画**（曾经的 `animate(Animation.easeOut(0.12f))` 已删除）：
+ * `Attr.animate` 只在「值变化」这条路径上把 prop 交给动画驱动，而按压态是
+ * 「按下一次、抬起一次」的往返更新——反向那一次（抬起）的 prop 更新会丢，
+ * 元素就永久停在按下底色上。表现最典型的就是详情页顶栏刷新按钮：
+ * 点一下（或长按一下）之后，蓝底上永远贴着一块 20% 白的浅蓝高亮。
+ * 原生按钮的按压态本来就是硬切，去掉过渡反而更接近系统手感。
  *
  * 用法：
  * ```
  * View {
  *     attr {
- *         ctx.press.pressedBg("row:$code", normal = 0xFFFFFFFF)
+ *         pressedBg(ctx.press, "row:$code", normal = 0xFFFFFFFF)
  *     }
- *     event { ctx.press.pressFeedback("row:$code") }
+ *     event { pressFeedback(ctx.press, "row:$code") }
  * }
  * ```
- *
- * 注：必须先读 `press.isPressed(...)` 再调 `animate(...)`——
- * `Attr.animate` 靠「当前 attr 块里最近一次读到的 observable」来绑定动画键，
- * 顺序反了就拿不到键，动画静默失效。
  */
 internal fun Attr.pressedBg(
     press: PressState,
@@ -174,16 +178,13 @@ internal fun Attr.pressedBg(
     normal: Long,
     pressed: Long = PRESS_BG_LIGHT,
 ) {
-    val hit = press.isPressed(tag)
-    animate(PRESS_ANIMATION, hit)
-    backgroundColor(if (hit) pressed else normal)
+    backgroundColor(if (press.isPressed(tag)) pressed else normal)
 }
 
 /**
  * 在 `attr { }` 里声明按压缩放。主按钮（AI 分析、重试这类）加上它才「按得动」。
  *
- * 与 [pressedBg] 可以同时用：同一次 attr 变更里设置的 prop 共用同一个 ANIMATION prop，
- * 所以底色和缩放会一起过渡，不会各动各的。
+ * 与 [pressedBg] 可以同时用，两者都是硬切（原因见 [pressedBg] 的说明）。
  */
 internal fun Attr.pressedScale(
     press: PressState,
@@ -191,9 +192,7 @@ internal fun Attr.pressedScale(
     normal: Float = 1f,
     pressed: Float = PRESS_SCALE,
 ) {
-    val hit = press.isPressed(tag)
-    animate(PRESS_ANIMATION, hit)
-    val s = if (hit) pressed else normal
+    val s = if (press.isPressed(tag)) pressed else normal
     transform(scale = Scale(s, s))
 }
 

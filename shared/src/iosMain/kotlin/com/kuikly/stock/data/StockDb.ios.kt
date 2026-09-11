@@ -30,6 +30,9 @@ actual object StockDb {
     actual fun stockDetail(code: String): StockDetailData? =
         JsonBackedStockDb.stockDetail(code)
 
+    actual fun latestTradeDate(): String =
+        JsonBackedStockDb.latestTradeDate()
+
     actual fun indicators(code: String, limit: Int): List<IndicatorData> =
         JsonBackedStockDb.indicators(code, limit)
 

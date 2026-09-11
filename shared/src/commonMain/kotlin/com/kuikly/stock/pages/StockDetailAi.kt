@@ -429,7 +429,7 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
                 attr { flexDirectionColumn() }
                 aiEvidencePanel({ ctx.aiAnalysis }) { ctx.focusEvidenceDate(it) }
                 // 按类型分组，固定顺序：趋势、信号、建议、风险、总结
-                val orderedTypes = listOf("trend_card", "signal_card", "suggestion_card", "risk_card", "summary_card")
+                val orderedTypes = listOf("trend_card", "signal_card", "suggestion_card", "level_card", "risk_card", "summary_card")
                 val grouped = analysis.cards.filter { it["type"] != "evidence_card" }.groupBy { it["type"] as? String ?: "unknown" }
                 orderedTypes.forEach { t ->
                     grouped[t]?.forEachIndexed { idx, card ->
@@ -480,6 +480,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
         "trend_card" -> "趋势研判"
         "signal_card" -> "技术信号"
         "suggestion_card" -> "操作建议"
+        "level_card" -> "关键价位"
         "risk_card" -> "风险提示"
         "summary_card" -> "总结"
         else -> "分析"
@@ -651,6 +652,92 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                 }
             }
         }
+        "level_card" -> {
+            // 提示词协议（DetailSchemaV2）里 level_card 是标准类型，但渲染器一直没接，
+            // 于是掉进 else 分支把 Map.toString() 摊在界面上——那串
+            // "{type=level_card, action=观望, ...}" 就是用户看到的「非可视化文字」。
+            // 这里按它的真实语义渲染成：操作倾向 + 关键价位（复用可点击的价位行）。
+            val action = (card["action"] as? String)?.takeIf { it.isNotBlank() } ?: "观望"
+            val target = parseCardPrice(card["target_value"] ?: card["target_price"])
+            val stopLoss = parseCardPrice(card["stop_loss_value"] ?: card["stop_loss"])
+            val support = parseCardPrice(card["support_value"] ?: card["support_price"])
+            val resistance = parseCardPrice(card["resistance_value"] ?: card["resistance_price"])
+            val dataDate = card["data_date"] as? String ?: ""
+            val currentPrice = ctx.stockDetail?.realtime?.price ?: 0.0
+            val actionBg = when (action) {
+                "买入" -> 0xFF2E9E5B
+                "卖出" -> 0xFFD64545
+                "持有" -> 0xFF1976D2
+                else -> 0xFFF0F2F5
+            }
+            val actionFg = if (action == "观望") 0xFF697586 else 0xFFFFFFFF
+
+            View {
+                attr {
+                    flexDirectionColumn()
+                    marginTop(8f)
+                    backgroundColor(0xFFFFFFFF)
+                    borderRadius(12f)
+                    padding(12f, 14f, 12f, 14f)
+                    border(Border(1.2f, BorderStyle.SOLID, Color(if (ctx.highlightCardType == "level_card") 0xFF5B7FFF else 0xFFE3F2FD)))
+                }
+                View {
+                    attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
+                    View {
+                        attr {
+                            width(4f)
+                            height(16f)
+                            backgroundColor(0xFF1976D2)
+                            borderRadius(2f)
+                            marginRight(8f)
+                        }
+                    }
+                    Text {
+                        attr {
+                            text(title)
+                            fontSize(14f)
+                            fontWeightBold()
+                            color(0xFF1976D2)
+                            flex(1f)
+                        }
+                    }
+                    View {
+                        attr {
+                            padding(4f, 12f, 4f, 12f)
+                            backgroundColor(actionBg)
+                            borderRadius(12f)
+                        }
+                        Text {
+                            attr {
+                                text(action)
+                                fontSize(12f)
+                                fontWeightBold()
+                                color(actionFg)
+                            }
+                        }
+                    }
+                }
+
+                View {
+                    attr { flexDirectionColumn(); marginTop(10f) }
+                    if (resistance != null) priceLevelRow(ctx, "压力位", resistance, currentPrice, 0xFFD64545, 0)
+                    if (support != null) priceLevelRow(ctx, "支撑位", support, currentPrice, 0xFF2E9E5B, 1)
+                    if (target != null) priceLevelRow(ctx, "目标价", target, currentPrice, 0xFF0E67D1, 0)
+                    if (stopLoss != null) priceLevelRow(ctx, "止损价", stopLoss, currentPrice, 0xFFA56100, 1)
+                }
+
+                if (dataDate.isNotEmpty()) {
+                    Text {
+                        attr {
+                            text("价位基于 $dataDate 收盘数据推算，点击可标注K线或设提醒")
+                            fontSize(10f)
+                            color(0xFF999999)
+                            marginTop(8f)
+                        }
+                    }
+                }
+            }
+        }
         "risk_card" -> {
             val riskLevel = card["risk_level"] as? String ?: ""
             val risks = (card["risks"] as? List<*>)?.mapNotNull { it?.toString() } ?: emptyList()
@@ -742,20 +829,88 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
             }
         }
         else -> {
-            val content = card["content"] as? String ?: card.toString()
-            View {
-                attr {
-                    flexDirectionColumn()
-                    marginTop(8f)
-                    backgroundColor(0xFFFFFFFF)
-                    borderRadius(10f)
-                    padding(12f)
+            // 未知类型兜底。
+            // 原来这里退化成 card.toString()，界面上会出现
+            // 「{type=level_card, action=观望, target_value=12.08}」这种原始 Map 串——
+            // 既不是给人看的，也把内部契约泄露到了界面上（真实发生过，见 level_card 分支注释）。
+            // 现在只渲染「能读懂的东西」：优先取文本字段，否则按字段名转成人话逐条列。
+            val readableText = listOf("content", "summary", "text", "note", "description")
+                .firstNotNullOfOrNull { k -> (card[k] as? String)?.takeIf { it.isNotBlank() } }
+            val extraFields = card.entries
+                .filter { it.key != "type" && it.key != "title" }
+                .mapNotNull { (k, v) -> aiCardFieldText(k, v) }
+            if (readableText != null || extraFields.isNotEmpty()) {
+                View {
+                    attr {
+                        flexDirectionColumn()
+                        marginTop(8f)
+                        backgroundColor(0xFFFFFFFF)
+                        borderRadius(10f)
+                        padding(12f)
+                    }
+                    Text { attr { text(title); fontSize(13f); fontWeightBold(); color(0xFF333333) } }
+                    if (readableText != null) {
+                        Text {
+                            attr {
+                                text(readableText)
+                                fontSize(12f)
+                                color(0xFF666666)
+                                marginTop(4f)
+                                lineHeight(18f)
+                            }
+                        }
+                    }
+                    extraFields.forEach { (label, value) ->
+                        View {
+                            attr { flexDirectionRow(); marginTop(4f) }
+                            Text { attr { text(label); fontSize(12f); color(0xFF888888); width(72f) } }
+                            Text { attr { text(value); fontSize(12f); color(0xFF333333); flex(1f); lineHeight(18f) } }
+                        }
+                    }
                 }
-                Text { attr { text(title); fontSize(13f); fontWeightBold(); color(0xFF333333) } }
-                Text { attr { text(content); fontSize(12f); color(0xFF666666); marginTop(4f) } }
             }
         }
     }
+}
+
+/** AI 卡片字段名 → 界面文案。未收录的字段名不展示（宁可少显示，也不把契约字段名摊给用户）。 */
+private val AI_CARD_FIELD_LABELS = mapOf(
+    "action" to "操作倾向",
+    "target_value" to "目标价",
+    "target_price" to "目标价",
+    "stop_loss_value" to "止损价",
+    "stop_loss" to "止损价",
+    "support_value" to "支撑位",
+    "support_price" to "支撑位",
+    "resistance_value" to "压力位",
+    "resistance_price" to "压力位",
+    "data_date" to "数据日期",
+    "indicator_date" to "指标日期",
+    "bias" to "倾向",
+    "confidence" to "置信度",
+    "horizon" to "周期",
+    "risk_level" to "风险等级",
+    "ref_price" to "参考价",
+    "start_date" to "开始日期",
+    "end_date" to "结束日期",
+)
+
+/**
+ * 把未知卡片的单个字段转成「标签 + 文案」；转不出来就返回 null（该字段不展示）。
+ * 只认标量与标量列表——嵌套结构说明这个类型本来就没被支持，硬渲染只会又是一堆符号。
+ */
+internal fun aiCardFieldText(key: String, value: Any?): Pair<String, String>? {
+    val label = AI_CARD_FIELD_LABELS[key] ?: return null
+    val text = when (value) {
+        null -> return null
+        is String -> value.takeIf { it.isNotBlank() } ?: return null
+        is Number -> value.toString()
+        is Boolean -> if (value) "是" else "否"
+        is List<*> -> value.mapNotNull { it?.toString()?.takeIf { s -> s.isNotBlank() } }
+            .joinToString("、").takeIf { it.isNotEmpty() } ?: return null
+        else -> return null
+    }
+    return label to text
 }
 
 internal fun parseCardPrice(raw: Any?): Double? {

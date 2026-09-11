@@ -116,6 +116,18 @@ object LocalDataService {
         return StockDetailData(info = info, realtime = realtime, kline = klineItems)
     }
 
+    /**
+     * 全库最新交易日：日线数据里最后一个交易日的最大值。
+     *
+     * 这是「数据到哪一天」的唯一口径——个股详情页展示的也是同一张日线表里该股的最后一个交易日，
+     * 所以只要数据是一次管道跑出来的，两边必然一致。取不到返回空串（界面显示「待更新」）。
+     */
+    fun latestTradeDate(): String =
+        loadAllKlines().values.asSequence()
+            .mapNotNull { it.lastOrNull()?.tradeDate?.takeIf { d -> d.isNotBlank() } }
+            .maxOrNull()
+            .orEmpty()
+
     private fun loadAllKlines(): Map<String, List<KLineRaw>> {
         cachedKlines?.let { return it }
         val raw = loadAssetText("stock_kline.json") ?: return emptyMap()

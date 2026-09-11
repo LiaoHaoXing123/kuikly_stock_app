@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Material 的 decelerate 曲线：cubic-bezier(0.0, 0.0, 0.2, 1.0)。
+  Material fade through 的入场段用的就是它（出场段用 accelerate，见 KRRouterAdapter 的说明：
+  窗口级转场里出场不做动画，所以这里只需要 decelerate）。
+-->
+<pathInterpolator xmlns:android="http://schemas.android.com/apk/res/android"
+    android:controlX1="0.0"
+    android:controlY1="0.0"
+    android:controlX2="0.2"
+    android:controlY2="1.0" />

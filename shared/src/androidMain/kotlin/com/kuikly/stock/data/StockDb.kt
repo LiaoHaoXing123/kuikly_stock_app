@@ -683,6 +683,21 @@ actual object StockDb {
     src.inputStream().use { i -> dst.outputStream().use { o -> i.copyTo(o) } }
     }
 
+    actual fun latestTradeDate(): String {
+        val db = openDb() ?: return ""
+        return try {
+            // 与个股详情页同源：都读 stock_daily_kline，全库取 MAX。
+            // 原实现按「自选第一只股票」取值：那只股票若落后一天，首页就整体落后一天
+            // （实测 25 只已到 09-11、其余停在 09-10，首页会显示 09-10）。
+            db.rawQuery("SELECT MAX(trade_date) AS d FROM stock_daily_kline", null).use { c ->
+                if (c.moveToFirst()) c.getStringOrEmpty("d") else ""
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "latestTradeDate 异常: " + (e.message ?: e.toString()))
+            ""
+        }
+    }
+
     actual fun dataSources(): List<Pair<String, String>> {
     val db = openDb() ?: return emptyList()
     return try {

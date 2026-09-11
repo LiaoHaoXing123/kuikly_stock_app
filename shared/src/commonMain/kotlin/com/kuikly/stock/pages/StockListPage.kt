@@ -348,8 +348,7 @@ internal fun ViewContainer<*, *>.navigationBar(ctx: StockListPage) {
             attr { padding(10f, 12f, 8f, 12f) }
             event {
                 click {
-                    ctx.acquireModule<RouterModule>(RouterModule.MODULE_NAME)
-                        .openPage("watchlist", JSONObject())
+                    ctx.openModule(AppRoutes.WATCHLIST)
                 }
             }
             Text {

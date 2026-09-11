@@ -9,8 +9,6 @@ import com.tencent.kuikly.core.base.ViewContainer
 import com.tencent.kuikly.core.base.attr.AccessibilityRole
 import com.tencent.kuikly.core.directives.vif
 import com.tencent.kuikly.core.layout.FlexAlign
-import com.tencent.kuikly.core.module.RouterModule
-import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
 import com.tencent.kuikly.core.pager.Pager
 import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.observableList
@@ -39,7 +37,7 @@ class UserGuidePage : BasePager() {
     }
 
     internal fun open(route: String) {
-        acquireModule<RouterModule>(RouterModule.MODULE_NAME).openPage(route, JSONObject())
+        openModule(route)
     }
 
     override fun body(): ViewBuilder {

@@ -4,7 +4,6 @@ import com.kuikly.stock.data.StockColors
 import com.kuikly.stock.data.fmt1
 import com.tencent.kuikly.core.base.*
 import com.tencent.kuikly.core.directives.vfor
-import com.tencent.kuikly.core.module.RouterModule
 import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
 import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.views.*
@@ -65,7 +64,7 @@ internal fun ViewContainer<*, *>.fundFlowCard(ctx: StockDetailPage) {
                         flows.forEach { append(fundEvidence(flows, it.tradeDate)).append('\n') }
                         append("这些是日级数据，不能推断分钟资金或缺失的超大/大/中/小单。")
                     }
-                    ctx.acquireModule<RouterModule>(RouterModule.MODULE_NAME).openPage("chat_main", JSONObject().apply { put("detail_question", question) })
+                    ctx.openModule(AppRoutes.CHAT, JSONObject().apply { put("detail_question", question) })
                 }
                 }
             }

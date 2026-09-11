@@ -36,7 +36,7 @@ internal fun ViewContainer<*, *>.industryCard(ctx: StockDetailPage) {
                     attr { flexDirectionRow() }
                     detailAction("切换涨幅排序") { ctx.industryAscending = !ctx.industryAscending }
                     detailAction("同业对照问 AI") {
-                        ctx.acquireModule<RouterModule>(RouterModule.MODULE_NAME).openPage("chat_main", JSONObject().apply {
+                        ctx.openModule(AppRoutes.CHAT, JSONObject().apply {
                             put("detail_question", "请分析 ${ctx.stockCode} 的同业相对强弱。${ctx.industrySnapshot?.evidence(ctx.stockCode)}")
                         })
                     }

@@ -66,6 +66,11 @@ internal object JsonBackedStockDb {
     fun stockDetail(code: String): StockDetailData? =
         LocalDataService.loadStockDetail(code)
 
+    // 与个股详情页同源：日线的最后一个交易日，全库取最大。
+    // 不要改用 stock_list.json 的 update_time（那是抓取时间，个股之间不一致），
+    // 也不要用技术指标表（它的更新节奏和日线不同，会出现「个股已到 9-09、首页还停在 8-25」）。
+    fun latestTradeDate(): String = LocalDataService.latestTradeDate()
+
     // 暂无调用方：技术指标一览尚未接入 UI，返回空列表。
     fun indicators(code: String, limit: Int): List<IndicatorData> = emptyList()
 

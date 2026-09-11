@@ -54,7 +54,7 @@ internal fun ViewContainer<*, *>.sectorCard(ctx: StockDetailPage) {
                     attr { flexDirectionRow(); marginTop(8f) }
                     detailAction("切换涨幅排序") { ctx.sectorAscending = !ctx.sectorAscending }
                     detailAction("板块对照问 AI") {
-                        ctx.acquireModule<RouterModule>(RouterModule.MODULE_NAME).openPage("chat_main", JSONObject().apply {
+                        ctx.openModule(AppRoutes.CHAT, JSONObject().apply {
                             put("detail_question", "请分析 ${ctx.stockCode} 在其所属官方板块中的相对表现。${ctx.sectorSnapshot?.evidence(ctx.stockCode)}")
                         })
                     }

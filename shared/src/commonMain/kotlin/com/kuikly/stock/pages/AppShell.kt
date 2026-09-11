@@ -34,6 +34,39 @@ private val APP_NAV_ITEMS = listOf(
     AppNavItem(AppRoutes.PROFILE, "●", "我的"),
 )
 
+/** 底部 Tab 的五个页面。它们是**同级**模块，不是彼此的下一层，转场要按同级规则走。 */
+private val MODULE_ROUTES = APP_NAV_ITEMS.map { it.route }.toSet()
+
+/** `openPage` 里用来告诉宿主「这次导航属于哪一类」的键。 */
+internal const val NAV_TRANSITION_KEY = "transition"
+
+/**
+ * 同级目的地之间的转场标记：淡入淡出。
+ *
+ * 依据：Material 的转场选型看的是「两个目的地之间的关系」，同级目的地（bottom
+ * navigation 的各个 tab）用 fade through；表示层级下钻才用带方向的横切。
+ * 详见 [openModule]。
+ */
+internal const val NAV_TRANSITION_FADE = "fade"
+
+/**
+ * 切到某个模块（底部 Tab 的页面）。
+ *
+ * 为什么不能直接 `openPage`：转场动画由宿主决定，Android 是 Activity 之间的系统默认转场、
+ * iOS 是 `UINavigationController` 的 push，两者都是**横切**。横切表达的是「进入下一层」，
+ * 用在详情页上是对的；但底部 Tab 之间是同级切换，横切会让模块看起来像被压进了导航栈
+ * （返回时还朝反方向再滑一次），这是「切换不平滑」的来源。
+ *
+ * 所以这里给同级目的地打上 [NAV_TRANSITION_FADE] 标记，由各平台宿主换成淡入淡出：
+ *   - Android：`KRRouterAdapter` 换成「新页面淡入」的窗口动画（Material fade through 的入场段）；
+ *   - iOS：`KRRouterHandler` 换成 cross-dissolve；
+ *   - 详情页等层级下钻不做标记，继续走系统横切。
+ */
+internal fun Pager.openModule(route: String, params: JSONObject = JSONObject()) {
+    val data = if (route in MODULE_ROUTES) params.put(NAV_TRANSITION_KEY, NAV_TRANSITION_FADE) else params
+    acquireModule<RouterModule>(RouterModule.MODULE_NAME).openPage(route, data)
+}
+
 internal fun ViewContainer<*, *>.appBottomNav(ctx: Pager, activeRoute: String) {
     View {
         attr {
@@ -58,8 +91,7 @@ internal fun ViewContainer<*, *>.appBottomNav(ctx: Pager, activeRoute: String) {
                 event {
                     click {
                         if (!selected) {
-                            ctx.acquireModule<RouterModule>(RouterModule.MODULE_NAME)
-                                .openPage(item.route, JSONObject())
+                            ctx.openModule(item.route)
                         }
                     }
                 }

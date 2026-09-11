@@ -482,7 +482,7 @@ class IndexDetailPage : BasePager(), KlineInteractionHost {
         val prompt = detailFollowupPrompt("index", indexCode, indexDetail?.info?.name ?: indexCode, klinePeriod, bars, selected, aiAnalysis)
         val params = JSONObject()
         params.put("detail_question", prompt)
-        acquireModule<RouterModule>(RouterModule.MODULE_NAME).openPage("chat_main", params)
+        openModule(AppRoutes.CHAT, params)
     }
 
     internal fun highlightAIPrice(price: Double, label: String) {

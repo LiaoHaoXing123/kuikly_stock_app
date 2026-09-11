@@ -522,8 +522,7 @@ internal fun ViewContainer<*, *>.watchlistEmptyView(ctx: WatchlistPage) {
                 pressFeedback(ctx.press, WATCH_EMPTY_CTA_TAG)
                 click {
                     ctx.press.releaseAll()
-                    ctx.acquireModule<RouterModule>(RouterModule.MODULE_NAME)
-                        .openPage(AppRoutes.MARKET, JSONObject())
+                    ctx.openModule(AppRoutes.MARKET)
                 }
             }
             Text {

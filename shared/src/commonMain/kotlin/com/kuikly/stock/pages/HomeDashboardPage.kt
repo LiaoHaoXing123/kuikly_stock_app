@@ -22,8 +22,6 @@ import com.tencent.kuikly.core.directives.vif
 import com.tencent.kuikly.core.layout.FlexAlign
 import com.tencent.kuikly.core.layout.FlexJustifyContent
 import com.tencent.kuikly.core.layout.FlexWrap
-import com.tencent.kuikly.core.module.RouterModule
-import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
 import com.tencent.kuikly.core.pager.Pager
 import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.observable
@@ -140,7 +138,8 @@ class HomeDashboardPage : BasePager() {
     }
 
     internal fun open(route: String) {
-        acquireModule<RouterModule>(RouterModule.MODULE_NAME).openPage(route, JSONObject())
+        // 首页入口卡里既有底部 Tab 模块也有非 Tab 页面，由 openModule 按目的地挑转场
+        openModule(route)
     }
 
     override fun body(): ViewBuilder {

@@ -20,7 +20,6 @@ import com.tencent.kuikly.core.directives.velseif
 import com.tencent.kuikly.core.layout.FlexAlign
 import com.tencent.kuikly.core.layout.FlexJustifyContent
 import com.tencent.kuikly.core.layout.FlexWrap
-import com.tencent.kuikly.core.module.RouterModule
 import com.tencent.kuikly.core.pager.Pager
 import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.observable
@@ -817,7 +816,7 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         val prompt = detailFollowupPrompt("stock", stockCode, stockDetail?.info?.name ?: stockCode, klinePeriod, bars, selected, aiAnalysis)
         val params = JSONObject()
         params.put("detail_question", prompt)
-        acquireModule<RouterModule>(RouterModule.MODULE_NAME).openPage("chat_main", params)
+        openModule(AppRoutes.CHAT, params)
     }
 
     internal fun highlightAIPrice(price: Double, label: String) {
