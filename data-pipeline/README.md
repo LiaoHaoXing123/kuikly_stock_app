@@ -49,6 +49,40 @@ python build_stock_db.py             # 全量构建（需联网 + akshare）
 > 注：脚本内置 `push2→push2delay` 主机改写 + 强制直连。GitHub Actions 跑在境外，
 > 东财/腾讯/新浪全局可达，改写后同样可用；本机因 TLS 被拦，靠该补丁才能拉数。
 
+## 内置 JSON 资产（iOS / JS 的数据源）
+
+Android 走 SQLite 读 `stock.db`；iOS 与 JS 没有 SQLite，改为读取随包内置的 JSON
+（`shared/src/commonMain/assets/`，iOS 经 CocoaPods resources 打包、JS 经同步 XHR 加载）：
+
+| 文件 | 内容 | 生成方式 |
+| --- | --- | --- |
+| `stock_list.json` / `stock_kline.json` | 个股快照 / 日 K | **历史裁剪快照**，仓库内无生成脚本（勿手工改） |
+| `index_list.json` | 指数快照（`index_info` ⋈ `index_realtime`） | `export_common_assets.py` |
+| `sector_list.json` | 官方行业板块 + 成分股 + 个股→板块映射 | `export_common_assets.py` |
+| `fundflow_list.json` | 个股资金流 | `export_common_assets.py` |
+
+后三个由 `export_common_assets.py` 从 `stock.db` 导出，**口径与 Android 侧查询逐字段对齐**：
+
+```bash
+cd data-pipeline
+python export_common_assets.py            # 重新导出（stock.db 更新后必须重跑）
+python export_common_assets.py --dry-run  # 只看体积，不写文件
+python test_export_common_assets.py       # 一致性单测：JSON 解码结果 == SQLite 查询结果
+```
+
+`run_daily.ps1` 已在构建 `stock.db` 之后自动调用导出，并纳入 CI 单测。
+
+两个已知约束：
+
+1. **`sector_list.json` 里的 `stock_board` 是必须的**。Android 现算
+   `stock_info.industry = sector_board.board_name` 的 JOIN，而 `stock_list.json` 的
+   industry 词表来自旧快照（同一只股票旧快照作「银行Ⅱ」、新库作「股份制银行Ⅲ」），
+   按名称匹配会选到粒度不同的另一个板块。导出时把 JOIN 结果固化成 code → board_code，
+   iOS/JS 不再依赖行业词表，两端结果才一致。
+2. **这些 JSON 是编译期资产**，只在重新打包 App 时更新；Android 的 `stock.db`
+   则可以运行时下载刷新。也就是说 iOS / JS 的行情时效 = 最后一次构建时间。
+   要让它也支持运行时更新，需要把这三个文件一并纳入 `cdn` 分支的分发链路。
+
 ## 关于"一个月"
 
 `PRUNE_DAYS=30`：`stock_daily_kline` / `stock_minute` / `stock_indicator` / `index_daily_kline` 只保留最近 30 个自然日；

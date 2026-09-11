@@ -5,6 +5,10 @@ package com.kuikly.stock.module
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.util.Log
 import android.widget.Toast
 import com.tencent.kuikly.core.render.android.export.KuiklyRenderBaseModule
@@ -42,6 +46,10 @@ class KRBridgeModule : KuiklyRenderBaseModule() {
 
             "toast" -> {
                 toast(params)
+            }
+
+            "vibrate" -> {
+                vibrate(params)
             }
 
             "log" -> {
@@ -130,6 +138,41 @@ class KRBridgeModule : KuiklyRenderBaseModule() {
 
     private fun closePage(params: String?) {
         activity?.finish()
+    }
+
+    /**
+     * 触觉反馈。params 形如 {"style":"light"|"medium"|"heavy"}。
+     *
+     * 用 VibrationEffect 比老式 vibrate(long) 更可控：可指定时长与振幅，且 API 26+ 才有。
+     * 低版本（<26）退回老 API，没有振幅控制但至少能震。
+     * 震动失败（无马达 / 系统禁用 / 权限被撤）一律静默——它只是锦上添花，不能影响点击主流程。
+     */
+    @Suppress("DEPRECATION")
+    private fun vibrate(params: String?) {
+        val style = params?.let { JSONObject(it).optString("style") }.orEmpty()
+        val durationMs = when (style) {
+            "heavy" -> 40L
+            "medium" -> 24L
+            else -> 12L
+        }
+        runCatching {
+            val ctx = context ?: return
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                (ctx.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)?.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                ctx.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+            } ?: return
+            if (!vibrator.hasVibrator()) return
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(
+                    VibrationEffect.createOneShot(durationMs, VibrationEffect.DEFAULT_AMPLITUDE)
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(durationMs)
+            }
+        }
     }
 
     private fun showAlert(params: String?, callback: KuiklyRenderCallback?) {

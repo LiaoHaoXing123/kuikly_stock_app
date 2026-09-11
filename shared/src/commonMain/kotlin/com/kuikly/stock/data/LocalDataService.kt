@@ -14,6 +14,7 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.double
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.int
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -139,6 +140,212 @@ object LocalDataService {
         cachedKlines = map
         return map
     }
+
+    // ------------------------------------------------------------------
+    // JSON 兜底数据（无 SQLite 平台：iOS / JS）
+    //
+    // Android 的指数 / 官方板块 / 资金流来自 stock.db 的 index_* / sector_* /
+    // stock_fund_flow 表；iOS、JS 没有 SQLite，改由内置 JSON 资产提供：
+    //   index_list.json / sector_list.json / fundflow_list.json
+    // 这三个文件由 data-pipeline/export_common_assets.py 从 stock.db 导出，
+    // 口径与 Android 侧查询严格对齐（详见脚本 docstring 与 JsonBackedStockDb）。
+    //
+    // 体积大的两张表用「紧凑数组」编码（键名只出现一次），因此下面的解析是按下标取值，
+    // 下标含义与脚本中的列顺序一一对应，改动任一侧都要同步。
+    // ------------------------------------------------------------------
+
+    private var cachedIndexRows: List<IndexRow>? = null
+    private var cachedSectorBoards: List<SectorBoardRow>? = null
+    private var cachedSectorMemberMap: Map<String, List<SectorMemberRow>>? = null
+    private var cachedFundFlowRows: Map<String, List<FundFlowRow>>? = null
+
+    /** index_list.json：index_info LEFT JOIN index_realtime，按 code 升序。 */
+    internal fun loadIndexRows(): List<IndexRow> {
+        cachedIndexRows?.let { return it }
+        val raw = loadAssetText("index_list.json") ?: return emptyList()
+        val list = runCatching {
+            json.parseToJsonElement(raw).jsonArray.map { elem ->
+                val o = elem.jsonObject
+                IndexRow(
+                    code = o.str("code").orEmpty(),
+                    symbol = o.str("symbol"),
+                    name = o.str("name"),
+                    market = o.str("market"),
+                    price = o.num("price"),
+                    change = o.num("change"),
+                    changePercent = o.num("change_percent"),
+                    open = o.num("open"),
+                    preClose = o.num("pre_close"),
+                    high = o.num("high"),
+                    low = o.num("low"),
+                    volume = o.num("volume"),
+                    amount = o.num("amount"),
+                    updateTime = o.str("update_time"),
+                )
+            }
+        }.getOrNull() ?: emptyList()
+        cachedIndexRows = list
+        return list
+    }
+
+    /** sector_list.json -> boards：行业名可匹配到个股 industry 的官方板块。 */
+    internal fun loadSectorBoards(): List<SectorBoardRow> {
+        cachedSectorBoards?.let { return it }
+        val raw = loadAssetText("sector_list.json") ?: return emptyList()
+        val list = runCatching {
+            json.parseToJsonElement(raw).jsonObject["boards"]?.jsonArray?.map { elem ->
+                val o = elem.jsonObject
+                SectorBoardRow(
+                    boardCode = o.str("board_code").orEmpty(),
+                    boardName = o.str("board_name").orEmpty(),
+                    changePercent = o.num("change_percent"),
+                    leader = o.str("leader"),
+                    leaderChange = o.num("leader_change"),
+                    totalMv = o.num("total_mv"),
+                    turnover = o.num("turnover"),
+                    upCount = o["up_count"]?.jsonPrimitive?.intOrNull ?: 0,
+                    downCount = o["down_count"]?.jsonPrimitive?.intOrNull ?: 0,
+                    fetchDate = o.str("fetch_date").orEmpty(),
+                )
+            }
+        }.getOrNull() ?: emptyList()
+        cachedSectorBoards = list
+        return list
+    }
+
+    /** sector_list.json -> members[boardCode]，紧凑数组：[代码, 名称, 最新价, 涨跌幅%]。 */
+    internal fun loadSectorMembers(boardCode: String): List<SectorMemberRow> =
+        loadSectorMemberMap()[boardCode].orEmpty()
+
+    private var cachedStockBoard: Map<String, String>? = null
+
+    /**
+     * sector_list.json -> stock_board：个股代码 -> 官方板块代码。
+     *
+     * Android 是用 `stock_info.industry = sector_board.board_name` 现算 JOIN 的，
+     * iOS/JS 只有 stock_list.json，而它的 industry 词表是旧快照（粒度与当前库不同），
+     * 按名称匹配会选到另一个板块。因此导出脚本把这层 JOIN 结果固化成映射，
+     * 两端查询板块的结果就此完全一致。
+     */
+    internal fun boardCodeOf(code: String): String? = loadStockBoardMap()[code]
+
+    private fun loadStockBoardMap(): Map<String, String> {
+        cachedStockBoard?.let { return it }
+        val raw = loadAssetText("sector_list.json") ?: return emptyMap()
+        val map = runCatching {
+            json.parseToJsonElement(raw).jsonObject["stock_board"]?.jsonObject
+                ?.mapValues { (_, v) -> v.jsonPrimitive.contentOrNull.orEmpty() }
+                ?.filterValues { it.isNotEmpty() }
+        }.getOrNull() ?: emptyMap()
+        cachedStockBoard = map
+        return map
+    }
+
+    private fun loadSectorMemberMap(): Map<String, List<SectorMemberRow>> {
+        cachedSectorMemberMap?.let { return it }
+        val raw = loadAssetText("sector_list.json") ?: return emptyMap()
+        val map = runCatching {
+            json.parseToJsonElement(raw).jsonObject["members"]?.jsonObject?.mapValues { (_, v) ->
+                v.jsonArray.map { row ->
+                    val a = row.jsonArray
+                    SectorMemberRow(
+                        code = a.strAt(0).orEmpty(),
+                        name = a.strAt(1),
+                        price = a.numAt(2),
+                        changePercent = a.numAt(3),
+                    )
+                }
+            }
+        }.getOrNull() ?: emptyMap()
+        cachedSectorMemberMap = map
+        return map
+    }
+
+    /**
+     * fundflow_list.json -> code 对应行，紧凑数组：
+     * [日期, 主力净额, 主力占比, 超大单, 大单, 中单, 小单, 来源]，日期倒序。
+     */
+    internal fun loadFundFlowRows(code: String): List<FundFlowRow> {
+        cachedFundFlowRows?.let { return it[code].orEmpty() }
+        val raw = loadAssetText("fundflow_list.json") ?: return emptyList()
+        val map = runCatching {
+            json.parseToJsonElement(raw).jsonObject.mapValues { (_, v) ->
+                v.jsonArray.map { row ->
+                    val a = row.jsonArray
+                    FundFlowRow(
+                        tradeDate = a.strAt(0).orEmpty(),
+                        mainNet = a.numAt(1) ?: 0.0,
+                        mainRatio = a.numAt(2) ?: 0.0,
+                        superNet = a.numAt(3),
+                        bigNet = a.numAt(4),
+                        midNet = a.numAt(5),
+                        smallNet = a.numAt(6),
+                        source = a.strAt(7) ?: "来源未提供",
+                    )
+                }
+            }
+        }.getOrNull() ?: emptyMap()
+        cachedFundFlowRows = map
+        return map[code].orEmpty()
+    }
+
+    // ---- 行业索引：从 stock_list.json 建立「行业 -> 同业个股」，供 iOS/JS 的同业卡使用 ----
+    // 注意 StockListItem 不透出 industry 字段，所以这里单独解析一次原始 JSON。
+
+    private var industryByCode: Map<String, String>? = null
+    private var industryMemberMap: Map<String, List<IndustryMember>>? = null
+
+    private fun ensureIndustryIndex() {
+        if (industryByCode != null) return
+        val byCode = mutableMapOf<String, String>()
+        val members = mutableMapOf<String, MutableList<IndustryMember>>()
+        val raw = loadAssetText("stock_list.json")
+        val arr = if (raw == null) emptyList() else runCatching {
+            json.parseToJsonElement(raw).jsonArray
+        }.getOrDefault(emptyList())
+        for (elem in arr) {
+            val o = elem.jsonObject
+            val code = o.str("code") ?: continue
+            val industry = o.str("industry")?.takeIf { it.isNotBlank() } ?: continue
+            byCode[code] = industry
+            members.getOrPut(industry) { mutableListOf() }.add(
+                IndustryMember(
+                    quote = StockListItem(
+                        code = code,
+                        name = o.str("name"),
+                        price = o.num("price") ?: o.num("_mock_price"),
+                        changePercent = o.num("change_percent") ?: o.num("_mock_change_percent"),
+                    ),
+                    date = o.str("update_time").orEmpty().take(10),
+                )
+            )
+        }
+        industryByCode = byCode
+        // 与 Android 的 ORDER BY s.code 对齐，保证两端排名/顺序一致
+        industryMemberMap = members.mapValues { (_, v) -> v.sortedBy { it.quote.code } }
+    }
+
+    /** 个股所属行业名（stock_list.json 的 industry 字段）。 */
+    fun industryOf(code: String): String? {
+        ensureIndustryIndex()
+        return industryByCode?.get(code)
+    }
+
+    /** 与 Android StockDb.industryPeers 等价：该股所属行业的全部个股快照。 */
+    fun industryPeers(code: String): IndustrySnapshot? {
+        val industry = industryOf(code) ?: return null
+        return IndustrySnapshot(industry, industryMemberMap?.get(industry).orEmpty())
+    }
+
+    // 紧凑数组的取值辅助：下标越界或 JsonNull 都安全降级为 null
+    // 注：JsonArray 是 List<JsonElement> 的 typealias，这里直接用底层类型写接收者。
+    private fun List<kotlinx.serialization.json.JsonElement>.strAt(i: Int): String? =
+        getOrNull(i)?.jsonPrimitive?.contentOrNull?.takeIf { it != "null" }
+    private fun List<kotlinx.serialization.json.JsonElement>.numAt(i: Int): Double? =
+        getOrNull(i)?.jsonPrimitive?.doubleOrNull
+    private fun JsonObject.str(key: String): String? =
+        this[key]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotEmpty() && it != "null" }
+    private fun JsonObject.num(key: String): Double? = this[key]?.jsonPrimitive?.doubleOrNull
 
     fun mockChat(message: String): ChatResult {
         val msg = message.trim()
@@ -462,6 +669,60 @@ data class ChatResult(
     val suggestions: List<String>? = null,
     val errorNotice: String? = null,
     val failed: Boolean = false,
+)
+
+// ---- 内置 JSON 资产的行类型（iOS / JS 无 SQLite 时的兜底数据源） ----
+
+/** index_list.json 的一行，对应 index_info LEFT JOIN index_realtime。 */
+internal data class IndexRow(
+    val code: String,
+    val symbol: String?,
+    val name: String?,
+    val market: String?,
+    val price: Double?,
+    val change: Double?,
+    val changePercent: Double?,
+    val open: Double?,
+    val preClose: Double?,
+    val high: Double?,
+    val low: Double?,
+    val volume: Double?,
+    val amount: Double?,
+    val updateTime: String?,
+)
+
+/** sector_list.json -> boards 的一行，对应 sector_board。 */
+internal data class SectorBoardRow(
+    val boardCode: String,
+    val boardName: String,
+    val changePercent: Double?,
+    val leader: String?,
+    val leaderChange: Double?,
+    val totalMv: Double?,
+    val turnover: Double?,
+    val upCount: Int,
+    val downCount: Int,
+    val fetchDate: String,
+)
+
+/** sector_list.json -> members 的一项，对应 sector_member（紧凑数组解码后）。 */
+internal data class SectorMemberRow(
+    val code: String,
+    val name: String?,
+    val price: Double?,
+    val changePercent: Double?,
+)
+
+/** fundflow_list.json 的一行，对应 stock_fund_flow（紧凑数组解码后）。 */
+internal data class FundFlowRow(
+    val tradeDate: String,
+    val mainNet: Double,
+    val mainRatio: Double,
+    val superNet: Double?,
+    val bigNet: Double?,
+    val midNet: Double?,
+    val smallNet: Double?,
+    val source: String,
 )
 
 internal expect fun loadAssetText(path: String): String?

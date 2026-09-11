@@ -1,5 +1,7 @@
 package com.kuikly.stock.pages
 
+import com.kuikly.stock.base.BasePager
+
 import com.kuikly.stock.data.AlertEngine
 import com.kuikly.stock.data.StockDb
 import com.kuikly.stock.data.HoldingInput
@@ -29,7 +31,7 @@ import com.tencent.kuikly.core.module.RouterModule
 import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
 
 @Page(AppRoutes.RISK)
-class RiskCenterPage : Pager() {
+class RiskCenterPage : BasePager() {
     internal var refreshing by observable(false)
     internal var refreshMessage by observable("")
     internal var refreshIsError by observable(false)

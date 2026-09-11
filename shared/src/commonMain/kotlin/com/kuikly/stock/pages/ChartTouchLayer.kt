@@ -1,5 +1,7 @@
 package com.kuikly.stock.pages
 
+import com.kuikly.stock.base.HapticStyle
+import com.kuikly.stock.base.hapticTick
 import com.tencent.kuikly.core.base.*
 import com.tencent.kuikly.core.base.event.Event
 import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
@@ -21,15 +23,36 @@ internal fun ViewContainer<*, *>.chartTouchLayer(ctx: KlineInteractionHost, minu
 
     fun handle(kind: String, state: String, x: Float, y: Float, scale: Float = 1f) {
         if (minute) {
-            if (kind != "pinch" && state != "cancel") ctx.selectMinuteAtX(x)
+            // 分时看不了缩放，但手势语义与 K 线对齐：
+            //   tap         → 锁定（再点同一点取消）
+            //   pan / range → 跟手查看，抬手后保留
+            //   cancel      → 清除
+            when (kind) {
+                "tap" -> {
+                    hapticTick(HapticStyle.Medium)
+                    ctx.selectMinuteAtX(x, locked = true)
+                }
+                "pan", "range" -> when (state) {
+                    "start", "move" -> ctx.selectMinuteAtX(x, locked = false)
+                    "end" -> {
+                        hapticTick(HapticStyle.Light)
+                        ctx.selectMinuteAtX(x, locked = true)
+                    }
+                    else -> ctx.clearMinuteSelection()
+                }
+                else -> if (state == "cancel") ctx.clearMinuteSelection()
+            }
             return
         }
         when (kind) {
-            "tap" -> ctx.tapCrosshair(x)
+            "tap" -> {
+                hapticTick(HapticStyle.Medium)
+                ctx.tapCrosshair(x)
+            }
             "range" -> when (state) {
-                "start" -> { ctx.clearInteraction(); ctx.beginRangeSelect(x) }
+                "start" -> { hapticTick(HapticStyle.Heavy); ctx.clearInteraction(); ctx.beginRangeSelect(x) }
                 "move" -> ctx.updateRangeSelect(x)
-                "end" -> { ctx.updateRangeSelect(x); ctx.endRangeSelect() }
+                "end" -> { hapticTick(HapticStyle.Light); ctx.updateRangeSelect(x); ctx.endRangeSelect() }
                 else -> ctx.clearInteraction()
             }
             "pan" -> when (state) {
@@ -47,6 +70,7 @@ internal fun ViewContainer<*, *>.chartTouchLayer(ctx: KlineInteractionHost, minu
                         ctx.updateCrosshair(x, y)
                         ctx.selectedKlineIndex = ctx.crosshair.activeIndex ?: -1
                         if (state == "end") {
+                            hapticTick(HapticStyle.Light)
                             ctx.crosshair.reset()
                             ctx.tapCrosshair(x)
                         }

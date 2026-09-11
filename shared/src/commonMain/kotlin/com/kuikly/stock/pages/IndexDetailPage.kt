@@ -2,6 +2,18 @@
 // 增强版：K线多周期/缩放/平移/AI价位联动，AI分析卡片化
 
 package com.kuikly.stock.pages
+
+import com.kuikly.stock.base.AI_DOT_STEP_MS
+import com.kuikly.stock.base.BasePager
+import com.kuikly.stock.base.PRESS_BG_DARK
+import com.kuikly.stock.base.PRESS_BG_NONE
+import com.kuikly.stock.base.PressState
+import com.kuikly.stock.base.pressFeedback
+import com.kuikly.stock.base.pressedBg
+import com.kuikly.stock.base.pressedScale
+import com.tencent.kuikly.core.base.attr.AccessibilityRole
+import com.kuikly.stock.base.NumberRoll
+import com.kuikly.stock.base.aiDotWaveDots
 import com.kuikly.stock.data.StockColors
 
 import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
@@ -33,7 +45,7 @@ import com.kuikly.stock.data.fmtSignedPct
 import kotlin.math.abs
 
 @Page("index_detail")
-class IndexDetailPage : Pager(), KlineInteractionHost {
+class IndexDetailPage : BasePager(), KlineInteractionHost {
 
     internal var indexCode by observable("")
     internal var indexDetail by observable<StockDetailData?>(null)
@@ -44,7 +56,22 @@ class IndexDetailPage : Pager(), KlineInteractionHost {
     internal var detailScrollerRef: ViewRef<ScrollerView<*, *>>? = null
     internal var chartAnchorY = 0f
     internal var isLoading by observable(true)
+
+    /** 是否正在取数（含静默刷新）。首屏之外不铺骨架屏，所以和 [isLoading] 分开。 */
+    internal var refreshing by observable(false)
+
+    /**
+     * 内容重建世代。卡片都是「构建时读一次数据」，静默刷新时靠它驱动重建；
+     * Scroller 留在重建范围之外，滚动位置得以保住。原因详见个股详情页同名字段。
+     */
+    internal var detailEpoch by observable(0)
+
+    /** 「最新点位 / 涨跌点 / 涨跌幅」三个数一起滚。 */
+    internal val quoteRoll = NumberRoll(this)
     internal var isAnalyzing by observable(false)
+
+    /** 按压态：顶栏可点元素共用。 */
+    internal val press = PressState(this)
     internal var loadErrorMessage by observable("")
     internal var dataSourceText by observable("")
     override var selectedKlineIndex by observable(-1)
@@ -90,7 +117,7 @@ class IndexDetailPage : Pager(), KlineInteractionHost {
                 }
 
                 vif({ ctx.isLoading }) {
-                    stockDetailLoadingView()
+                    stockDetailLoadingView(ctx)
                 }
                 velseif({ ctx.indexDetail == null }) {
                     indexErrorView(ctx)
@@ -106,17 +133,16 @@ class IndexDetailPage : Pager(), KlineInteractionHost {
                             scrollEnable(true)
                         }
 
-                        analysisHistoryPanel(ctx.analysisState) { ctx.clearChartSelection(); ctx.clearHighlight(); ctx.aiExpandedKeys.clear() }
-                        indexInfoCard(ctx)
-                        indexRealtimeCard(ctx)
-                        View {
-                            event { layoutFrameDidChange { frame -> ctx.chartAnchorY = frame.y } }
-                            indexKlineChartArea(ctx)
-                        }
-                        indexAiAnalysisCards(ctx)
-
-                        vif({ ctx.dataSourceText.isNotEmpty() }) {
-                            indexDataSourceFooter(ctx)
+                        // 内容按世代号重建，Scroller 本身不重建 → 静默刷新时滚动位置不变。
+                        // vfor 的 creator 闭包只能产生一个孩子节点，故套一层列容器收拢。
+                        vfor({ ObservableList(mutableListOf(ctx.detailEpoch)) }) { _ ->
+                            View {
+                                attr {
+                                    flexDirectionColumn()
+                                    width(ctx.pagerData.pageViewWidth)
+                                }
+                                indexDetailContent(ctx)
+                            }
                         }
                     }
                 }
@@ -128,9 +154,28 @@ class IndexDetailPage : Pager(), KlineInteractionHost {
         }
     }
 
+    override fun pageDidAppear() {
+        super.pageDidAppear()
+        // 首屏 loading 在 didInit 里就发起了（那时 body 还没构建）。
+        // 页面真正上屏时补一次：若骨架屏还在，扫光就从这个帧开始转。
+        skeletonPulse.bump()
+        // 重新上屏时静默刷新一次（首屏那次刷新请求还在跑则自动跳过）
+        loadIndexDetail()
+    }
+
+    /**
+     * 取指数详情。首屏铺整页骨架屏，之后的任何一次拉取都是静默刷新
+     * （页面内容留在原地，只有数字与图形更新）——与个股详情页保持一致。
+     */
     internal fun loadIndexDetail() {
-        if (indexCode.isEmpty()) return
-        isLoading = true
+        if (indexCode.isEmpty() || refreshing) return
+        val firstLoad = indexDetail == null
+        refreshing = true
+        if (firstLoad) {
+            isLoading = true
+            // 骨架屏刚由 vif 同步挂载，此刻拉起扫光才赶得上首帧
+            skeletonPulse.bump()
+        }
 
         lifecycleScope.launch {
             try {
@@ -145,6 +190,7 @@ class IndexDetailPage : Pager(), KlineInteractionHost {
                         else -> total
                     }
                     klineStartIndex = (total - klineVisibleCount).coerceAtLeast(0)
+                    publishQuote(firstLoad)
                 } else {
                     indexDetail = null
                     loadErrorMessage = "未找到指数 $indexCode 的数据（可能是旧版数据库，更新后重试）"
@@ -155,8 +201,26 @@ class IndexDetailPage : Pager(), KlineInteractionHost {
                 loadErrorMessage = e.message ?: "数据加载失败"
             } finally {
                 isLoading = false
+                refreshing = false
             }
         }
+    }
+
+    /**
+     * 先重建内容（新数据落进版式），再滚动数字——顺序不能反，
+     * 否则新视图一出生就是终值，看不到滚动过程。
+     */
+    private fun publishQuote(firstLoad: Boolean) {
+        val rt = indexDetail?.realtime
+        val price = rt?.price
+        if (price == null) {
+            detailEpoch++
+            return
+        }
+        val target = doubleArrayOf(price, rt.change ?: 0.0, rt.changePercent ?: 0.0)
+        if (firstLoad) quoteRoll.snap(*target)
+        detailEpoch++
+        if (!firstLoad) quoteRoll.rollTo(*target)
     }
 
     internal fun loadDataSource() {
@@ -182,6 +246,9 @@ class IndexDetailPage : Pager(), KlineInteractionHost {
     internal fun triggerAIAnalysis() {
         if (indexCode.isEmpty() || isAnalyzing) return
         isAnalyzing = true
+        // 三点波浪由协程按步推进（数字/透明度属性动画只在值变化时才会走动画路径，
+        // 而波浪本身就需要不断变化的值），分析结束自动停。
+        aiDotWave.loop(AI_DOT_STEP_MS) { isAnalyzing }
         lifecycleScope.launch {
             try {
                 val result = StockRepository.analyzeIndex(indexCode)
@@ -224,14 +291,8 @@ class IndexDetailPage : Pager(), KlineInteractionHost {
     internal fun switchKlinePeriod(period: String) {
         if (klinePeriod == period) return
         klinePeriod = period
-        val agg = getAggregatedKline()
-        val total = agg.size
-        // 重新计算后需要用新聚合
-        val newAgg = when (period) {
-            "W" -> aggregateToWeekly(indexDetail?.kline ?: emptyList())
-            "M" -> aggregateToMonthly(indexDetail?.kline ?: emptyList())
-            else -> indexDetail?.kline ?: emptyList()
-        }
+        // 周期已切换，getAggregatedKline() 返回的就是新聚合，无需再算一遍
+        val newAgg = getAggregatedKline()
         val newTotal = newAgg.size
         klineVisibleCount = when (period) {
             "W" -> 26.coerceAtMost(newTotal)
@@ -243,36 +304,50 @@ class IndexDetailPage : Pager(), KlineInteractionHost {
         klineInfoText = if (period == "D") "日K" else if (period == "W") "周K · 自然周聚合" else "月K · 按月聚合"
     }
 
-    internal fun zoomIn() {
-        clearChartSelection()
-        val newCount = (klineVisibleCount - 5).coerceAtLeast(10).coerceAtMost(getAggregatedKline().size)
-        if (newCount != klineVisibleCount) {
-            val center = klineStartIndex + klineVisibleCount / 2
-            klineVisibleCount = newCount
-            klineStartIndex = (center - newCount / 2).coerceIn(0, (getAggregatedKline().size - newCount).coerceAtLeast(0))
-        }
-    }
+    /** 缩放/平移动画序号：每次新动画自增，旧动画检测到变化即自行放弃，避免连点打架。 */
+    private var chartAnimSeq = 0
 
-    internal fun zoomOut() {
+    internal fun zoomIn() = animateZoom(-5)
+
+    internal fun zoomOut() = animateZoom(+5)
+
+    internal fun panLeft() = animatePan(-5)
+
+    internal fun panRight() = animatePan(+5)
+
+    /** 缩放视口并保持中心 K 线不动，带缓动。 */
+    private fun animateZoom(delta: Int) {
         clearChartSelection()
         val total = getAggregatedKline().size
-        val newCount = (klineVisibleCount + 5).coerceAtMost(90).coerceAtMost(total)
-        if (newCount != klineVisibleCount) {
-            val center = klineStartIndex + klineVisibleCount / 2
-            klineVisibleCount = newCount
-            klineStartIndex = (center - newCount / 2).coerceIn(0, (total - newCount).coerceAtLeast(0))
-        }
+        if (total <= 0) return
+        val newCount = (klineVisibleCount + delta).coerceAtLeast(10).coerceAtMost(90).coerceAtMost(total)
+        if (newCount == klineVisibleCount) return
+        val center = klineStartIndex + klineVisibleCount / 2f
+        val newStart = (center - newCount / 2f).coerceIn(0f, (total - newCount).coerceAtLeast(0).toFloat())
+        animateViewport(newStart, newCount.toFloat())
     }
 
-    internal fun panLeft() {
-        clearChartSelection()
-        klineStartIndex = (klineStartIndex - 5).coerceAtLeast(0)
-    }
-
-    internal fun panRight() {
+    /** 平移视口，带缓动。 */
+    private fun animatePan(delta: Int) {
         clearChartSelection()
         val total = getAggregatedKline().size
-        klineStartIndex = (klineStartIndex + 5).coerceAtMost((total - klineVisibleCount).coerceAtLeast(0))
+        val maxStart = (total - klineVisibleCount).coerceAtLeast(0)
+        val newStart = (klineStartIndex + delta).coerceIn(0, maxStart)
+        animateViewport(newStart.toFloat(), klineVisibleCount.toFloat())
+    }
+
+    private fun animateViewport(toStart: Float, toCount: Float) {
+        val seq = ++chartAnimSeq
+        tweenChartViewport(
+            fromStart = klineStartIndex.toFloat(),
+            fromCount = klineVisibleCount.toFloat(),
+            toStart = toStart,
+            toCount = toCount,
+            isCancelled = { seq != chartAnimSeq },
+        ) { start, count ->
+            klineStartIndex = start
+            klineVisibleCount = count
+        }
     }
 
     internal fun resetView() {
@@ -375,7 +450,9 @@ class IndexDetailPage : Pager(), KlineInteractionHost {
     }
 
     /** 指数页无分时图，接口空实现 */
-    override fun selectMinuteAtX(x: Float) {}
+    override fun selectMinuteAtX(x: Float, locked: Boolean) {}
+
+    override fun clearMinuteSelection() {}
 
     internal fun scrollToChart() {
         detailScrollerRef?.view?.setContentOffset(offsetX = 0f, offsetY = chartAnchorY.coerceAtLeast(0f), animated = true)
@@ -488,6 +565,34 @@ internal fun ViewContainer<*, *>.indexNavigationBar(ctx: IndexDetailPage) {
 
         View { attr { flex(1f) } }
 
+        // 手动刷新：静默刷新（不铺骨架屏），刷新期间按钮自身就是进度指示
+        View {
+            attr {
+                padding(8f, 8f, 8f, 8f)
+                borderRadius(8f)
+                pressedBg(ctx.press, INDEX_NAV_REFRESH_TAG, normal = PRESS_BG_NONE, pressed = PRESS_BG_DARK)
+                pressedScale(ctx.press, INDEX_NAV_REFRESH_TAG, pressed = 0.94f)
+                accessibility(if (ctx.refreshing) "正在刷新行情" else "刷新行情")
+                accessibilityRole(AccessibilityRole.BUTTON)
+                accessibilityInfo(!ctx.refreshing, false)
+            }
+            event {
+                pressFeedback(ctx.press, INDEX_NAV_REFRESH_TAG)
+                click {
+                    ctx.press.releaseAll()
+                    if (!ctx.refreshing) ctx.loadIndexDetail()
+                }
+            }
+            Text {
+                attr {
+                    text(if (ctx.refreshing) "…" else "↻")
+                    fontSize(17f)
+                    fontWeightBold()
+                    color(if (ctx.refreshing) 0xFFC8E6C9 else 0xFFFFFFFF)
+                }
+            }
+        }
+
         View {
             attr { padding(10f, 12f, 10f, 12f) }
             event { click { ctx.triggerAIAnalysis() } }
@@ -501,6 +606,8 @@ internal fun ViewContainer<*, *>.indexNavigationBar(ctx: IndexDetailPage) {
         }
     }
 }
+
+private const val INDEX_NAV_REFRESH_TAG = "index_nav_refresh"
 
 internal fun ViewContainer<*, *>.indexInfoCard(ctx: IndexDetailPage) {
     val info = ctx.indexDetail?.info ?: return
@@ -564,14 +671,16 @@ internal fun ViewContainer<*, *>.indexRealtimeCard(ctx: IndexDetailPage) {
                 marginBottom(8f)
             }
 
+            // 读滚动器（lambda 内读，才能拿到中间帧），静默刷新时逐帧滚到新值
+            val hasPrice = realtime.price != null
             indexQuoteColumn("最新点位",
-                realtime.price?.let { fmt2(it) } ?: "-",
+                { if (hasPrice) fmt2(ctx.quoteRoll.value(0)) else "-" },
                 26f, priceColor)
             indexQuoteColumn("涨跌点",
-                realtime.change?.let { fmtSigned2(it) } ?: "-",
+                { if (hasPrice) fmtSigned2(ctx.quoteRoll.value(1)) else "-" },
                 15f, priceColor)
             indexQuoteColumn("涨跌幅",
-                realtime.changePercent?.let { fmtSignedPct(it) } ?: "-",
+                { if (hasPrice) fmtSignedPct(ctx.quoteRoll.value(2)) else "-" },
                 15f, priceColor)
         }
 
@@ -634,7 +743,7 @@ internal fun ViewContainer<*, *>.indexQuoteItem(
 
 internal fun ViewContainer<*, *>.indexQuoteColumn(
     label: String,
-    value: String,
+    value: () -> String,
     valueSize: Float,
     color: Long
 ) {
@@ -654,7 +763,7 @@ internal fun ViewContainer<*, *>.indexQuoteColumn(
 
         Text {
             attr {
-                text(value)
+                text(value())
                 fontSize(valueSize)
                 fontWeightBold()
                 color(color)
@@ -757,7 +866,7 @@ internal fun ViewContainer<*, *>.indexKlineChartArea(ctx: IndexDetailPage) {
         }
 
         vif({ ctx.isLoading }) {
-            klineLoadingView()
+            klineLoadingView(ctx)
         }
         velseif({ original != null && original.isNotEmpty() }) {
             View {
@@ -1348,7 +1457,7 @@ internal fun ViewContainer<*, *>.indexAiAnalysisCards(ctx: IndexDetailPage) {
         }
 
         vif({ ctx.isAnalyzing }) {
-            indexAnalyzingView()
+            indexAnalyzingView(ctx)
         }
         velseif({ ctx.aiAnalysis == null }) {
             indexNotAnalyzedView(ctx)
@@ -1623,7 +1732,7 @@ internal fun ViewContainer<*, *>.indexAnalysisBubble(ctx: IndexDetailPage, analy
     }
 }
 
-internal fun ViewContainer<*, *>.indexAnalyzingView() {
+internal fun ViewContainer<*, *>.indexAnalyzingView(ctx: IndexDetailPage) {
     View {
         attr {
             flexDirectionColumn()
@@ -1649,6 +1758,10 @@ internal fun ViewContainer<*, *>.indexAnalyzingView() {
                 marginTop(6f)
             }
         }
+
+        // 与个股详情页同一套三点波浪（base/Anim.kt），两个页面的等待手感一致
+        View { attr { marginTop(12f) } }
+        aiDotWaveDots(ctx.aiDotWave, color = 0xFF2E7D32)
     }
 }
 
@@ -1777,5 +1890,24 @@ internal fun ViewContainer<*, *>.indexAiToast(ctx: IndexDetailPage) {
                 }
             }
         }
+    }
+}
+
+/** 指数详情页正文（Scroller 的全部内容）。由 detailEpoch 驱动整段重建。 */
+private fun ViewContainer<*, *>.indexDetailContent(ctx: IndexDetailPage) {
+    analysisHistoryPanel(ctx.analysisState) {
+        ctx.clearChartSelection()
+        ctx.clearHighlight()
+        ctx.aiExpandedKeys.clear()
+    }
+    indexInfoCard(ctx)
+    indexRealtimeCard(ctx)
+    View {
+        event { layoutFrameDidChange { frame -> ctx.chartAnchorY = frame.y } }
+        indexKlineChartArea(ctx)
+    }
+    indexAiAnalysisCards(ctx)
+    vif({ ctx.dataSourceText.isNotEmpty() }) {
+        indexDataSourceFooter(ctx)
     }
 }

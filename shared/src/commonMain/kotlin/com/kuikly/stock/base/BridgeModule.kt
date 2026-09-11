@@ -72,6 +72,18 @@ internal class BridgeModule : Module() {
         callNativeMethod("toast", methodArgs, null)
     }
 
+    /**
+     * 触觉反馈。style 取 light / medium / heavy（见 [com.kuikly.stock.base.HapticStyle]）。
+     *
+     * 原生实现：Android = KRBridgeModule.vibrate()，iOS = HRBridgeModule 的 -vibrate:。
+     * JS 无原生实现时调用为空操作，调用方不需要分支判断。
+     */
+    fun vibrate(style: String) {
+        val methodArgs = JSONObject()
+        methodArgs.put("style", style)
+        callNativeMethod(VIBRATE, methodArgs, null)
+    }
+
     fun openPage(
         url: String,
         closeCurPage: Boolean = false,
@@ -318,6 +330,7 @@ internal class BridgeModule : Module() {
         const val CURRENT_TIMESTAMP = "currentTimestamp"
         const val DATE_FORMATTER = "dateFormatter"
         const val REPORT_REALTIME = "reportRealTime"
+        const val VIBRATE = "vibrate"
         const val REPORT_PAGE_COST_TIME_FOR_CACHE = "reportPageCostTimeForCache"
         const val REPORT_PAGE_COST_TIME_FOR_SUCCESS = "reportPageCostTimeForSuccess"
         const val REPORT_PAGE_COST_TIME_FOR_ERROR = "reportPageCostTimeForError"

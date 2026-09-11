@@ -1,5 +1,8 @@
 package com.kuikly.stock.pages
 
+import com.kuikly.stock.base.BasePager
+import com.kuikly.stock.base.NumberRoll
+
 import com.kuikly.stock.data.DataUpdater
 import com.kuikly.stock.data.WatchStore
 import com.kuikly.stock.home.DashboardFocusItem
@@ -12,6 +15,7 @@ import com.tencent.kuikly.core.base.Border
 import com.tencent.kuikly.core.base.BorderStyle
 import com.tencent.kuikly.core.base.ViewBuilder
 import com.tencent.kuikly.core.base.ViewContainer
+import com.tencent.kuikly.core.base.ViewRef
 import com.tencent.kuikly.core.base.attr.AccessibilityRole
 import com.tencent.kuikly.core.directives.vfor
 import com.tencent.kuikly.core.directives.vif
@@ -24,24 +28,43 @@ import com.tencent.kuikly.core.pager.Pager
 import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.observable
 import com.tencent.kuikly.core.reactive.handler.observableList
+import com.tencent.kuikly.core.views.RefreshView
+import com.tencent.kuikly.core.views.RefreshViewState
 import com.tencent.kuikly.core.views.Scroller
 import com.tencent.kuikly.core.views.Text
 import com.tencent.kuikly.core.views.View
 
 @Page(AppRoutes.HOME)
-class HomeDashboardPage : Pager() {
+class HomeDashboardPage : BasePager() {
     internal var headline by observable("正在整理今日市场…")
     internal var summary by observable("本页只读取本地行情，不会自动调用付费 AI。")
     internal var marketLabel by observable("数据准备中")
-    internal var breadth by observable("上涨 --  ·  下跌 --  ·  平盘 --")
+    /**
+     * 盘面广度（上涨/下跌/平盘家数）。用 [NumberRoll] 而不是普通 observable：
+     * 刷新时这三个数字原地变化，滚一下才看得出「数据换了一批」。
+     * 详情页的最新价做不到这件事——见 NumberRoll 的注释。
+     */
+    internal val breadthRoll = NumberRoll(
+        this,
+        initialText = "上涨 --  ·  下跌 --  ·  平盘 --",
+    ) { v -> "上涨 ${v[0].toInt()}  ·  下跌 ${v[1].toInt()}  ·  平盘 ${v[2].toInt()}" }
+
+    /** 自选盯盘的「N 个信号 · M 个提醒」，同样滚一下。 */
+    internal val watchRoll = NumberRoll(
+        this,
+        initialText = "0 个信号 · 0 个提醒",
+    ) { v -> "${v[0].toInt()} 个信号 · ${v[1].toInt()} 个提醒" }
     internal var dataDate by observable("待更新")
     internal var watchSignals by observable(0)
     internal var alertCount by observable(0)
-    internal var watchSubtitle by observable("0 个信号 · 0 个提醒")
     internal var focusItems: ObservableList<DashboardFocusItem> by observableList()
     internal var refreshing by observable(false)
     internal var refreshMessage by observable("")
     internal var refreshIsError by observable(false)
+
+    internal var pullState by observable(RefreshViewState.IDLE)
+
+    internal var pullRefreshRef: ViewRef<RefreshView>? = null
 
     override fun didInit() {
         super.didInit()
@@ -54,8 +77,14 @@ class HomeDashboardPage : Pager() {
     }
 
     internal fun reload(force: Boolean) {
-        if (refreshing) return
+        if (refreshing) {
+            // 已有请求在跑：立刻收掉刷新头，否则它会一直转
+            pullRefreshRef?.view?.endRefresh()
+            return
+        }
         refreshing = true
+        // 刷新头箭头开始转（结束由 refreshing 变 false 自然停）
+        refreshSpin.loop(REFRESH_SPIN_STEP_MS) { refreshing }
         refreshMessage = ""
         lifecycleScope.launch {
             try {
@@ -71,9 +100,15 @@ class HomeDashboardPage : Pager() {
                 refreshMessage = "刷新失败，请重试"
             } finally {
                 refreshing = false
+                pullRefreshRef?.view?.endRefresh()
             }
             autoDismiss(refreshMessage)
         }
+    }
+
+    /** 下拉刷新入口：下拉即视为用户主动要最新数据，走 force 路径。 */
+    internal fun reloadByPull() {
+        reload(force = true)
     }
 
     /** 提示浮窗悬浮 5 秒后自动消失；期间若有新消息则以新消息为准。 */
@@ -91,11 +126,15 @@ class HomeDashboardPage : Pager() {
         headline = snapshot.brief.headline
         summary = snapshot.brief.summary
         marketLabel = snapshot.brief.marketLabel
-        breadth = "上涨 ${snapshot.brief.up}  ·  下跌 ${snapshot.brief.down}  ·  平盘 ${snapshot.brief.flat}"
+        breadthRoll.rollTo(
+            snapshot.brief.up.toDouble(),
+            snapshot.brief.down.toDouble(),
+            snapshot.brief.flat.toDouble(),
+        )
         dataDate = snapshot.brief.dataDate
         watchSignals = runCatching { WatchStore.list().size }.getOrDefault(snapshot.brief.watchSignals)
         alertCount = runCatching { WatchStore.alerts().count { it.enabled } }.getOrDefault(snapshot.brief.alertCount)
-        watchSubtitle = "${watchSignals} 个信号 · ${alertCount} 个提醒"
+        watchRoll.rollTo(watchSignals.toDouble(), alertCount.toDouble())
         focusItems.clear()
         focusItems.addAll(snapshot.focusItems)
     }
@@ -123,6 +162,14 @@ class HomeDashboardPage : Pager() {
                         scrollEnable(true)
                         padding(left = 16f, right = 16f, bottom = 20f)
                     }
+                    pullToRefresh(
+                        bind = { ctx.pullRefreshRef = it },
+                        label = { pullRefreshLabel(ctx.pullState, ctx.refreshing) },
+                        onStateChange = { ctx.pullState = it },
+                        onRefresh = { ctx.reloadByPull() },
+                        spin = ctx.refreshSpin,
+                        spinning = { ctx.refreshing },
+                    )
                     marketBriefCard(ctx)
                     sectionTitle("研究工作台", "把重要动作拆开，减少首页拥挤")
                     researchGrid(ctx)
@@ -222,7 +269,7 @@ private fun ViewContainer<*, *>.marketBriefCard(ctx: HomeDashboardPage) {
         }
         Text {
             attr {
-                text(ctx.breadth)
+                text(ctx.breadthRoll.display)
                 fontSize(12f)
                 color(0xFF89B9E8)
                 marginTop(14f)
@@ -257,7 +304,7 @@ private fun ViewContainer<*, *>.researchGrid(ctx: HomeDashboardPage) {
             attr { flexDirectionRow(); marginBottom(12f) }
             researchModule(ctx, "全市场", { "搜索与涨跌幅排序" }, "势", 0xFFEAF8F0, 0xFF17834E, AppRoutes.MARKET)
             View { attr { width(12f) } }
-            researchModule(ctx, "自选盯盘", { ctx.watchSubtitle }, "盯", 0xFFF2EDFF, 0xFF6650A4, AppRoutes.WATCHLIST)
+            researchModule(ctx, "自选盯盘", { ctx.watchRoll.display }, "盯", 0xFFF2EDFF, 0xFF6650A4, AppRoutes.WATCHLIST)
         }
     }
 }

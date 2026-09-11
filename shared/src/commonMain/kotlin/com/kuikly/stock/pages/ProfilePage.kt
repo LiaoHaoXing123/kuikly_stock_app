@@ -1,5 +1,7 @@
 package com.kuikly.stock.pages
 
+import com.kuikly.stock.base.BasePager
+
 import com.kuikly.stock.ai.config.AiRuntimeConfig
 import com.kuikly.stock.data.DataUpdater
 import com.kuikly.stock.data.STOCK_DATA_BASE
@@ -21,7 +23,7 @@ import com.tencent.kuikly.core.views.Text
 import com.tencent.kuikly.core.views.View
 
 @Page(AppRoutes.PROFILE)
-class ProfilePage : Pager() {
+class ProfilePage : BasePager() {
     internal var aiStatus by observable("未配置")
     internal var dataStatus by observable("检查中")
     internal var refreshing by observable(false)

@@ -1,5 +1,7 @@
 package com.kuikly.stock.pages
 
+import com.kuikly.stock.base.BasePager
+
 import com.tencent.kuikly.core.annotations.Page
 import com.tencent.kuikly.core.base.Color
 import com.tencent.kuikly.core.base.ViewBuilder
@@ -22,7 +24,7 @@ import com.tencent.kuikly.core.views.View
  * 章节内容与 docs/使用指南.md 保持一致（15 章节，2026-09-10）。
  */
 @Page(AppRoutes.GUIDE)
-class UserGuidePage : Pager() {
+class UserGuidePage : BasePager() {
     internal var expanded: ObservableList<String> by observableList()
 
     override fun didInit() {

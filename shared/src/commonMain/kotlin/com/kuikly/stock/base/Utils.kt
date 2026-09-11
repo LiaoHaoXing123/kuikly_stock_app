@@ -35,6 +35,20 @@ internal object Utils : BaseObject() {
         )
     }
 
+    /**
+     * 与 [currentBridgeModule] 等价，但**模块缺失时返回 null 而不是抛异常**。
+     *
+     * 为什么需要它：`acquireModule` 在模块未注册时走 `throwRuntimeError`，而那个函数
+     * 除了立即抛出，还会额外排一个 `setTimeout(1) { throw ... }`——调用方即使包了
+     * `runCatching` 也挡不住，1ms 后定时器线程上的那次抛出会直接崩掉进程。
+     * 所以「锦上添花」型的调用（触觉反馈之类）一律走这条不抛异常的路。
+     */
+    fun currentBridgeModuleOrNull(): BridgeModule? {
+        val pager = runCatching { PagerManager.getPager(BridgeManager.currentPageId) }.getOrNull()
+            ?: return null
+        return runCatching { pager.getModule<BridgeModule>(BridgeModule.MODULE_NAME) }.getOrNull()
+    }
+
     @Suppress("DEPRECATION")
     fun logToNative(content: String) {
         bridgeModule(BridgeManager.currentPageId).log(content)

@@ -1,6 +1,10 @@
 // AI 聊天主页：会话管理、消息列表、卡片渲染与手动刷新数据都在这里。
 
 package com.kuikly.stock.pages
+
+import com.kuikly.stock.base.BasePager
+import com.kuikly.stock.base.Overlay
+import com.kuikly.stock.base.overlayEnterExit
 import com.kuikly.stock.data.StockColors
 
 import com.tencent.kuikly.core.annotations.Page
@@ -48,7 +52,7 @@ import com.kuikly.stock.data.fmt2
 import com.kuikly.stock.data.nowMillis
 
 @Page("chat_main")
-class ChatMainPage : Pager() {
+class ChatMainPage : BasePager() {
 
     internal var messages: ObservableList<ChatMessageItem> by observableList()
 
@@ -60,7 +64,8 @@ class ChatMainPage : Pager() {
 
     internal var activeTitle by observable("AI 智能助手")
 
-    internal var showDrawer by observable(false)
+    /** 会话抽屉：显隐 + 入场动画绑在一起（见 Overlay）。 */
+    internal val drawerOverlay = Overlay(this)
 
     internal var quickQuestion by observable("")
 
@@ -106,7 +111,7 @@ class ChatMainPage : Pager() {
 
     internal var aiStatusLines: ObservableList<String> by observableList()
 
-    internal var showStatusDialog by observable(false)
+    internal val statusOverlay = Overlay(this)
 
     internal var aiErrorNotice by observable("")
 
@@ -119,12 +124,12 @@ class ChatMainPage : Pager() {
     internal var sessionOpsTargetId by observable("")
     internal var showSessionOps by observable(false)
 
-    internal var showRenameDialog by observable(false)
+    internal val renameOverlay = Overlay(this)
     internal var renameTargetId by observable("")
     internal var renameInputText by observable("")
     internal var renameInputRef: com.tencent.kuikly.core.views.InputView? = null
 
-    internal var showExportDialog by observable(false)
+    internal val exportOverlay = Overlay(this)
     internal var exportTargetId by observable("")
 
     internal var keyboardHeight by observable(0f)
@@ -140,7 +145,7 @@ class ChatMainPage : Pager() {
 
     internal var activeProviderLabel by observable("API 未配置")
     internal var expandedEvidenceKey by observable("")
-    internal var showAlertConfirm by observable(false)
+    internal val alertOverlay = Overlay(this)
     internal var pendingAlertCode by observable("")
     internal var pendingAlertName by observable("")
     internal var pendingAlertType by observable(0)
@@ -174,11 +179,11 @@ class ChatMainPage : Pager() {
                     appBottomNav(ctx, AppRoutes.CHAT)
                 }
 
-                vif({ ctx.showDrawer }) {
+                vif({ ctx.drawerOverlay.isVisible }) {
                     drawer(ctx)
                 }
 
-                vif({ ctx.showStatusDialog }) {
+                vif({ ctx.statusOverlay.isVisible }) {
                     statusDialog(ctx)
                 }
 
@@ -205,7 +210,7 @@ class ChatMainPage : Pager() {
                     }
                 }
 
-                vif({ ctx.showRenameDialog }) {
+                vif({ ctx.renameOverlay.isVisible }) {
                     renameDialog(ctx)
                 }
 
@@ -213,11 +218,11 @@ class ChatMainPage : Pager() {
                     msgActionSheet(ctx)
                 }
 
-                vif({ ctx.showAlertConfirm }) {
+                vif({ ctx.alertOverlay.isVisible }) {
                     alertConfirmDialog(ctx)
                 }
 
-                vif({ ctx.showExportDialog }) {
+                vif({ ctx.exportOverlay.isVisible }) {
                     exportDialog(ctx)
                 }
             }
@@ -264,7 +269,7 @@ class ChatMainPage : Pager() {
         target.messages.forEach { messages.add(it) }
         inputText = ""
         inputRef.view?.setText("")
-        showDrawer = false
+        drawerOverlay.hide()
         if (persist) persistAllSessions()
     }
 
@@ -504,13 +509,13 @@ class ChatMainPage : Pager() {
         val target = sessions.firstOrNull { it.id == sessionOpsTargetId } ?: return
         renameTargetId = sessionOpsTargetId
         renameInputText = target.title
-        showRenameDialog = true
+        renameOverlay.show()
     }
 
     internal fun openExportDialog() {
         if (sessions.none { it.id == sessionOpsTargetId }) return
         exportTargetId = sessionOpsTargetId
-        showExportDialog = true
+        exportOverlay.show()
     }
 
     private fun exportTarget(): ChatSession? {
@@ -525,7 +530,7 @@ class ChatMainPage : Pager() {
      */
     internal fun performExport(kind: Int) {
         val target = exportTarget()
-        showExportDialog = false
+        exportOverlay.hide()
         if (target == null || target.messages.isEmpty()) {
             toastExport("该会话暂无消息，无需导出")
             return
@@ -571,13 +576,13 @@ class ChatMainPage : Pager() {
         val title = renameInputText.trim()
         val idx = sessions.indexOfFirst { it.id == renameTargetId }
         if (idx < 0 || title.isEmpty()) {
-            showRenameDialog = false
+            renameOverlay.hide()
             return
         }
         val s = sessions[idx]
         sessions[idx] = s.copy(title = title)
         if (activeSessionId == renameTargetId) activeTitle = title
-        showRenameDialog = false
+        renameOverlay.hide()
         persistAllSessions()
         aiErrorNotice = "已重命名为「$title」"
     }
@@ -769,7 +774,7 @@ class ChatMainPage : Pager() {
         pendingAlertName = name
         pendingAlertType = type
         pendingAlertValue = value
-        showAlertConfirm = true
+        alertOverlay.show()
     }
 
     internal fun confirmAlert() {
@@ -782,15 +787,15 @@ class ChatMainPage : Pager() {
             aiErrorNotice = "提醒保存失败，请重试"
             return
         }
-        showAlertConfirm = false
+        alertOverlay.hide()
         aiErrorNotice = "提醒已创建 · ${pendingAlertName} ${if (pendingAlertType == 1) "跌至" else "涨至"} ${fmtCardNumber(pendingAlertValue)}"
     }
 
     internal fun runAiStatusCheck() {
-        showDrawer = false
+        drawerOverlay.hide()
         aiStatusLines.clear()
         aiStatusLines.add("正在检测…（最多 30 秒）")
-        showStatusDialog = true
+        statusOverlay.show()
         lifecycleScope.launch {
             try {
                 val result = StockRepository.checkAiService()
@@ -861,7 +866,7 @@ internal fun ViewContainer<*, *>.topBar(ctx: ChatMainPage) {
                 accessibilityRole(AccessibilityRole.BUTTON)
                 accessibilityInfo(true, false)
             }
-            event { click { ctx.showDrawer = !ctx.showDrawer } }
+            event { click { ctx.drawerOverlay.toggle() } }
             Text {
                 attr {
                     text("历史")
@@ -1321,7 +1326,13 @@ internal fun ViewContainer<*, *>.alertConfirmDialog(ctx: ChatMainPage) {
     View {
         attr { absolutePositionAllZero(); backgroundColor(0x88000000); allCenter() }
         View {
-            attr { width(ctx.pagerData.pageViewWidth - 46f); padding(18f); borderRadius(18f); backgroundColor(Color.WHITE) }
+            attr {
+                overlayEnterExit(ctx.alertOverlay)
+                width(ctx.pagerData.pageViewWidth - 46f)
+                padding(18f)
+                borderRadius(18f)
+                backgroundColor(Color.WHITE)
+            }
             Text { attr { text("确认创建价格提醒"); fontSize(18f); fontWeightBold(); color(0xFF172A43) } }
             Text { attr { text("${ctx.pendingAlertName} · ${ctx.pendingAlertCode}"); fontSize(13f); color(0xFF697789); marginTop(9f) } }
             View { attr { padding(14f); marginTop(12f); borderRadius(12f); backgroundColor(0xFFF4F7FB) }
@@ -1330,7 +1341,7 @@ internal fun ViewContainer<*, *>.alertConfirmDialog(ctx: ChatMainPage) {
             }
             Text { attr { text("提醒在行情数据刷新时检查，可能存在延迟。"); fontSize(11f); color(0xFF8A94A1); marginTop(10f) } }
             View { attr { flexDirectionRow(); marginTop(16f) }
-                View { attr { flex(1f); height(44f); allCenter(); borderRadius(12f); backgroundColor(0xFFF0F2F5); accessibility("取消创建提醒"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }; event { click { ctx.showAlertConfirm = false } }; Text { attr { text("取消"); fontSize(13f); color(0xFF697586) } } }
+                View { attr { flex(1f); height(44f); allCenter(); borderRadius(12f); backgroundColor(0xFFF0F2F5); accessibility("取消创建提醒"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }; event { click { ctx.alertOverlay.hide() } }; Text { attr { text("取消"); fontSize(13f); color(0xFF697586) } } }
                 View { attr { width(10f) } }
                 View { attr { flex(1f); height(44f); allCenter(); borderRadius(12f); backgroundColor(0xFF0E67D1); accessibility("确认创建价格提醒"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }; event { click { ctx.confirmAlert() } }; Text { attr { text("确认创建"); fontSize(13f); fontWeightBold(); color(Color.WHITE) } } }
             }
@@ -1839,10 +1850,11 @@ internal fun ViewContainer<*, *>.drawer(ctx: ChatMainPage) {
             absolutePositionAllZero()
             backgroundColor(0x88000000)
         }
-        event { click { ctx.showDrawer = false } }
+        event { click { ctx.drawerOverlay.hide() } }
 
         View {
             attr {
+                overlayEnterExit(ctx.drawerOverlay)
                 absolutePosition(left = 0f, top = 0f, bottom = 0f)
                 width(ctx.pagerData.pageViewWidth * 0.78f)
                 backgroundColor(0xFFFFFFFF)
@@ -1999,7 +2011,7 @@ internal fun ViewContainer<*, *>.drawer(ctx: ChatMainPage) {
                         alignItems(FlexAlign.CENTER)
                         justifyContent(FlexJustifyContent.CENTER)
                     }
-                    event { click { ctx.showDrawer = false } }
+                    event { click { ctx.drawerOverlay.hide() } }
                     Text {
                         attr {
                             text("收起")
@@ -2076,10 +2088,11 @@ internal fun ViewContainer<*, *>.renameDialog(ctx: ChatMainPage) {
             alignItems(FlexAlign.CENTER)
             justifyContent(FlexJustifyContent.CENTER)
         }
-        event { click { ctx.showRenameDialog = false } }
+        event { click { ctx.renameOverlay.hide() } }
 
         View {
             attr {
+                overlayEnterExit(ctx.renameOverlay)
                 width(ctx.pagerData.pageViewWidth - 64f)
                 flexDirectionColumn()
                 backgroundColor(0xFFFFFFFF)
@@ -2137,7 +2150,7 @@ internal fun ViewContainer<*, *>.renameDialog(ctx: ChatMainPage) {
                         alignItems(FlexAlign.CENTER)
                         justifyContent(FlexJustifyContent.CENTER)
                     }
-                    event { click { ctx.showRenameDialog = false } }
+                    event { click { ctx.renameOverlay.hide() } }
                     Text {
                         attr {
                             text("取消")
@@ -2182,10 +2195,11 @@ internal fun ViewContainer<*, *>.exportDialog(ctx: ChatMainPage) {
             alignItems(FlexAlign.CENTER)
             justifyContent(FlexJustifyContent.CENTER)
         }
-        event { click { ctx.showExportDialog = false } }
+        event { click { ctx.exportOverlay.hide() } }
 
         View {
             attr {
+                overlayEnterExit(ctx.exportOverlay)
                 width(ctx.pagerData.pageViewWidth - 64f)
                 flexDirectionColumn()
                 backgroundColor(0xFFFFFFFF)
@@ -2229,7 +2243,7 @@ internal fun ViewContainer<*, *>.exportDialog(ctx: ChatMainPage) {
                         alignItems(FlexAlign.CENTER)
                         justifyContent(FlexJustifyContent.CENTER)
                     }
-                    event { click { ctx.showExportDialog = false } }
+                    event { click { ctx.exportOverlay.hide() } }
                     Text {
                         attr {
                             text("取消")
@@ -2279,10 +2293,11 @@ internal fun ViewContainer<*, *>.statusDialog(ctx: ChatMainPage) {
             alignItems(FlexAlign.CENTER)
             justifyContent(FlexJustifyContent.CENTER)
         }
-        event { click { ctx.showStatusDialog = false } }
+        event { click { ctx.statusOverlay.hide() } }
 
         View {
             attr {
+                overlayEnterExit(ctx.statusOverlay)
                 width(ctx.pagerData.pageViewWidth - 64f)
                 flexDirectionColumn()
                 backgroundColor(0xFFFFFFFF)
@@ -2321,7 +2336,7 @@ internal fun ViewContainer<*, *>.statusDialog(ctx: ChatMainPage) {
                     alignItems(FlexAlign.CENTER)
                     justifyContent(FlexJustifyContent.CENTER)
                 }
-                event { click { ctx.showStatusDialog = false } }
+                event { click { ctx.statusOverlay.hide() } }
                 Text {
                     attr {
                         text("关闭")

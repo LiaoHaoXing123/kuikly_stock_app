@@ -28,4 +28,26 @@
     NSLog(@"KuiklyRender:%@", content);
 }
 
+// 触觉反馈，与 Android KRBridgeModule.vibrate() 对齐：light / medium / heavy 三档。
+// 用 UIImpactFeedbackGenerator 而不是 AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)：
+// 前者是 Taptic Engine 的"轻点"手感，系统会按机型整形，且受系统"触感"开关控制。
+- (void)vibrate:(NSDictionary *)args {
+    NSDictionary *params = [args[KR_PARAM_KEY] hr_stringToDictionary];
+    NSString *style = params[@"style"];
+    if (@available(iOS 10.0, *)) {
+        UIImpactFeedbackStyle impactStyle = UIImpactFeedbackStyleLight;
+        if ([style isEqualToString:@"medium"]) {
+            impactStyle = UIImpactFeedbackStyleMedium;
+        } else if ([style isEqualToString:@"heavy"]) {
+            impactStyle = UIImpactFeedbackStyleHeavy;
+        }
+        // Taptic Engine 需在主线程触发
+        dispatch_async(dispatch_get_main_queue(), ^{
+            UIImpactFeedbackGenerator *generator =
+                [[UIImpactFeedbackGenerator alloc] initWithStyle:impactStyle];
+            [generator impactOccurred];
+        });
+    }
+}
+
 @end

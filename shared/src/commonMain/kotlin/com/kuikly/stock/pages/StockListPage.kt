@@ -1,10 +1,13 @@
 // 股票列表页：支持搜索、排序与分页加载。
 
 package com.kuikly.stock.pages
+
+import com.kuikly.stock.base.BasePager
 import com.kuikly.stock.data.StockColors
 
 import com.tencent.kuikly.core.annotations.Page
 import com.tencent.kuikly.core.base.*
+import com.tencent.kuikly.core.base.attr.AccessibilityRole
 import com.tencent.kuikly.core.directives.vfor
 import com.tencent.kuikly.core.directives.vif
 import com.tencent.kuikly.core.directives.velse
@@ -25,9 +28,16 @@ import com.tencent.kuikly.core.coroutines.launch
 import com.kuikly.stock.data.fmt2
 import com.kuikly.stock.data.fmtSigned2
 import com.kuikly.stock.data.fmtSignedPct
+import com.kuikly.stock.base.HapticStyle
+import com.kuikly.stock.base.PressState
+import com.kuikly.stock.base.pressedScale
+import com.kuikly.stock.base.hapticTick
+import com.kuikly.stock.base.pressFeedback
+import com.kuikly.stock.base.pressedBg
+import com.kuikly.stock.base.skeletonBlock
 
 @Page("stock_list")
-class StockListPage : Pager() {
+class StockListPage : BasePager() {
 
     internal var stockList: ObservableList<StockListItem> by observableList()
 
@@ -53,6 +63,20 @@ class StockListPage : Pager() {
 
     internal var totalCount by observable(0)
 
+    internal var pullState by observable(RefreshViewState.IDLE)
+
+    internal var footerState by observable(FooterRefreshState.IDLE)
+
+    internal var pullRefreshRef: ViewRef<RefreshView>? = null
+
+    internal var footerRefreshRef: ViewRef<FooterRefreshView>? = null
+
+    /** 按压态：列表项按下的高亮由它驱动，页面唯一一份（单指只可能按一个）。 */
+    internal val press = PressState(this)
+
+    /** 下拉刷新触发时不弹 hint 气泡——进度由刷新头自己表达，避免双重反馈。 */
+    private var silentLoad = false
+
     internal var searchInput: com.tencent.kuikly.core.views.InputView? = null
 
     override fun body(): ViewBuilder {
@@ -77,13 +101,6 @@ class StockListPage : Pager() {
 
                 stockListView(ctx)
 
-                vif({ !ctx.isLoading && !ctx.loadError && ctx.stockList.isNotEmpty() && ctx.hasMore }) {
-                    loadMoreButton(ctx)
-                }
-                vif({ !ctx.isLoading && !ctx.loadError && ctx.stockList.isNotEmpty() && !ctx.hasMore }) {
-                    noMoreButton()
-                }
-
                 appBottomNav(ctx, AppRoutes.MARKET)
 
                 vif({ ctx.hint.isNotEmpty() }) {
@@ -98,12 +115,32 @@ class StockListPage : Pager() {
         refreshData()
     }
 
+    override fun pageDidAppear() {
+        super.pageDidAppear()
+        // 首屏 loading 在 didInit 里就发起了（那时 body 还没构建，扫光无从谈起）。
+        // 页面真正上屏时补一次：若骨架屏还在，扫光就从这个帧开始转。
+        skeletonPulse.bump()
+    }
+
     internal fun refreshData() {
-        if (isLoading) return
-        showHint("正在刷新…")
+        startRefresh(silent = false)
+    }
+
+    /** 下拉刷新入口：不弹 hint 气泡，进度由刷新头表达。 */
+    internal fun refreshByPull() {
+        startRefresh(silent = true)
+    }
+
+    private fun startRefresh(silent: Boolean) {
+        if (isLoading) {
+            // 已有请求在跑：立刻收掉刷新头，否则它会一直转
+            pullRefreshRef?.view?.endRefresh()
+            return
+        }
+        if (!silent) showHint("正在刷新…")
         currentPage = 1
         currentKeyword = searchKeyword
-        loadStockList(isRefresh = true)
+        loadStockList(isRefresh = true, silent = silent)
     }
 
     internal fun searchStocks() {
@@ -114,11 +151,16 @@ class StockListPage : Pager() {
         loadStockList(isRefresh = true)
     }
 
-    internal fun loadMore() {
-        if (isLoading || loadError) return
-        showHint("正在加载更多…")
-        currentPage++
-        loadStockList(isRefresh = false)
+    /** 触底自动加载入口（替代原「加载更多」按钮）。 */
+    internal fun loadMoreFromFooter() {
+        if (isLoading) return
+        if (!hasMore) {
+            footerRefreshRef?.view?.endRefresh(FooterRefreshEndState.NONE_MORE_DATA)
+            return
+        }
+        // 上次失败时不重复推进页码，原地重试同一页
+        if (!loadError) currentPage++
+        loadStockList(isRefresh = false, silent = true)
     }
 
     internal fun applySort(option: String) {
@@ -166,6 +208,7 @@ class StockListPage : Pager() {
     }
 
     internal fun showHint(msg: String) {
+        if (silentLoad) return
         hint = msg
         lifecycleScope.launch {
             delay(1200)
@@ -173,14 +216,22 @@ class StockListPage : Pager() {
         }
     }
 
-    private fun loadStockList(isRefresh: Boolean) {
+    private fun loadStockList(isRefresh: Boolean, silent: Boolean = false) {
         if (isLoading) return
         isLoading = true
         loadError = false
+        silentLoad = silent
         if (isRefresh) {
             stockList.clear()
             hasMore = true
+            // 重新拉取时清掉尾部的「没有更多数据」，否则自动加载不会再触发
+            footerRefreshRef?.view?.resetRefreshState(FooterRefreshState.IDLE)
         }
+        // 骨架屏此刻才真正挂载：刷新的第一件事是清空列表，清空之后骨架才出现。
+        // 时机错了（例如放在 isLoading=true 紧后面）扫光就赶不上首帧。
+        skeletonPulse.bump()
+        // 刷新头箭头（下拉与点「刷新」都会走到这里）
+        refreshSpin.loop(REFRESH_SPIN_STEP_MS) { isLoading }
 
         lifecycleScope.launch {
             try {
@@ -221,8 +272,18 @@ class StockListPage : Pager() {
                 showHint("加载失败：" + (e.message ?: "未知错误"))
             } finally {
                 isLoading = false
+                silentLoad = false
+                finishRefreshIndicators()
             }
         }
+    }
+
+    /** 收掉下拉刷新头与触底加载态，避免指示器一直转。 */
+    private fun finishRefreshIndicators() {
+        pullRefreshRef?.view?.endRefresh()
+        footerRefreshRef?.view?.endRefresh(
+            if (hasMore) FooterRefreshEndState.SUCCESS else FooterRefreshEndState.NONE_MORE_DATA
+        )
     }
 }
 
@@ -391,6 +452,22 @@ internal fun ViewContainer<*, *>.searchBar(ctx: StockListPage) {
     }
 }
 
+/** 模式 Tab 的单项宽度（dp）。指示器宽度与它一致，百分比位移才能正好跨一格。 */
+private const val MODE_TAB_W = 68f
+
+private val MODE_TAB_ANIMATION = Animation.easeOut(0.2f)
+
+/**
+ * 股票 / 指数切换。
+ *
+ * 用「白色滑块 + 位移动画」取代原来的两个 chip：chip 的选中态是底色硬切，
+ * 切标签时视觉上是「灭一盏、亮一盏」；滑块则是一个物体从左边挪到右边，
+ * 用户能直接看出「当前是在两组数据之间切换」，而不是两个独立按钮。
+ *
+ * 位移用**百分比**而不是 dp：`Translate` 的 offsetX 会走 frame 任务、拿不到动画窗口
+ * （序列化时还会被丢掉），而 percentageX 是相对元素自身宽度的——滑块宽 = 单格宽，
+ * 所以 percentageX=1 正好跨一格，与容器实际宽度无关。
+ */
 internal fun ViewContainer<*, *>.modeTabBar(ctx: StockListPage) {
     View {
         attr {
@@ -400,11 +477,55 @@ internal fun ViewContainer<*, *>.modeTabBar(ctx: StockListPage) {
             backgroundColor(0xFFFFFFFF)
         }
 
-        listOf("股票", "指数").forEach { mode ->
-            selectionChip(mode, { ctx.listMode == mode }) { ctx.switchMode(mode) }
+        View {
+            attr {
+                flexDirectionRow()
+                backgroundColor(0xFFEFF3F8)
+                borderRadius(16f)
+                padding(3f)
+            }
+
+            // 滑块：绝对定位铺满内区高度，靠 transform 平移
+            View {
+                attr {
+                    // 先读 observable 再声明动画（顺序不能反，见 Interaction.kt）
+                    val mode = ctx.listMode
+                    animate(MODE_TAB_ANIMATION, mode)
+                    absolutePosition(top = 3f, left = 3f, bottom = 3f)
+                    width(MODE_TAB_W)
+                    borderRadius(13f)
+                    backgroundColor(0xFFFFFFFF)
+                    transform(translate = Translate(percentageX = if (mode == "指数") 1f else 0f))
+                }
+            }
+
+            modeTab(ctx, "股票", "股票行情，已选择")
+            modeTab(ctx, "指数", "指数行情，已选择")
         }
 
         View { attr { flex(1f) } }
+    }
+}
+
+private fun ViewContainer<*, *>.modeTab(ctx: StockListPage, mode: String, selectedLabel: String) {
+    View {
+        attr {
+            width(MODE_TAB_W)
+            height(30f)
+            allCenter()
+            accessibility(if (ctx.listMode == mode) selectedLabel else mode)
+            accessibilityRole(AccessibilityRole.BUTTON)
+            accessibilityInfo(ctx.listMode != mode, false)
+        }
+        event { click { hapticTick(HapticStyle.Light); ctx.switchMode(mode) } }
+        Text {
+            attr {
+                text(mode)
+                fontSize(13f)
+                if (ctx.listMode == mode) fontWeightBold()
+                color(if (ctx.listMode == mode) 0xFF1976D2 else 0xFF7A8797)
+            }
+        }
     }
 }
 
@@ -481,23 +602,35 @@ internal fun ViewContainer<*, *>.stockListView(ctx: StockListPage) {
             flexDirectionColumn()
             scrollEnable(true)
         }
+        pullToRefresh(
+            bind = { ctx.pullRefreshRef = it },
+            label = { pullRefreshLabel(ctx.pullState, ctx.isLoading) },
+            onStateChange = { ctx.pullState = it },
+            onRefresh = { ctx.refreshByPull() },
+            spin = ctx.refreshSpin,
+            spinning = { ctx.isLoading },
+        )
         vif({ ctx.isLoading && ctx.stockList.isEmpty() }) {
-            stockListLoadingView()
+            stockListLoadingView(ctx)
         }
         velseif({ ctx.loadError && ctx.stockList.isEmpty() }) {
             loadErrorView(ctx)
         }
         velseif({ ctx.stockList.isEmpty() }) {
-            emptyView()
+            emptyView(ctx)
         }
         velse {
             vfor({ ctx.stockList }) { stock ->
                 stockListItem(ctx, stock)
             }
-            vif({ ctx.isLoading }) {
-                loadingMoreView()
-            }
         }
+        // 触底自动加载：替代原来的「加载更多」按钮
+        autoLoadFooter(
+            bind = { ctx.footerRefreshRef = it },
+            label = { loadMoreLabel(ctx.footerState, ctx.hasMore, ctx.isLoading) },
+            onStateChange = { ctx.footerState = it },
+            onLoadMore = { ctx.loadMoreFromFooter() },
+        )
     }
 }
 
@@ -515,16 +648,23 @@ internal fun ViewContainer<*, *>.stockListItem(
     val changeText = stock.change?.let { fmtSigned2(it) } ?: "-"
     val pctText = stock.changePercent?.let { fmtSignedPct(it) } ?: "-"
 
+    val rowTag = "stock_row:${stock.code}"
+
     View {
         attr {
             flexDirectionRow()
             alignItems(FlexAlign.CENTER)
             marginTop(1f)
             padding(left = 16f, top = 12f, right = 16f, bottom = 12f)
-            backgroundColor(0xFFFFFFFF)
+            pressedBg(ctx.press, rowTag, normal = 0xFFFFFFFF)
         }
         event {
+            // 按下先给视觉反馈，松手才真的跳转。原来这里什么都没有，
+            // 用户只能靠「松手后页面跳了」反推自己点到了——这就是原型感。
+            pressFeedback(ctx.press, rowTag)
             click {
+                hapticTick(HapticStyle.Light)
+                ctx.press.releaseAll()
                 val params = JSONObject()
                 params.put("code", stock.code)
                 val route = if (ctx.listMode == "指数") "index_detail" else "stock_detail"
@@ -600,43 +740,163 @@ internal fun ViewContainer<*, *>.stockListItem(
     }
 }
 
-internal fun ViewContainer<*, *>.stockListLoadingView() {
+/**
+ * 列表首屏骨架：列宽与内边距跟真实行严格一致，先把版式占住。
+ * 数据到达时只是「填充」，页面不跳、眼睛不用重新找焦点——
+ * 这比一行居中的「加载中...」信息量大得多。
+ */
+internal fun ViewContainer<*, *>.stockListLoadingView(ctx: StockListPage) {
+    val sweep = ctx.skeletonPulse
     View {
         attr {
             flex(1f)
             flexDirectionColumn()
-            alignItems(FlexAlign.CENTER)
-            justifyContent(FlexJustifyContent.CENTER)
         }
-        Text {
-            attr {
-                text("加载中...")
-                fontSize(14f)
-                color(0xFF666666)
+
+        repeat(SKELETON_ROW_COUNT) {
+            View {
+                attr {
+                    flexDirectionRow()
+                    alignItems(FlexAlign.CENTER)
+                    marginTop(1f)
+                    padding(left = 16f, top = 12f, right = 16f, bottom = 12f)
+                    backgroundColor(0xFFFFFFFF)
+                }
+
+                // 名称（flex）
+                View {
+                    attr { flex(1f) }
+                    skeletonBlock(height = 15f, w = 92f, sweep = sweep)
+                }
+                // 代码（60）
+                View {
+                    attr { width(60f) }
+                    skeletonBlock(height = 12f, w = 44f, sweep = sweep)
+                }
+                // 最新价（68，右对齐）
+                View {
+                    attr { width(68f); alignItems(FlexAlign.FLEX_END) }
+                    skeletonBlock(height = 16f, w = 50f, sweep = sweep)
+                }
+                // 涨跌额（56，右对齐）
+                View {
+                    attr { width(56f); alignItems(FlexAlign.FLEX_END) }
+                    skeletonBlock(height = 12f, w = 42f, sweep = sweep)
+                }
+                // 涨跌幅（64，右对齐）
+                View {
+                    attr { width(64f); alignItems(FlexAlign.FLEX_END) }
+                    skeletonBlock(height = 12f, w = 46f, sweep = sweep)
+                }
             }
         }
     }
 }
 
-internal fun ViewContainer<*, *>.emptyView() {
+/** 首屏骨架行数：够铺满一屏即可，多画只是浪费。 */
+private const val SKELETON_ROW_COUNT = 10
+
+/**
+ * 空态。
+ *
+ * 原来只有一行「暂无数据，请尝试其他搜索条件或刷新重试」——把用户丢在一个死胡同里：
+ * 知道该做什么，但没有任何可点的东西。现在按当前筛选状态给出对应的**出口按钮**，
+ * 让空态也是流程的一部分而不是终点。
+ */
+internal fun ViewContainer<*, *>.emptyView(ctx: StockListPage) {
+    val filtered = ctx.currentKeyword.isNotEmpty() || ctx.sortOption != "默认"
     View {
         attr {
             flex(1f)
             flexDirectionColumn()
             alignItems(FlexAlign.CENTER)
             justifyContent(FlexJustifyContent.CENTER)
+            padding(left = 32f, right = 32f)
         }
         Text {
             attr {
-                text("暂无数据\n\n请尝试其他搜索条件或刷新重试")
-                fontSize(14f)
-                color(0xFF999999)
+                text(if (filtered) "没有匹配的${if (ctx.listMode == "指数") "指数" else "股票"}" else "暂无行情数据")
+                fontSize(16f)
+                fontWeightBold()
+                color(0xFF333333)
                 textAlignCenter()
             }
         }
+        Text {
+            attr {
+                text(
+                    if (filtered) "当前筛选：「${ctx.currentKeyword.ifEmpty { "全部" }}」" +
+                        (if (ctx.sortOption != "默认") " · 按${ctx.sortOption}排序" else "")
+                    else "数据源可能还在更新，稍后刷新即可"
+                )
+                fontSize(13f)
+                color(0xFF999999)
+                marginTop(8f)
+                textAlignCenter()
+                lineHeight(19f)
+            }
+        }
+
+        View {
+            attr { flexDirectionRow(); marginTop(18f) }
+            if (filtered) {
+                emptyStateButton("清空筛选条件", primary = true, tag = LIST_RESET_TAG, ctx = ctx) {
+                    ctx.backToDefaultList()
+                }
+            }
+            if (filtered) View { attr { width(12f) } }
+            emptyStateButton("刷新行情", primary = !filtered, tag = LIST_REFRESH_TAG, ctx = ctx) {
+                ctx.refreshData()
+            }
+        }
     }
 }
 
+private const val LIST_RESET_TAG = "stock_list_empty_reset"
+private const val LIST_REFRESH_TAG = "stock_list_empty_refresh"
+
+private fun ViewContainer<*, *>.emptyStateButton(
+    label: String,
+    primary: Boolean,
+    tag: String,
+    ctx: StockListPage,
+    action: () -> Unit,
+) {
+    View {
+        attr {
+            padding(top = 11f, left = 22f, bottom = 11f, right = 22f)
+            backgroundColor(if (primary) 0xFF1976D2 else 0xFFE8F2FF)
+            borderRadius(20f)
+            pressedScale(ctx.press, tag, normal = 1f, pressed = 0.97f)
+            accessibility(label)
+            accessibilityRole(AccessibilityRole.BUTTON)
+            accessibilityInfo(true, false)
+        }
+        event {
+            pressFeedback(ctx.press, tag)
+            click {
+                ctx.press.releaseAll()
+                action()
+            }
+        }
+        Text {
+            attr {
+                text(label)
+                fontSize(13f)
+                fontWeightBold()
+                color(if (primary) 0xFFFFFFFF else 0xFF1976D2)
+            }
+        }
+    }
+}
+
+/**
+ * 列表错误态。
+ *
+ * 原来直接把 loadErrorMessage（可能是 "HTTP 500: ..." 或异常 message）当正文摊出来，
+ * 标红加粗像报错弹窗——那是给开发者看的。现在分两层：一行给人看的结论，
+ * 原始信息降级成灰色小字（可自查、可截图反馈），主按钮仍是重试。
+ */
 internal fun ViewContainer<*, *>.loadErrorView(ctx: StockListPage) {
     View {
         attr {
@@ -644,24 +904,54 @@ internal fun ViewContainer<*, *>.loadErrorView(ctx: StockListPage) {
             flexDirectionColumn()
             alignItems(FlexAlign.CENTER)
             justifyContent(FlexJustifyContent.CENTER)
+            padding(left = 32f, right = 32f)
         }
         Text {
             attr {
-                text("加载失败\n\n${ctx.loadErrorMessage}")
-                fontSize(14f)
-                color(StockColors.UP)
+                text("行情加载失败")
+                fontSize(16f)
+                fontWeightBold()
+                color(0xFF333333)
                 textAlignCenter()
+            }
+        }
+        Text {
+            attr {
+                text("网络或数据源可能暂时不可用，重试通常就能恢复。")
+                fontSize(13f)
+                color(0xFF888888)
+                marginTop(8f)
+                textAlignCenter()
+                lineHeight(19f)
+            }
+        }
+        if (ctx.loadErrorMessage.isNotEmpty()) {
+            Text {
+                attr {
+                    text(ctx.loadErrorMessage)
+                    fontSize(11f)
+                    color(0xFFAAAAAA)
+                    marginTop(10f)
+                    textAlignCenter()
+                    lines(3)
+                }
             }
         }
         View {
             attr {
-                marginTop(16f)
-                padding(top = 10f, left = 24f, bottom = 10f, right = 24f)
+                marginTop(18f)
+                padding(top = 11f, left = 28f, bottom = 11f, right = 28f)
                 backgroundColor(0xFF1976D2)
-                borderRadius(20f)
+                borderRadius(22f)
+                pressedScale(ctx.press, LIST_RETRY_TAG, normal = 1f, pressed = 0.97f)
+                accessibility("重试加载行情")
+                accessibilityRole(AccessibilityRole.BUTTON)
+                accessibilityInfo(true, false)
             }
             event {
+                pressFeedback(ctx.press, LIST_RETRY_TAG)
                 click {
+                    ctx.press.releaseAll()
                     ctx.refreshData()
                 }
             }
@@ -676,6 +966,8 @@ internal fun ViewContainer<*, *>.loadErrorView(ctx: StockListPage) {
         }
     }
 }
+
+private const val LIST_RETRY_TAG = "stock_list_error_retry"
 
 internal fun ViewContainer<*, *>.hintPopup(ctx: StockListPage) {
     View {
@@ -699,65 +991,6 @@ internal fun ViewContainer<*, *>.hintPopup(ctx: StockListPage) {
                     textAlignCenter()
                     lineHeight(1.5f)
                 }
-            }
-        }
-    }
-}
-
-internal fun ViewContainer<*, *>.loadingMoreView() {
-    View {
-        attr {
-            flexDirectionRow()
-            alignItems(FlexAlign.CENTER)
-            justifyContent(FlexJustifyContent.CENTER)
-            padding(left = 12f, top = 0f, right = 12f, bottom = 0f)
-        }
-        Text {
-            attr {
-                text("加载更多...")
-                fontSize(13f)
-                color(0xFF999999)
-            }
-        }
-    }
-}
-
-internal fun ViewContainer<*, *>.loadMoreButton(ctx: StockListPage) {
-    View {
-        attr {
-            flexDirectionRow()
-            alignItems(FlexAlign.CENTER)
-            justifyContent(FlexJustifyContent.CENTER)
-            padding(left = 12f, top = 12f, right = 12f, bottom = 12f)
-            backgroundColor(0xFFFFFFFF)
-        }
-        event {
-            click { ctx.loadMore() }
-        }
-        Text {
-            attr {
-                text("加载更多")
-                fontSize(13f)
-                color(0xFF1976D2)
-            }
-        }
-    }
-}
-
-internal fun ViewContainer<*, *>.noMoreButton() {
-    View {
-        attr {
-            flexDirectionRow()
-            alignItems(FlexAlign.CENTER)
-            justifyContent(FlexJustifyContent.CENTER)
-            padding(left = 12f, top = 12f, right = 12f, bottom = 12f)
-            backgroundColor(0xFFFFFFFF)
-        }
-        Text {
-            attr {
-                text("没有更多数据")
-                fontSize(13f)
-                color(0xFFBBBBBB)
             }
         }
     }

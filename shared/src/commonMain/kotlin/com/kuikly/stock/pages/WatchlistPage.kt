@@ -1,4 +1,14 @@
 package com.kuikly.stock.pages
+
+import com.kuikly.stock.base.BasePager
+import com.kuikly.stock.base.MountPulse
+import com.kuikly.stock.base.NumberRoll
+import com.kuikly.stock.base.Overlay
+import com.kuikly.stock.base.overlayEnterExit
+import com.kuikly.stock.base.PressState
+import com.kuikly.stock.base.pressFeedback
+import com.kuikly.stock.base.pressedScale
+import com.kuikly.stock.base.skeletonBlock
 import com.kuikly.stock.data.StockColors
 
 import com.tencent.kuikly.core.annotations.Page
@@ -27,15 +37,31 @@ import com.kuikly.stock.data.fmtSignedPct
 import com.tencent.kuikly.core.coroutines.launch
 
 @Page("watchlist")
-class WatchlistPage : Pager() {
+class WatchlistPage : BasePager() {
 
     internal var rows: ObservableList<WatchRowData> by observableList()
 
     internal var isLoading by observable(false)
 
-    internal var summaryLine by observable("")
+    /**
+     * 持仓总览的四个数字（市值 / 盈亏 / 盈亏率 / 今日盈亏），刷新时滚动过渡。
+     * 数字挤在一句话里，所以用 [NumberRoll] 整组滚，而不是各滚各的。
+     */
+    internal val summaryRoll = NumberRoll(
+        this,
+        initialText = "尚未设置持仓",
+    ) { v ->
+        if (v[0] <= 0) {
+            "未设置持仓，收藏的股票仅作关注。"
+        } else {
+            "持仓市值 " + fmt2(v[0]) +
+                "   持仓盈亏 " + signed2(v[1]) + " (" + signed2(v[2]) + "%)" +
+                "   今日盈亏 " + signed2(v[3])
+        }
+    }
 
-    internal var showEdit by observable(false)
+    /** 编辑弹窗：显隐 + 入场动画绑在一起。 */
+    internal val editOverlay = Overlay(this)
     internal var editCode by observable("")
     internal var editName by observable("")
     internal var editSharesText by observable("")
@@ -46,6 +72,13 @@ class WatchlistPage : Pager() {
     internal var editMessage by observable("")
     internal var saveMessage by observable("")
 
+    internal var pullState by observable(RefreshViewState.IDLE)
+
+    /** 按压态：空态出口按钮与保存按钮共用，页面唯一一份。 */
+    internal val press = PressState(this)
+
+    internal var pullRefreshRef: ViewRef<RefreshView>? = null
+
     override fun didInit() {
         super.didInit()
         reload()
@@ -53,7 +86,14 @@ class WatchlistPage : Pager() {
 
     override fun pageDidAppear() {
         super.pageDidAppear()
+        // 首屏 loading 在 didInit 就发起了（那时 body 还没构建，扫光无从谈起），这里补一次：
+        //   - 已在加载中：reload() 会早退、不 bump，所以手动补一次，让扫光跟上骨架屏；
+        //   - 已加载完：reload() 重新取数，它内部会 bump。
+        // 两条路径都保证同一帧只写一次 observable——写两次的话两次属性会合并提交，
+        // 第二次的目标值等于当前值，原生动画器就没有位移可插值了（扫光静默失效）。
+        val stillLoading = isLoading
         reload()
+        if (stillLoading) skeletonPulse.bump()
     }
 
     override fun body(): ViewBuilder {
@@ -76,11 +116,19 @@ class WatchlistPage : Pager() {
                         flexDirectionColumn()
                         scrollEnable(true)
                     }
+                    pullToRefresh(
+                        bind = { ctx.pullRefreshRef = it },
+                        label = { pullRefreshLabel(ctx.pullState, ctx.isLoading) },
+                        onStateChange = { ctx.pullState = it },
+                        onRefresh = { ctx.reload() },
+                        spin = ctx.refreshSpin,
+                        spinning = { ctx.isLoading },
+                    )
                     vif({ ctx.isLoading && ctx.rows.isEmpty() }) {
-                        watchlistLoadingView()
+                        watchlistLoadingView(ctx)
                     }
                     vif({ !ctx.isLoading && ctx.rows.isEmpty() }) {
-                        watchlistEmptyView()
+                        watchlistEmptyView(ctx)
                     }
                     vif({ ctx.rows.isNotEmpty() }) {
                         vfor({ ctx.rows }) { row ->
@@ -90,7 +138,7 @@ class WatchlistPage : Pager() {
                     }
                 }
                 appBottomNav(ctx, AppRoutes.WATCHLIST)
-                vif({ ctx.showEdit }) {
+                vif({ ctx.editOverlay.isVisible }) {
                     watchEditDialog(ctx)
                 }
             }
@@ -98,8 +146,16 @@ class WatchlistPage : Pager() {
     }
 
     internal fun reload(showFeedback: Boolean = false) {
-        if (isLoading) return
+        if (isLoading) {
+            // 已有请求在跑：立刻收掉刷新头，否则它会一直转
+            pullRefreshRef?.view?.endRefresh()
+            return
+        }
         isLoading = true
+        // 骨架屏刚由 vif 同步挂载，此刻拉起扫光才赶得上首帧
+        skeletonPulse.bump()
+        // 刷新头箭头开始转
+        refreshSpin.loop(REFRESH_SPIN_STEP_MS) { isLoading }
         lifecycleScope.launch {
             try {
                 val built = pageResult {
@@ -113,12 +169,13 @@ class WatchlistPage : Pager() {
                 }
                 rows.clear()
                 rows.addAll(built)
-                summaryLine = buildSummary(built)
+                summaryRoll.rollTo(*summarize(built))
                 if (showFeedback) saveMessage = "自选已刷新，共 ${built.size} 只"
             } catch (e: Throwable) {
                 saveMessage = "刷新失败，请重试"
             } finally {
                 isLoading = false
+                pullRefreshRef?.view?.endRefresh()
             }
         }
     }
@@ -163,7 +220,8 @@ class WatchlistPage : Pager() {
         )
     }
 
-    private fun buildSummary(items: List<WatchRowData>): String {
+    /** 汇总为 [市值, 浮动盈亏, 盈亏率%, 今日盈亏]；格式化交给 [summaryRoll]。 */
+    private fun summarize(items: List<WatchRowData>): DoubleArray {
         var mv = 0.0
         var today = 0.0
         var pos = 0.0
@@ -175,13 +233,8 @@ class WatchlistPage : Pager() {
             today += r.todayPnl
             costSum += r.cost * r.shares
         }
-        if (mv <= 0) return "未设置持仓，收藏的股票仅作关注。"
         val posPct = if (costSum > 0) pos / costSum * 100.0 else 0.0
-        val sb = StringBuilder()
-        sb.append("持仓市值 ").append(fmt2(mv))
-        sb.append("   持仓盈亏 ").append(signed2(pos)).append(" (").append(signed2(posPct)).append("%)")
-        sb.append("   今日盈亏 ").append(signed2(today))
-        return sb.toString()
+        return doubleArrayOf(mv, pos, posPct, today)
     }
 
     internal fun openEdit(row: WatchRowData) {
@@ -194,7 +247,12 @@ class WatchlistPage : Pager() {
         editAlertType = -1
         editThresholdText = ""
         editMessage = ""
-        showEdit = true
+        editOverlay.show()
+    }
+
+    /** 关闭编辑弹窗（卸载与入场脉冲归位由 Overlay 一并处理）。 */
+    internal fun dismissEdit() {
+        editOverlay.hide()
     }
 
     internal fun saveEdit() {
@@ -212,7 +270,7 @@ class WatchlistPage : Pager() {
         val alertSaved = if (editAlertType >= 0 && threshold != null) {
             WatchStore.upsertAlert(PriceAlertRule(editCode, editName, editAlertType, threshold, true))
         } else true
-        showEdit = false
+        dismissEdit()
         saveMessage = if (alertSaved) "已保存自选与提醒" else "提醒保存失败，请重试"
         reload()
     }
@@ -332,7 +390,7 @@ internal fun ViewContainer<*, *>.watchSummary(ctx: WatchlistPage) {
         }
         Text {
             attr {
-                text(ctx.summaryLine)
+                text(ctx.summaryRoll.display)
                 fontSize(12f)
                 color(0xFF555555)
                 marginTop(4f)
@@ -342,25 +400,86 @@ internal fun ViewContainer<*, *>.watchSummary(ctx: WatchlistPage) {
     }
 }
 
-internal fun ViewContainer<*, *>.watchlistLoadingView() {
+/**
+ * 自选列表首屏骨架：卡片外边距、内边距、行高与 [watchlistRow] 对齐。
+ *
+ * 原来的实现是一行居中的「加载中...」，数据到达前后版式完全不同，
+ * 页面会整块跳一下——列表越长越明显。
+ */
+internal fun ViewContainer<*, *>.watchlistLoadingView(ctx: WatchlistPage) {
+    val sweep = ctx.skeletonPulse
     View {
         attr {
             flex(1f)
             flexDirectionColumn()
-            alignItems(FlexAlign.CENTER)
-            justifyContent(FlexJustifyContent.CENTER)
         }
-        Text {
-            attr {
-                text("加载中...")
-                fontSize(14f)
-                color(0xFF666666)
-            }
+
+        repeat(WATCH_SKELETON_ROWS) {
+            watchlistSkeletonRow(sweep)
         }
     }
 }
 
-internal fun ViewContainer<*, *>.watchlistEmptyView() {
+/** 骨架行数：够铺满一屏即可。 */
+private const val WATCH_SKELETON_ROWS = 6
+
+private fun ViewContainer<*, *>.watchlistSkeletonRow(sweep: MountPulse) {
+    View {
+        attr {
+            flexDirectionColumn()
+            margin(top = 5f, left = 12f, right = 12f, bottom = 0f)
+            padding(top = 10f, left = 12f, bottom = 8f, right = 12f)
+            backgroundColor(0xFFFFFFFF)
+            borderRadius(10f)
+        }
+
+        // 名称 / 代码 / 最新价 / 涨跌幅
+        View {
+            attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
+            View {
+                attr { flex(1f); flexDirectionColumn() }
+                skeletonBlock(height = 15f, w = 84f, sweep = sweep)
+                View { attr { height(5f) } }
+                skeletonBlock(height = 11f, w = 52f, sweep = sweep)
+            }
+            skeletonBlock(height = 16f, w = 56f, sweep = sweep)
+            View { attr { width(8f) } }
+            skeletonBlock(height = 12f, w = 48f, sweep = sweep)
+        }
+
+        // 持仓/关注说明行
+        View {
+            attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginTop(8f) }
+            skeletonBlock(height = 11f, w = 96f, sweep = sweep)
+            View { attr { flex(1f) } }
+            skeletonBlock(height = 11f, w = 72f, sweep = sweep)
+        }
+
+        View {
+            attr {
+                height(1f)
+                backgroundColor(0xFFF0F2F5)
+                margin(top = 8f, bottom = 6f)
+            }
+        }
+
+        // 操作行
+        View {
+            attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
+            skeletonBlock(height = 24f, w = 110f, radius = 14f, sweep = sweep)
+            View { attr { flex(1f) } }
+            skeletonBlock(height = 24f, w = 90f, radius = 14f, sweep = sweep)
+        }
+    }
+}
+
+/**
+ * 空态。
+ *
+ * 原来只有标题 + 一句「在个股行情页标题栏点 ☆」——用户读完知道该怎么做了，
+ * 但**当前屏幕上没有任何可点的东西**，只能自己退回行情页。这里直接给出出口。
+ */
+internal fun ViewContainer<*, *>.watchlistEmptyView(ctx: WatchlistPage) {
     View {
         attr {
             flex(1f)
@@ -379,7 +498,7 @@ internal fun ViewContainer<*, *>.watchlistEmptyView() {
         }
         Text {
             attr {
-                text("在个股行情页标题栏点 ☆ 即可加入自选；\n加入后可设置持仓成本与盯盘提醒。")
+                text("加入自选后可以设置持仓成本、盯盘提醒，\n并在行情明细里看到持仓盈亏。")
                 fontSize(13f)
                 color(0xFF999999)
                 marginTop(6f)
@@ -387,8 +506,50 @@ internal fun ViewContainer<*, *>.watchlistEmptyView() {
                 lineHeight(19f)
             }
         }
+
+        View {
+            attr {
+                marginTop(18f)
+                padding(top = 11f, left = 26f, bottom = 11f, right = 26f)
+                backgroundColor(0xFF1976D2)
+                borderRadius(22f)
+                pressedScale(ctx.press, WATCH_EMPTY_CTA_TAG, normal = 1f, pressed = 0.97f)
+                accessibility("去行情页添加自选")
+                accessibilityRole(AccessibilityRole.BUTTON)
+                accessibilityInfo(true, false)
+            }
+            event {
+                pressFeedback(ctx.press, WATCH_EMPTY_CTA_TAG)
+                click {
+                    ctx.press.releaseAll()
+                    ctx.acquireModule<RouterModule>(RouterModule.MODULE_NAME)
+                        .openPage(AppRoutes.MARKET, JSONObject())
+                }
+            }
+            Text {
+                attr {
+                    text("去行情添加自选")
+                    fontSize(14f)
+                    fontWeightBold()
+                    color(0xFFFFFFFF)
+                }
+            }
+        }
+
+        Text {
+            attr {
+                text("在个股详情页标题栏点 ☆ 也可以加入")
+                fontSize(11f)
+                color(0xFFAAAAAA)
+                marginTop(10f)
+            }
+        }
     }
 }
+
+private const val WATCH_EMPTY_CTA_TAG = "watchlist_empty_cta"
+private const val WATCH_SAVE_TAG = "watchlist_dialog_save"
+
 
 internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowData) {
     View {
@@ -596,15 +757,11 @@ internal fun ViewContainer<*, *>.watchEditDialog(ctx: WatchlistPage) {
             alignItems(FlexAlign.CENTER)
             justifyContent(FlexJustifyContent.CENTER)
         }
-        event { click { ctx.showEdit = false } }
+        event { click { ctx.dismissEdit() } }
 
         View {
             attr {
-                width(ctx.pagerData.pageViewWidth - 40f)
-                flexDirectionColumn()
-                backgroundColor(0xFFFFFFFF)
-                borderRadius(12f)
-                padding(left = 16f, top = 16f, right = 16f, bottom = 16f)
+                overlayEnterExit(ctx.editOverlay)
             }
 
             Text {
@@ -749,7 +906,7 @@ internal fun ViewContainer<*, *>.watchEditDialog(ctx: WatchlistPage) {
                         accessibilityRole(AccessibilityRole.BUTTON)
                         accessibilityInfo(true, false)
                     }
-                    event { click { ctx.showEdit = false } }
+                    event { click { ctx.dismissEdit() } }
                     Text {
                         attr {
                             text("取消")
@@ -767,11 +924,18 @@ internal fun ViewContainer<*, *>.watchEditDialog(ctx: WatchlistPage) {
                         alignItems(FlexAlign.CENTER)
                         justifyContent(FlexJustifyContent.CENTER)
                         marginLeft(12f)
+                        pressedScale(ctx.press, WATCH_SAVE_TAG, normal = 1f, pressed = 0.97f)
                         accessibility("保存持仓与提醒")
                         accessibilityRole(AccessibilityRole.BUTTON)
                         accessibilityInfo(true, false)
                     }
-                    event { click { ctx.saveEdit() } }
+                    event {
+                        pressFeedback(ctx.press, WATCH_SAVE_TAG)
+                        click {
+                            ctx.press.releaseAll()
+                            ctx.saveEdit()
+                        }
+                    }
                     Text {
                         attr {
                             text("保存")

@@ -65,3 +65,6 @@ data-pipeline/venv
 emulator_*.png
 debug.png
 ui.xml
+ci_screenshot*.png
+review_checklist.png
+persisted_output.json

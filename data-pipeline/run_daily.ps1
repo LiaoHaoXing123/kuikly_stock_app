@@ -63,6 +63,19 @@ if ($LASTEXITCODE -ne 0) {
 }
 ($buildOut -split "`n") | Where-Object { $_ -match "完成|覆盖|SQL|✓|警告|retry|Error|Traceback|行$" } | ForEach-Object { Log ("   " + $_.Trim()) }
 
+# ---- 1b) 导出 iOS/JS 用的内置 JSON 资产 ----
+# iOS / JS 没有 SQLite，指数、官方板块、资金流读的是 shared/src/commonMain/assets/*.json。
+# 这些文件随 App 打包，必须在 stock.db 刷新后同步重导出，否则两端数据会漂移
+# （一致性由 test_export_common_assets.py 守护）。
+Log "[1b/3] 导出内置 JSON 资产（index/sector/fundflow）..."
+$assetOut = & $py (Join-Path $repoDir "export_common_assets.py") 2>&1 | Out-String
+Add-Content -Path $buildLog -Value $assetOut -Encoding UTF8
+if ($LASTEXITCODE -ne 0) {
+    Log "!! export_common_assets.py 失败 (exit $LASTEXITCODE)，JSON 资产可能停留在旧快照"
+} else {
+    ($assetOut -split "`n") | Where-Object { $_ -match "KB|写入|ERR" } | ForEach-Object { Log ("   " + $_.Trim()) }
+}
+
 # ---- 2) 推送到 github cdn 分支 -> Render ----
 Log "[2/3] 推送到 github cdn 分支 ..."
 if (-not $proxy) { $proxy = "127.0.0.1:7899"; Log "   注意：未设置 PROXY_ADDR，默认用 $proxy" }

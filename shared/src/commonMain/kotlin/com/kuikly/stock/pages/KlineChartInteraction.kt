@@ -200,8 +200,14 @@ internal interface KlineInteractionHost {
     fun clearInteraction()
     fun clearChartSelection()
 
-    /** 分时选点；指数页无分时，实现为空即可 */
-    fun selectMinuteAtX(x: Float)
+    /**
+     * 分时选点。
+     * @param locked true = 点击锁定（再次点击同一点取消）；false = 跟手查看（拖动中，未锁定）
+     */
+    fun selectMinuteAtX(x: Float, locked: Boolean)
+
+    /** 清除分时选中（指数页无分时，实现为空即可） */
+    fun clearMinuteSelection()
 }
 
 // -----------------------------------------------------------------------------

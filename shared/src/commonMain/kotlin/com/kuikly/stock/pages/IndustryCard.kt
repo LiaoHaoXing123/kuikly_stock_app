@@ -13,7 +13,8 @@ import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.views.*
 
 internal fun ViewContainer<*, *>.industryCard(ctx: StockDetailPage) {
-    vif({ ctx.industrySnapshot != null }) {
+    // 官方板块卡可用时隐藏本卡（信息重叠）；ctx.industryCardVisible 已封装该互斥规则
+    vif({ ctx.industryCardVisible }) {
         View {
             attr { margin(4f, 12f, 4f, 12f); padding(12f); backgroundColor(0xFFFFFFFF); borderRadius(10f) }
             View {

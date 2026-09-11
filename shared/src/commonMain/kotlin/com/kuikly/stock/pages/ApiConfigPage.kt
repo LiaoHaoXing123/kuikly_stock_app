@@ -1,5 +1,7 @@
 package com.kuikly.stock.pages
 
+import com.kuikly.stock.base.BasePager
+
 import com.kuikly.stock.ai.config.AiProfileStore
 import com.kuikly.stock.ai.config.AiProviderProfile
 import com.kuikly.stock.ai.config.SecureSecretStore
@@ -33,7 +35,7 @@ internal data class AiProfileRow(
 )
 
 @Page(AppRoutes.API_CONFIG)
-class ApiConfigPage : Pager() {
+class ApiConfigPage : BasePager() {
     internal var refreshing by observable(false)
     internal var rows: ObservableList<AiProfileRow> by observableList()
     internal var showEditor by observable(false)

@@ -43,6 +43,13 @@ jobs:
       - name: Run data quality gate tests
         run: python data-pipeline/test_quality_gate.py
 
+      # iOS / JS 用的内置 JSON 资产由 stock.db 导出。这里对新库跑一遍导出 + 一致性校验，
+      # 确保换了数据源以后导出链路仍然可用（产物本身不提交，需本地重跑后随构建更新）。
+      - name: Export built-in JSON assets (smoke test)
+        run: |
+          python data-pipeline/export_common_assets.py
+          python data-pipeline/test_export_common_assets.py
+
       - name: Publish to GitHub Release (data-latest)
         env:
           GH_TOKEN: ${{ github.token }}
