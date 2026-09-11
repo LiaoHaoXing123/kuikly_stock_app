@@ -794,9 +794,6 @@ internal fun parseAIPriceLevels(analysis: AIAnalysisData?): List<AIPriceLevel> {
 // P0-2: 行情区 AI 注解标签 (放置于实时行情涨跌幅右侧)
 // -----------------------------------------------------------------------------
 internal fun ViewContainer<*, *>.aiBiasChip(ctx: StockDetailPage) {
-    val v = ctx.effectiveVerdict
-    val loading = ctx.isAnalyzing
-
     View {
         attr {
             marginLeft(8f)
@@ -805,6 +802,7 @@ internal fun ViewContainer<*, *>.aiBiasChip(ctx: StockDetailPage) {
             allCenter()
             paddingLeft(7f)
             paddingRight(7f)
+            val v = ctx.effectiveVerdict
             if (v != null) {
                 backgroundColor(v.chipColor)
                 border(Border(0.8f, BorderStyle.SOLID, Color((v.colorValue and 0x00FFFFFF) or 0x44000000)))
@@ -815,7 +813,7 @@ internal fun ViewContainer<*, *>.aiBiasChip(ctx: StockDetailPage) {
         }
         event {
             click {
-                if (v == null) ctx.triggerAIAnalysis() else ctx.jumpToAiSection("level_card")
+                if (ctx.effectiveVerdict == null) ctx.triggerAIAnalysis() else ctx.jumpToAiSection("level_card")
             }
         }
 
@@ -823,14 +821,14 @@ internal fun ViewContainer<*, *>.aiBiasChip(ctx: StockDetailPage) {
             attr {
                 text(
                     when {
-                        loading -> "AI 研判中…"
-                        v != null -> "AI ${v.bias}"
+                        ctx.isAnalyzing -> "AI 研判中…"
+                        ctx.effectiveVerdict != null -> "AI ${ctx.effectiveVerdict!!.bias}"
                         else -> "⟡ AI 研判"
                     }
                 )
                 fontSize(10f)
                 fontWeightBold()
-                color(v?.colorValue ?: 0xFF6B7280)
+                color(ctx.effectiveVerdict?.colorValue ?: 0xFF6B7280)
             }
         }
     }
@@ -2092,7 +2090,6 @@ internal fun ViewContainer<*, *>.orderBookCardContent(ctx: StockDetailPage, book
 }
 
 internal fun ViewContainer<*, *>.orderBookRow(ctx: StockDetailPage, label: String, price: Double?, vol: Double?, color: Long, isAsk: Boolean, ratio: Double, isBig: Boolean) {
-    val isHighlighted = price != null && ctx.orderBookHighlightPrice == price
     val barFlex = (ratio.coerceIn(0.0, 1.0) * 1000).toInt().coerceIn(0, 1000)
     View {
         attr {
@@ -2100,7 +2097,7 @@ internal fun ViewContainer<*, *>.orderBookRow(ctx: StockDetailPage, label: Strin
             marginTop(3f)
             alignItems(FlexAlign.CENTER)
             padding(4f, 6f, 4f, 6f)
-            backgroundColor(if (isHighlighted) 0xFFFFF3E8 else 0xFFFFFFFF)
+            backgroundColor(if (price != null && ctx.orderBookHighlightPrice == price) 0xFFFFF3E8 else 0xFFFFFFFF)
             borderRadius(6f)
         }
         // 量能比例背景条（绝对铺底、无事件，不拦截点击；靠右填充，买红/卖绿低透明度）
@@ -2128,7 +2125,7 @@ internal fun ViewContainer<*, *>.orderBookRow(ctx: StockDetailPage, label: Strin
             attr {
                 marginLeft(6f)
                 padding(3f, 8f, 3f, 8f)
-                backgroundColor(if (isHighlighted) 0xFFFFE0B2 else 0xFFF0F2F5)
+                backgroundColor(if (price != null && ctx.orderBookHighlightPrice == price) 0xFFFFE0B2 else 0xFFF0F2F5)
                 borderRadius(8f)
             }
             event {
@@ -2136,7 +2133,7 @@ internal fun ViewContainer<*, *>.orderBookRow(ctx: StockDetailPage, label: Strin
                     if (price != null) ctx.highlightOrderBookPrice(price, label)
                 }
             }
-            Text { attr { text(if (isHighlighted) "已标" else "标注"); fontSize(10f); color(if (isHighlighted) 0xFFA56100 else 0xFF666666); fontWeightBold() } }
+            Text { attr { text(if (price != null && ctx.orderBookHighlightPrice == price) "已标" else "标注"); fontSize(10f); color(if (price != null && ctx.orderBookHighlightPrice == price) 0xFFA56100 else 0xFF666666); fontWeightBold() } }
         }
         View {
             attr {
@@ -2505,11 +2502,10 @@ internal fun ViewContainer<*, *>.klinePeriodChip(ctx: StockDetailPage, period: S
 }
 
 internal fun ViewContainer<*, *>.subIndicatorChip(ctx: StockDetailPage, key: String, label: String) {
-    val active = ctx.klineSubIndicator == key
     View {
         attr {
             padding(3f, 10f, 3f, 10f)
-            backgroundColor(if (active) 0xFF5B7FFF else 0xFFF5F5F5)
+            backgroundColor(if (ctx.klineSubIndicator == key) 0xFF5B7FFF else 0xFFF5F5F5)
             borderRadius(12f)
             marginRight(6f)
         }
@@ -2519,7 +2515,7 @@ internal fun ViewContainer<*, *>.subIndicatorChip(ctx: StockDetailPage, key: Str
                 text(label)
                 fontSize(11f)
                 fontWeightBold()
-                color(if (active) 0xFFFFFFFF else 0xFF888888)
+                color(if (ctx.klineSubIndicator == key) 0xFFFFFFFF else 0xFF888888)
             }
         }
     }
@@ -3395,7 +3391,7 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
         }
         velse {
             // 结构化卡片渲染
-            vfor({ ObservableList(listOfNotNull(ctx.aiAnalysis).map { it to ctx.aiExpandedKeys.toList() }.toMutableList()) }) { (analysis, _) ->
+            vfor({ ObservableList(listOfNotNull(ctx.aiAnalysis).map { Triple(it, ctx.aiExpandedKeys.toList(), ctx.highlightCardType) }.toMutableList()) }) { (analysis, _, _) ->
             View {
                 attr { flexDirectionColumn() }
                 aiEvidencePanel({ ctx.aiAnalysis }) { ctx.focusEvidenceDate(it) }
@@ -3553,7 +3549,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                     backgroundColor(0xFFFFFFFF)
                     borderRadius(12f)
                     padding(12f, 14f, 12f, 14f)
-                    border(Border(1.2f, BorderStyle.SOLID, Color(0xFF1976D2)))
+                    border(Border(1.2f, BorderStyle.SOLID, Color(if (ctx.highlightCardType == "level_card") 0xFF5B7FFF else 0xFF1976D2)))
                 }
                 View {
                     attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }

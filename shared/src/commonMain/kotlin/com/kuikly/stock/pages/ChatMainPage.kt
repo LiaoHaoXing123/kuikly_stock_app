@@ -2014,13 +2014,12 @@ internal fun ViewContainer<*, *>.drawer(ctx: ChatMainPage) {
 }
 
 internal fun ViewContainer<*, *>.drawerSessionItem(ctx: ChatMainPage, s: ChatSession) {
-    val active = ctx.activeSessionId == s.id
     View {
         attr {
             flexDirectionRow()
             alignItems(FlexAlign.CENTER)
             padding(left = 16f, top = 12f, right = 8f, bottom = 12f)
-            backgroundColor(if (active) 0xFFE3F2FD else 0xFFFFFFFF)
+            backgroundColor(if (ctx.activeSessionId == s.id) 0xFFE3F2FD else 0xFFFFFFFF)
             marginTop(1f)
         }
         event {
@@ -2042,7 +2041,7 @@ internal fun ViewContainer<*, *>.drawerSessionItem(ctx: ChatMainPage, s: ChatSes
             }
             Text {
                 attr {
-                    text(if (active) "当前会话 · 共 " + s.messages.size + " 条消息" else "共 " + s.messages.size + " 条消息")
+                    text(if (ctx.activeSessionId == s.id) "当前会话 · 共 " + s.messages.size + " 条消息" else "共 " + s.messages.size + " 条消息")
                     fontSize(11f)
                     color(0xFF999999)
                     marginTop(2f)

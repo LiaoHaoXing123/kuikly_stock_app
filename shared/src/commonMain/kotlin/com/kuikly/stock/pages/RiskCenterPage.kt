@@ -365,7 +365,6 @@ private fun ViewContainer<*, *>.quietAlertState() {
 }
 
 private fun ViewContainer<*, *>.riskMessage(ctx: RiskCenterPage, message: String, key: String) {
-    val expanded = ctx.expandedRiskKey == key
     View {
         attr {
             padding(13f)
@@ -377,9 +376,9 @@ private fun ViewContainer<*, *>.riskMessage(ctx: RiskCenterPage, message: String
         View {
             attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
             Text { attr { text(message); fontSize(13f); lineHeight(19f); color(0xFF8B4C12); flex(1f) } }
-            Text { attr { text(if (expanded) "⌃" else "⌄"); fontSize(14f); color(0xFF8B4C12); marginLeft(8f) } }
+            Text { attr { text(if (ctx.expandedRiskKey == key) "⌃" else "⌄"); fontSize(14f); color(0xFF8B4C12); marginLeft(8f) } }
         }
-        vif({ expanded }) {
+        vif({ ctx.expandedRiskKey == key }) {
             View {
                 attr { marginTop(8f); padding(10f); backgroundColor(0xFFFFFFFF); borderRadius(8f) }
                 Text {
@@ -538,11 +537,10 @@ private fun ViewContainer<*, *>.riskWhatIfCard(ctx: RiskCenterPage) {
 }
 
 private fun ViewContainer<*, *>.riskQuickChip(ctx: RiskCenterPage, value: Double, label: String) {
-    val selected = ctx.simulateDropPercent == value
     View {
         attr {
             padding(6f, 10f, 6f, 10f)
-            backgroundColor(if (selected) 0xFF0B2B50 else 0xFFF0F2F5)
+            backgroundColor(if (ctx.simulateDropPercent == value) 0xFF0B2B50 else 0xFFF0F2F5)
             borderRadius(10f)
             marginRight(6f)
         }
@@ -556,7 +554,7 @@ private fun ViewContainer<*, *>.riskQuickChip(ctx: RiskCenterPage, value: Double
             attr {
                 text(label)
                 fontSize(11f)
-                color(if (selected) 0xFFFFFFFF else 0xFF5A6B82)
+                color(if (ctx.simulateDropPercent == value) 0xFFFFFFFF else 0xFF5A6B82)
                 fontWeightBold()
             }
         }
