@@ -28,6 +28,7 @@ import com.tencent.kuikly.core.reactive.handler.observableList
 import com.tencent.kuikly.core.views.*
 import com.kuikly.stock.data.HoldingInput
 import com.kuikly.stock.data.PriceAlertRule
+import com.kuikly.stock.data.HoldingCalendar
 import com.kuikly.stock.data.WatchHolding
 import com.kuikly.stock.data.WatchStore
 import com.kuikly.stock.data.StockRepository
@@ -159,6 +160,7 @@ class WatchlistPage : BasePager() {
         lifecycleScope.launch {
             try {
                 val built = pageResult {
+                    HoldingCalendar.syncQuietly()
                     val watch = WatchStore.list()
                     val built = mutableListOf<WatchRowData>()
                     for (h in watch) {
@@ -396,6 +398,21 @@ internal fun ViewContainer<*, *>.watchSummary(ctx: WatchlistPage) {
                 marginTop(4f)
                 lineHeight(17f)
             }
+        }
+        View {
+            attr {
+                marginTop(8f)
+                flexDirectionRow()
+                alignItems(FlexAlign.CENTER)
+                minHeight(36f)
+                accessibility("打开盈亏日历")
+                accessibilityRole(AccessibilityRole.BUTTON)
+                accessibilityInfo(true, false)
+            }
+            event { click { ctx.openModule(AppRoutes.CALENDAR) } }
+            Text { attr { text("盈亏日历"); fontSize(12f); color(0xFF1976D2); fontWeightBold() } }
+            Text { attr { text("  ·  每日持仓快照，点开看贡献"); fontSize(11f); color(0xFF888888); flex(1f) } }
+            Text { attr { text("›"); fontSize(18f); color(0xFF9EA7B2) } }
         }
     }
 }

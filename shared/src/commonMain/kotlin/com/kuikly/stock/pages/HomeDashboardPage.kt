@@ -4,6 +4,7 @@ import com.kuikly.stock.base.BasePager
 import com.kuikly.stock.base.NumberRoll
 
 import com.kuikly.stock.data.DataUpdater
+import com.kuikly.stock.data.HoldingCalendar
 import com.kuikly.stock.data.WatchStore
 import com.kuikly.stock.home.DashboardFocusItem
 import com.kuikly.stock.home.HomeDashboardService
@@ -87,6 +88,7 @@ class HomeDashboardPage : BasePager() {
         lifecycleScope.launch {
             try {
                 applySnapshot()
+                pageResult { HoldingCalendar.syncQuietly() }
                 if (force) {
                     val updated = pageResult { DataUpdater.refreshNow() }
                     applySnapshot()
@@ -172,6 +174,7 @@ class HomeDashboardPage : BasePager() {
                     marketBriefCard(ctx)
                     sectionTitle("研究工作台", "把重要动作拆开，减少首页拥挤")
                     researchGrid(ctx)
+                    calendarEntryCard(ctx)
                     sectionTitle("今日关注", "提醒优先，其次是自选信号")
                     vfor({ ctx.focusItems }) { item ->
                         focusRow(item)
@@ -336,6 +339,34 @@ private fun ViewContainer<*, *>.researchModule(
         }
         Text { attr { text(title); fontSize(15f); fontWeightBold(); color(0xFF172A43); marginTop(12f) } }
         Text { attr { text(subtitle()); fontSize(11f); lineHeight(16f); color(0xFF788494); marginTop(4f) } }
+    }
+}
+
+private fun ViewContainer<*, *>.calendarEntryCard(ctx: HomeDashboardPage) {
+    View {
+        attr {
+            marginTop(4f)
+            padding(14f)
+            borderRadius(16f)
+            backgroundColor(Color.WHITE)
+            border(Border(1f, BorderStyle.SOLID, Color(0xFFE9EEF5)))
+            flexDirectionRow()
+            alignItems(FlexAlign.CENTER)
+            accessibility("打开盈亏日历，查看每日持仓盈亏")
+            accessibilityRole(AccessibilityRole.BUTTON)
+            accessibilityInfo(true, false)
+        }
+        event { click { ctx.open(AppRoutes.CALENDAR) } }
+        View {
+            attr { size(34f, 34f); borderRadius(10f); allCenter(); backgroundColor(0xFFEAF8F0) }
+            Text { attr { text("历"); fontSize(15f); fontWeightBold(); color(0xFF17834E) } }
+        }
+        View {
+            attr { flex(1f); marginLeft(12f) }
+            Text { attr { text("盈亏日历"); fontSize(15f); fontWeightBold(); color(0xFF172A43) } }
+            Text { attr { text("行情更新后自动记下当天持仓，对照沪深300"); fontSize(11f); color(0xFF788494); marginTop(3f) } }
+        }
+        Text { attr { text("›"); fontSize(26f); color(0xFF9EA7B2) } }
     }
 }
 

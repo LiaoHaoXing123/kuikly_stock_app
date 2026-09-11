@@ -620,6 +620,7 @@ actual object StockDb {
             dbAvailable = true
             backup.delete()
             Log.i(TAG, "refreshFromFile OK size=" + dest.length())
+            runCatching { HoldingCalendar.syncQuietly() }
             return true
         } catch (e: Exception) {
     Log.e(TAG, "refreshFromFile 失败，回滚旧库: " + (e.message ?: e.toString()), e)

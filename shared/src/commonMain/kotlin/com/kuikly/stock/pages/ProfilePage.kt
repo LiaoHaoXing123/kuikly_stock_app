@@ -82,6 +82,7 @@ class ProfilePage : BasePager() {
                     attr { flex(1f); flexDirectionColumn(); scrollEnable(true); padding(16f) }
                     profileHero(ctx)
                     profileSection("服务")
+                    profileRow("盈亏日历", { "持仓每日快照" }, true) { ctx.openModule(AppRoutes.CALENDAR) }
                     profileRow("API 配置", { ctx.aiStatus }, true) { ctx.openApi() }
                     profileRow("行情数据", { ctx.dataStatus }, false) { }
                     profileRow("立即更新数据", { if (ctx.refreshing) "更新中" else "手动刷新" }, true) { ctx.refreshData() }
