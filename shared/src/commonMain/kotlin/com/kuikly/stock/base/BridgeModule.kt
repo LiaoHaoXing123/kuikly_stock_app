@@ -20,6 +20,10 @@ internal class BridgeModule : Module() {
         callNativeMethod(CLOSE_PAGE, null, null)
     }
 
+    fun updateSystemBars(dark: Boolean) {
+        callNativeMethod("updateSystemBars", JSONObject().put("dark", dark), null)
+    }
+
     fun log(content: String) {
         val methodArgs = JSONObject()
         methodArgs.put("content", content)

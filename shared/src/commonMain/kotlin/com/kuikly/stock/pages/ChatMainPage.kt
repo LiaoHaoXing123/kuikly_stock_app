@@ -805,21 +805,7 @@ internal fun ViewContainer<*, *>.topBar(ctx: ChatMainPage) {
         }
 
         View {
-            attr { size(44f, 44f); allCenter(); marginLeft(4f); accessibility("返回"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }
-            event {
-                click { ctx.acquireModule<RouterModule>(RouterModule.MODULE_NAME).closePage() }
-            }
-            Text {
-                attr {
-                    text("‹")
-                    fontSize(32f)
-                    color(AppColor.TEXT_DEEP)
-                }
-            }
-        }
-
-        View {
-            attr { flex(1f); marginLeft(2f) }
+            attr { flex(1f); marginLeft(18f) }
             Text {
                 attr {
                     text("AI 研究室")
@@ -899,7 +885,7 @@ internal fun ViewContainer<*, *>.thinkingBubble(ctx: ChatMainPage) {
         attr { flexDirectionColumn(); marginTop(8f); padding(12f); borderRadius(12f); backgroundColor(AppColor.SURFACE) }
         Text { attr { text(ctx.requestStage); fontSize(12f); color(AppColor.TEXT_SUB_DEEP) } }
         vfor({ ctx.streamBlocks }) { block ->
-            KuiklyStreamingMarkdown(state = ctx.streamState, block = block, config = chatMarkdownConfig)
+            KuiklyStreamingMarkdown(state = ctx.streamState, block = block, config = chatMarkdownConfig())
         }
         View {
             attr { height(44f); allCenter(); accessibility("停止生成"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }
@@ -951,7 +937,7 @@ internal fun ViewContainer<*, *>.chatBubble(
                     }
                 }
             } else {
-                KuiklyMarkdown(content = sanitizeMarkdownForRender(message.content), config = chatMarkdownConfig)
+                KuiklyMarkdown(content = sanitizeMarkdownForRender(message.content), config = chatMarkdownConfig())
             }
 
             with(bubble) {

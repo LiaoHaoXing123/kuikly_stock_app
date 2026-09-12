@@ -24,6 +24,13 @@ class KRBridgeModule : KuiklyRenderBaseModule() {
 
     override fun call(method: String, params: String?, callback: KuiklyRenderCallback?): Any? {
         return when (method) {
+            "updateSystemBars" -> {
+                val dark = params?.let { JSONObject(it).optBoolean("dark", false) } ?: false
+                (context as? KuiklyRenderActivity)?.let { activity ->
+                    activity.runOnUiThread { activity.updateSystemBars(dark) }
+                }
+                null
+            }
             "ssoRequest" -> {
                 ssoRequest(params, callback)
             }

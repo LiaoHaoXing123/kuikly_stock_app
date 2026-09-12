@@ -302,77 +302,24 @@ class StockListPage : BasePager() {
 internal fun ViewContainer<*, *>.navigationBar(ctx: StockListPage) {
     View {
         attr {
-            flexDirectionRow()
-            alignItems(FlexAlign.CENTER)
-            backgroundColor(AppColor.PRIMARY_SOFT)
-            paddingTop(ctx.pagerData.statusBarHeight)
-            height(48f + ctx.pagerData.statusBarHeight)
+            flexDirectionRow(); alignItems(FlexAlign.CENTER)
+            backgroundColor(AppColor.SURFACE)
+            padding(top = ctx.pagerData.statusBarHeight, left = 18f, right = 10f)
+            height(com.kuikly.stock.ui.theme.AppSize.TITLE_BAR + ctx.pagerData.statusBarHeight)
         }
-
         View {
-            attr { padding(12f, 16f, 12f, 16f) }
-            event {
-                click { ctx.backToDefaultList() }
-            }
-            Text {
-                attr {
-                    text("< 返回")
-                    fontSize(16f)
-                    color(AppColor.ON_DARK)
-                }
+            attr { flex(1f) }
+            Text { attr { text(if (ctx.listMode == "指数") "指数行情" else "股票行情"); fontSize(18f); fontWeightBold(); color(AppColor.TITLE) } }
+            Text { attr { text("本地行情 · 共 ${ctx.totalCount} 只"); fontSize(10f); color(AppColor.TEXT_SUB); marginTop(1f) } }
+        }
+        vif({ ctx.searchKeyword.isNotEmpty() || ctx.sortOption != "默认" }) {
+            View {
+                attr { minWidth(52f); height(44f); allCenter(); accessibility("清除筛选") }
+                event { click { ctx.backToDefaultList() } }
+                Text { attr { text("清除筛选"); fontSize(11f); color(AppColor.PRIMARY) } }
             }
         }
-
-        Text {
-            attr {
-                text(if (ctx.listMode == "指数") "指数行情" else "股票行情")
-                fontSize(17f)
-                fontWeightBold()
-                color(AppColor.ON_DARK)
-                marginLeft(8f)
-            }
-        }
-
-        vif({ ctx.totalCount > 0 }) {
-            Text {
-                attr {
-                    text("共 ${ctx.totalCount} " + if (ctx.listMode == "指数") "只" else "只")
-                    fontSize(12f)
-                    color(AppColor.ON_DARK_ACCENT_STRONG)
-                    marginLeft(6f)
-                }
-            }
-        }
-        vif({ ctx.totalCount <= 0 }) {
-            Text {
-                attr {
-                    text("共 ${ctx.stockList.size} " + if (ctx.listMode == "指数") "只" else "只")
-                    fontSize(12f)
-                    color(AppColor.ON_DARK_ACCENT_STRONG)
-                    marginLeft(6f)
-                }
-            }
-        }
-
-        View { attr { flex(1f) } }
-
-        View {
-            attr { padding(10f, 12f, 8f, 12f) }
-            event {
-                click {
-                    ctx.openModule(AppRoutes.WATCHLIST)
-                }
-            }
-            Text {
-                attr {
-                    text("☆ 自选仓")
-                    fontSize(13f)
-                    color(AppColor.ON_DARK)
-                }
-            }
-        }
-
-        refreshButton({ ctx.isLoading }, foreground = AppColor.ON_DARK) { ctx.refreshData() }
+        refreshButton({ ctx.isLoading }) { ctx.refreshData() }
     }
 }
 
@@ -492,8 +439,8 @@ internal fun ViewContainer<*, *>.modeTabBar(ctx: StockListPage) {
             height = 30f,
             trackRadius = 16f,
             thumbRadius = 13f,
-            thumbColor = AppColor.SURFACE,
-            selectedTextColor = AppColor.PRIMARY_SOFT,
+            thumbColor = { AppColor.SURFACE },
+            selectedTextColor = { AppColor.PRIMARY_SOFT },
             fontSize = 13f,
             accessibilityLabel = { label, selected -> if (selected) "$label 行情，已选择" else label },
             onSelect = { ctx.switchMode(MODE_TABS[it]) },

@@ -196,9 +196,11 @@ class ProfilePage : BasePager() {
         return {
             View {
                 attr { flex(1f); flexDirectionColumn(); backgroundColor(AppColor.BG) }
-                pageTitleBar(ctx, "我的", "配置、数据与隐私", { ctx.refreshing }) { ctx.refreshData() }
+                pageTitleBar(ctx, "我的", "配置、数据与隐私", { ctx.refreshing }, showBack = false) { ctx.refreshData() }
                 Scroller {
-                    attr { flex(1f); flexDirectionColumn(); scrollEnable(true); padding(AppSpace.PAGE) }
+                    attr { flex(1f); flexDirectionColumn(); scrollEnable(true) }
+                    View {
+                    attr { padding(AppSpace.PAGE) }
                     profileHero(ctx)
                     profileSection("服务")
                     profileRow("盈亏日历", { "持仓每日快照" }, true) { ctx.openModule(AppRoutes.CALENDAR) }
@@ -228,6 +230,7 @@ class ProfilePage : BasePager() {
                             textAlignCenter()
                         }
                     }
+                }
                 }
                 appBottomNav(ctx, AppRoutes.PROFILE)
 
@@ -349,8 +352,8 @@ private fun ViewContainer<*, *>.themeRow(ctx: ProfilePage) {
             height = 30f,
             trackRadius = 16f,
             thumbRadius = 13f,
-            thumbColor = AppColor.SURFACE,
-            selectedTextColor = AppColor.PRIMARY_SOFT,
+            thumbColor = { AppColor.SURFACE },
+            selectedTextColor = { AppColor.PRIMARY_SOFT },
             fontSize = AppFont.NOTE,
             accessibilityLabel = { label, selected -> if (selected) "主题：$label，已选择" else "主题：$label" },
         )

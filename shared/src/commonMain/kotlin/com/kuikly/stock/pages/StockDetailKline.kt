@@ -76,7 +76,7 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
             }
             Text {
                 attr {
-                    text(ctx.getAggregatedKline().getOrNull(ctx.selectedKlineIndex)?.tradeDate ?: "${ctx.getAggregatedKline().size}根 · ${ctx.klineVisibleCount}显示")
+                    text(ctx.getAggregatedKline().getOrNull(ctx.selectedKlineIndex)?.tradeDate ?: "显示 ${ctx.klineVisibleCount} / ${ctx.getAggregatedKline().size} 根")
                     fontSize(10f)
                     color(AppColor.TEXT_HINT)
                     flex(1f)
@@ -108,13 +108,9 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                 }
             }
             View {
-                attr {
-                    padding(4f, 8f, 4f, 8f)
-                    backgroundColor(AppColor.SURFACE_SOFT)
-                    borderRadius(10f)
-                }
-                event { click { ctx.resetView() } }
-                Text { attr { text("重置"); fontSize(11f); color(AppColor.TEXT_GRAY) } }
+                attr { minWidth(44f); height(34f); allCenter(); backgroundColor(AppColor.SURFACE_ALT); borderRadius(10f); accessibility("展开或收起图表工具") }
+                event { click { ctx.klineToolsExpanded = !ctx.klineToolsExpanded } }
+                Text { attr { text(if (ctx.klineToolsExpanded) "收起" else "工具"); fontSize(11f); color(AppColor.PRIMARY) } }
             }
         }
 
@@ -122,6 +118,7 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
             klineLoadingView(ctx)
         }
         velseif({ originalKline != null && originalKline.isNotEmpty() }) {
+            vif({ ctx.klineToolsExpanded }) {
             // 缩放平移控制
             View {
                 attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginBottom(6f) }
@@ -140,6 +137,7 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                 }
                 chartControlButton("＋", { ctx.zoomOut() })
                 chartControlButton("▶▶", { ctx.panRight() })
+                chartControlButton("重置", { ctx.resetView() })
                 View { attr { flex(1f) } }
                 vif({ ctx.highlightedPrice > 0 }) {
                     View {
@@ -167,6 +165,7 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                     }
                 }
             }
+            }
             // 副图指标选择器（关 / MACD / KDJ / RSI，默认关；开启时主画布向下增高）
             View {
                 attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginBottom(6f) }
@@ -187,13 +186,12 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                     Text { attr { text(if (ctx.klineShowVolume) "量 开" else "量 关"); fontSize(11f); color(AppColor.TEXT_SUB_DEEP) } }
                 }
             }
-            Text { attr { text("横拖平移 · 点选锁定 · 长按拖选区间 · 双指缩放 · 点击图表/✕ 退出"); fontSize(10f); lineHeight(16f); color(AppColor.NEUTRAL); marginBottom(6f) } }
+            vif({ ctx.klineToolsExpanded }) {
+                Text { attr { text("横拖平移 · 点选锁定 · 长按选区间 · 双指缩放"); fontSize(10f); lineHeight(16f); color(AppColor.TEXT_SUB); marginBottom(6f) } }
+            }
 
             View {
                 attr { flexDirectionColumn() }
-                vfor({ ObservableList(mutableListOf(listOf(ctx.aiAnalysis, ctx.verdictExpanded, ctx.isAnalyzing))) }) { _ ->
-                aiVerdictBar(ctx)
-                }
                 vif({ ctx.rangeStats != null || ctx.selectedKlineIndex >= 0 }) {
                     View {
                         attr {
@@ -222,6 +220,9 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                 klineSummary(ctx, ctx.getVisibleKline())
                 }
             }
+                vfor({ ObservableList(mutableListOf(listOf(ctx.aiAnalysis, ctx.verdictExpanded, ctx.isAnalyzing))) }) { _ ->
+                aiVerdictBar(ctx)
+                }
             chartEvidencePanel({ ctx.getAggregatedKline() }, { ctx.selectedKlineIndex }, { ctx.aiAnalysis }, { ctx.focusCandle(it) }, { ctx.askAboutChart() })
             vif({ ctx.selectedKlineIndex >= 0 && ctx.klinePeriod == "D" }) {
                 Text {

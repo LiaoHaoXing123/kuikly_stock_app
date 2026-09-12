@@ -112,6 +112,7 @@ abstract class BasePager : Pager(), ThemeHost {
 
     override fun pageDidAppear() {
         super.pageDidAppear()
+        syncSystemBars()
         if (renderedThemeEpoch != ThemeManager.epoch) {
             refreshTheme()
         }
@@ -126,6 +127,11 @@ abstract class BasePager : Pager(), ThemeHost {
     fun refreshTheme() {
         renderedThemeEpoch = ThemeManager.epoch
         themeGen++
+        syncSystemBars()
+    }
+
+    private fun syncSystemBars() {
+        acquireModule<BridgeModule>(BridgeModule.MODULE_NAME).updateSystemBars(ThemeManager.isDark)
     }
 
     /**

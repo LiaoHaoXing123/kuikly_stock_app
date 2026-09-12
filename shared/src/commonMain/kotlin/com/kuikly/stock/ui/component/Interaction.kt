@@ -42,7 +42,6 @@ package com.kuikly.stock.ui.component
 import com.kuikly.stock.ui.theme.AppColor
 import com.kuikly.stock.ui.theme.AppMotion
 import com.kuikly.stock.ui.theme.ThemeManager
-import kotlinx.coroutines.delay
 import com.tencent.kuikly.core.base.Animation
 import com.tencent.kuikly.core.base.Attr
 import com.tencent.kuikly.core.base.Color
@@ -270,10 +269,6 @@ internal const val MIN_SKELETON_SHOW_MS = 400L
  * 用法：加载方法里 `val startedAt = System.currentTimeMillis()`，在 `finally`
  * 里、翻转 loading 标志之前调用。数据快时补足剩余时长，数据慢时不额外等待。
  */
-internal suspend fun ensureSkeletonVisible(startedAt: Long) {
-    val elapsed = System.currentTimeMillis() - startedAt
-    if (elapsed < MIN_SKELETON_SHOW_MS) delay(MIN_SKELETON_SHOW_MS - elapsed)
-}
 
 /** 骨架屏组件。每个块都是深色圆角矩形 + 一条随 [MountPulse] 往返扫过的渐变带。 */
 private fun ViewContainer<*, *>.skeletonShimmerBand(sweep: MountPulse, radius: Float) {

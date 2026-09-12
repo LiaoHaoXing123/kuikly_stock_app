@@ -63,20 +63,9 @@ class WatchlistPage : BasePager() {
 
     /**
      * 持仓总览的四个数字（市值 / 盈亏 / 盈亏率 / 今日盈亏），刷新时滚动过渡。
-     * 数字挤在一句话里，所以用 [NumberRoll] 整组滚，而不是各滚各的。
+     * 共用一组动画值，分别展示在市值、累计盈亏、今日盈亏区域。
      */
-    internal val summaryRoll = NumberRoll(
-        this,
-        initialText = "尚未设置持仓",
-    ) { v ->
-        if (v[0] <= 0) {
-            "未设置持仓，收藏的股票仅作关注。"
-        } else {
-            "持仓市值 " + fmt2(v[0]) +
-                "   持仓盈亏 " + signed2(v[1]) + " (" + signed2(v[2]) + "%)" +
-                "   今日盈亏 " + signed2(v[3])
-        }
-    }
+    internal val summaryRoll = NumberRoll(this)
 
     /** 编辑弹窗：显隐 + 入场动画绑在一起。 */
     internal val editOverlay = Overlay(this)
@@ -354,49 +343,26 @@ private fun signed2(v: Double): String {
     return prefix + fmt2(v)
 }
 
+private fun pnlColor(value: Double): Long = when {
+    value > 0 -> StockColors.UP
+    value < 0 -> StockColors.DOWN
+    else -> AppColor.TEXT_SUB
+}
+
 internal fun ViewContainer<*, *>.watchlistNavBar(ctx: WatchlistPage) {
     View {
         attr {
-            flexDirectionRow()
-            alignItems(FlexAlign.CENTER)
-            backgroundColor(AppColor.PRIMARY_SOFT)
-            paddingTop(ctx.pagerData.statusBarHeight)
-            height(48f + ctx.pagerData.statusBarHeight)
+            flexDirectionRow(); alignItems(FlexAlign.CENTER)
+            backgroundColor(AppColor.SURFACE)
+            padding(top = ctx.pagerData.statusBarHeight, left = 18f, right = 10f)
+            height(AppSize.TITLE_BAR + ctx.pagerData.statusBarHeight)
         }
         View {
-            attr { padding(left = 12f, top = 16f, right = 12f, bottom = 16f) }
-            event {
-                click { ctx.acquireModule<RouterModule>(RouterModule.MODULE_NAME).closePage() }
-            }
-            Text {
-                attr {
-                    text("< 返回")
-                    fontSize(16f)
-                    color(AppColor.ON_DARK)
-                }
-            }
+            attr { flex(1f) }
+            Text { attr { text("自选仓"); fontSize(AppFont.HEAD); fontWeightBold(); color(AppColor.TITLE) } }
+            Text { attr { text("${ctx.rows.size} 只关注 · 持仓与提醒"); fontSize(10f); color(AppColor.TEXT_SUB); marginTop(1f) } }
         }
-        Text {
-            attr {
-                text("自选仓")
-                fontSize(17f)
-                fontWeightBold()
-                color(AppColor.ON_DARK)
-                marginLeft(4f)
-            }
-        }
-        vif({ ctx.rows.isNotEmpty() }) {
-            Text {
-                attr {
-                    text(ctx.rows.size.toString() + " 只")
-                    fontSize(12f)
-                    color(AppColor.ON_DARK_ACCENT_STRONG)
-                    marginLeft(6f)
-                }
-            }
-        }
-        View { attr { flex(1f) } }
-        refreshButton({ ctx.isLoading }, foreground = AppColor.ON_DARK) { ctx.reload(showFeedback = true) }
+        refreshButton({ ctx.isLoading }) { ctx.reload(showFeedback = true) }
     }
 }
 
@@ -416,14 +382,30 @@ internal fun ViewContainer<*, *>.watchSummary(ctx: WatchlistPage) {
                 color(AppColor.TEXT_INK)
             }
         }
+        Text { attr { text("持仓市值（元）"); fontSize(11f); color(AppColor.TEXT_SUB); marginTop(12f) } }
         Text {
             attr {
-                text(ctx.summaryRoll.display)
-                fontSize(12f)
-                color(AppColor.TEXT_GRAY)
-                marginTop(4f)
-                lineHeight(17f)
+                text(fmt2(ctx.summaryRoll.value(0)))
+                fontSize(28f); fontWeightBold(); color(AppColor.TITLE); marginTop(4f)
             }
+        }
+        View {
+            attr { flexDirectionRow(); marginTop(14f) }
+            View {
+                attr { flex(1f) }
+                Text { attr { text("累计盈亏"); fontSize(11f); color(AppColor.TEXT_SUB) } }
+                Text { attr { text(signed2(ctx.summaryRoll.value(1))); fontSize(19f); fontWeightBold(); color(pnlColor(ctx.summaryRoll.value(1))); marginTop(5f) } }
+                Text { attr { text(signed2(ctx.summaryRoll.value(2)) + "%"); fontSize(11f); color(pnlColor(ctx.summaryRoll.value(1))); marginTop(2f) } }
+            }
+            View {
+                attr { flex(1f) }
+                Text { attr { text("今日盈亏"); fontSize(11f); color(AppColor.TEXT_SUB) } }
+                Text { attr { text(signed2(ctx.summaryRoll.value(3))); fontSize(19f); fontWeightBold(); color(pnlColor(ctx.summaryRoll.value(3))); marginTop(5f) } }
+                Text { attr { text("按本地行情计算"); fontSize(10f); color(AppColor.TEXT_SUB); marginTop(2f) } }
+            }
+        }
+        vif({ ctx.rows.none { it.shares > 0 } }) {
+            Text { attr { text("尚未设置持仓，当前股票仅作关注"); fontSize(11f); color(AppColor.TEXT_SUB); marginTop(8f) } }
         }
         View {
             attr {
@@ -437,7 +419,7 @@ internal fun ViewContainer<*, *>.watchSummary(ctx: WatchlistPage) {
             }
             event { click { ctx.openModule(AppRoutes.CALENDAR) } }
             Text { attr { text("盈亏日历"); fontSize(12f); color(AppColor.PRIMARY_SOFT); fontWeightBold() } }
-            Text { attr { text("  ·  每日持仓快照，点开看贡献"); fontSize(11f); color(AppColor.TEXT_HINT_SOFT); flex(1f) } }
+            Text { attr { text("  ·  查看每日贡献"); fontSize(11f); color(AppColor.TEXT_HINT_SOFT); flex(1f) } }
             Text { attr { text("›"); fontSize(18f); color(AppColor.TEXT_MUTED) } }
         }
     }
@@ -671,58 +653,14 @@ internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowD
 
         if (row.shares > 0) {
             View {
-                attr {
-                    flexDirectionRow()
-                    marginTop(6f)
-                }
-                Text {
-                    attr {
-                        text("持仓 " + trimHoldNum(row.shares) + " 股 @ " + fmt2(row.cost))
-                        fontSize(11f)
-                        color(AppColor.TEXT_HINT_SOFT)
-                        flex(1f)
-                    }
-                }
-                if (row.marketValueText.isNotEmpty()) {
-                    Text {
-                        attr {
-                            text("市值 " + row.marketValueText)
-                            fontSize(11f)
-                            color(AppColor.TEXT_GRAY)
-                            marginRight(10f)
-                        }
-                    }
-                }
-                Text {
-                    attr {
-                        text("盈亏 " + row.pnlText + (if (row.pnlPctText.isNotEmpty()) " (" + row.pnlPctText + ")" else ""))
-                        fontSize(11f)
-                        color(if (row.pnlText.startsWith("-")) StockColors.DOWN else StockColors.UP)
-                    }
-                }
+                attr { flexDirectionRow(); marginTop(10f) }
+                Text { attr { text("持仓 ${trimHoldNum(row.shares)} 股 · 成本 ${fmt2(row.cost)}"); fontSize(11f); color(AppColor.TEXT_SUB); flex(1f) } }
+                Text { attr { text("市值 ${row.marketValueText}"); fontSize(11f); color(AppColor.TEXT_GRAY) } }
             }
             View {
-                attr {
-                    flexDirectionRow()
-                    marginTop(4f)
-                }
-                Text {
-                    attr {
-                        text("今日 " + row.todayPnlText)
-                        fontSize(11f)
-                        color(if (row.todayPnlText.startsWith("-")) StockColors.DOWN else StockColors.UP)
-                        flex(1f)
-                    }
-                }
-                if (row.hasAlert) {
-                    Text {
-                        attr {
-                            text("提醒 " + row.alertDesc)
-                            fontSize(11f)
-                            color(AppColor.WARNING_TEXT)
-                        }
-                    }
-                }
+                attr { flexDirectionRow(); marginTop(6f) }
+                Text { attr { text("累计 ${row.pnlText} (${row.pnlPctText})"); fontSize(11f); color(pnlColor(row.posPnl)); flex(1f) } }
+                Text { attr { text("今日 ${row.todayPnlText}"); fontSize(11f); color(pnlColor(row.todayPnl)) } }
             }
         } else {
             View {
@@ -766,7 +704,8 @@ internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowD
             }
             View {
                 attr {
-                    minHeight(44f)
+                    height(44f)
+                    allCenter()
                     padding(top = 5f, left = 10f, bottom = 5f, right = 10f)
                     backgroundColor(AppColor.PRIMARY_BG)
                     borderRadius(14f)
@@ -777,7 +716,7 @@ internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowD
                 event { click { ctx.openEdit(row) } }
                 Text {
                     attr {
-                        text("✎ 设置持仓 / 提醒")
+                        text("设置持仓 / 提醒")
                         fontSize(12f)
                         color(AppColor.PRIMARY_SOFT)
                     }
@@ -786,7 +725,8 @@ internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowD
             View { attr { flex(1f) } }
             View {
                 attr {
-                    minHeight(44f)
+                    height(44f)
+                    allCenter()
                     padding(left = 10f, top = 5f, right = 4f, bottom = 5f)
                     accessibility("将${row.name}移出自选仓及提醒")
                     accessibilityRole(AccessibilityRole.BUTTON)
@@ -795,7 +735,7 @@ internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowD
                 event { click { ctx.removeItem(row.code) } }
                 Text {
                     attr {
-                        text("移出自选仓及提醒")
+                        text("移出自选")
                         fontSize(12f)
                         color(StockColors.UP)
                     }

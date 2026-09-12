@@ -127,6 +127,7 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
     internal var highlightedPrice by observable(0.0)
     internal var highlightedPriceLabel by observable("")
     internal var klineInfoText by observable("")
+    internal var klineToolsExpanded by observable(false)
     internal var klineSubIndicator by observable("none") // none / macd / kdj / rsi，副图指标，默认关闭
     internal var klineShowTrend by observable(false) // 自动趋势线（支撑/压力）叠加，默认关闭
 

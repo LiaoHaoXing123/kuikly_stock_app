@@ -1694,7 +1694,7 @@ internal fun ViewContainer<*, *>.indexAnalysisBubble(ctx: IndexDetailPage, analy
                 borderRadius(12f)
                 padding(left = 12f, top = 10f, right = 12f, bottom = 10f)
             }
-            KuiklyMarkdown(content = sanitizeMarkdownForRender(text), config = chatMarkdownConfig)
+            KuiklyMarkdown(content = sanitizeMarkdownForRender(text), config = chatMarkdownConfig())
         }
     }
 }

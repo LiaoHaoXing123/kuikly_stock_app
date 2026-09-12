@@ -34,14 +34,14 @@ internal object AppRoutes {
     const val CALENDAR = "holding_calendar"
 }
 
-private data class AppNavItem(val route: String, val icon: String, val label: String)
+private data class AppNavItem(val route: String, val label: String)
 
 private val APP_NAV_ITEMS = listOf(
-    AppNavItem(AppRoutes.HOME, "⌂", "首页"),
-    AppNavItem(AppRoutes.MARKET, "⌁", "行情"),
-    AppNavItem(AppRoutes.CHAT, "AI", "研究"),
-    AppNavItem(AppRoutes.WATCHLIST, "☆", "自选仓"),
-    AppNavItem(AppRoutes.PROFILE, "●", "我的"),
+    AppNavItem(AppRoutes.HOME, "首页"),
+    AppNavItem(AppRoutes.MARKET, "行情"),
+    AppNavItem(AppRoutes.CHAT, "研究"),
+    AppNavItem(AppRoutes.WATCHLIST, "自选仓"),
+    AppNavItem(AppRoutes.PROFILE, "我的"),
 )
 
 /** 底部 Tab 的五个页面。它们是**同级**模块，不是彼此的下一层，转场要按同级规则走。 */
@@ -110,19 +110,12 @@ internal fun ViewContainer<*, *>.appBottomNav(ctx: Pager, activeRoute: String) {
                         }
                     }
                 }
-                Text {
-                    attr {
-                        text(item.icon)
-                        fontSize(if (item.icon == "AI") 12f else 20f)
-                        fontWeightBold()
-                        color(if (selected) AppColor.PRIMARY else AppColor.TEXT_SUB)
-                    }
-                }
+                navIcon(item.route, selected)
                 Text {
                     attr {
                         text(item.label)
                         fontSize(AppFont.CAPTION)
-                        marginTop(2f)
+                        marginTop(4f)
                         color(if (selected) AppColor.PRIMARY else AppColor.TEXT_SUB)
                         if (selected) fontWeightBold()
                     }
@@ -142,17 +135,18 @@ internal fun ViewContainer<*, *>.pageTitleBar(
     title: String,
     subtitle: String,
     refreshing: () -> Boolean = { false },
+    showBack: Boolean = true,
     trailingAction: (() -> Unit)? = null,
 ) {
     View {
         attr {
-            padding(top = ctx.pagerData.statusBarHeight, left = 6f, right = 10f)
+            padding(top = ctx.pagerData.statusBarHeight, left = if (showBack) 6f else 18f, right = 10f)
             height(AppSize.TITLE_BAR + ctx.pagerData.statusBarHeight)
             flexDirectionRow()
             alignItems(FlexAlign.CENTER)
             backgroundColor(AppColor.SURFACE)
         }
-        View {
+        if (showBack) View {
             attr {
                 size(AppSize.TOUCH_MIN, AppSize.TOUCH_MIN)
                 allCenter()
@@ -182,7 +176,7 @@ internal fun ViewContainer<*, *>.pageTitleBar(
 internal fun ViewContainer<*, *>.refreshButton(
     refreshing: () -> Boolean,
     label: () -> String = { "刷新" },
-    foreground: Long = AppColor.PRIMARY,
+    foreground: Long? = null,
     action: () -> Unit,
 ) {
     View {
@@ -200,7 +194,7 @@ internal fun ViewContainer<*, *>.refreshButton(
                 text(if (refreshing()) "刷新中…" else "刷新")
                 fontSize(AppFont.NOTE)
                 fontWeightBold()
-                color(if (refreshing()) AppColor.TEXT_SUB else foreground)
+                color(if (refreshing()) AppColor.TEXT_SUB else foreground ?: AppColor.PRIMARY)
             }
         }
     }

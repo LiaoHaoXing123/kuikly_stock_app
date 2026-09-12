@@ -217,9 +217,10 @@ class HoldingCalendarLogicTest {
     }
 
     @Test fun heatColorIsNeutralWithoutRange() {
-        assertEquals(0xFFE8ECF1, heatColor(0.0, 10.0))
-        assertEquals(0xFFE8ECF1, heatColor(5.0, 0.0))
-        assertTrue(heatColor(8.0, 10.0) != heatColor(-8.0, 10.0))
+        val emptyColor = 0xFFE8ECF1L
+        assertEquals(emptyColor, heatColor(0.0, 10.0, emptyColor))
+        assertEquals(emptyColor, heatColor(5.0, 0.0, emptyColor))
+        assertTrue(heatColor(8.0, 10.0, emptyColor) != heatColor(-8.0, 10.0, emptyColor))
     }
 
     @Test fun corruptPrefsDecodeEmpty() {

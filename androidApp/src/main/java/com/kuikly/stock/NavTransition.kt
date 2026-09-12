@@ -36,6 +36,27 @@ internal object NavTransition {
     const val KEY = "transition"
     const val FADE = "fade"
 
+    /**
+     * 进程内最近一次系统栏同步时的主题（浅/深）。
+     *
+     * 由 [KuiklyRenderActivity.updateSystemBars] 每次主题切换时写入；Tab 切换开新页
+     * 时新 Activity 的 onCreate 读它来决定 FADE 空窗底色，避免浅色下露纯白、深色下露纯黑。
+     */
+    @Volatile
+    var currentDark: Boolean = false
+
+    /**
+     * FADE 空窗期的窗口底色：与页面背景色一致（common 侧 AppColor.SURFACE_SOFT）。
+     *
+     * Tab 切换三段式里有一段「只有底、无内容」的空窗（内容 alpha=0，见
+     * [applyTabContentFadeIn]）；如果窗口底色是主题默认的纯白/纯黑，切换瞬间就会
+     * 「白色/黑色闪过」。这里把底色调成页面背景色，空窗与页面视觉连续。
+     */
+    fun applyTabWindowBackground(activity: Activity, dark: Boolean) {
+        val bg = if (dark) 0xFF22262D.toInt() else 0xFFF5F5F5.toInt()
+        activity.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(bg))
+    }
+
     /** 旧页让位到新页内容开始之间的空窗（ms）。= AppMotion 的出场段 90 + 间隙 30。 */
     private const val TAB_COVER_MS = 120L
 

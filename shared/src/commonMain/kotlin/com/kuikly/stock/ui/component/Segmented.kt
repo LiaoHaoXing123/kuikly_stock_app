@@ -54,10 +54,10 @@ internal fun ViewContainer<*, *>.segmentedControl(
     height: Float = 28f,
     trackRadius: Float = 14f,
     thumbRadius: Float = 11f,
-    trackColor: Long = AppColor.TRACK,
-    thumbColor: Long = AppColor.PRIMARY_SOFT,
-    selectedTextColor: Long = AppColor.ON_DARK,
-    unselectedTextColor: Long = AppColor.TEXT_GRAY,
+    trackColor: () -> Long = { AppColor.TRACK },
+    thumbColor: () -> Long = { AppColor.PRIMARY_SOFT },
+    selectedTextColor: () -> Long = { AppColor.ON_DARK },
+    unselectedTextColor: () -> Long = { AppColor.TEXT_GRAY },
     fontSize: Float = 12f,
     marginTop: Float = 0f,
     selfAlign: FlexAlign? = null,
@@ -68,7 +68,7 @@ internal fun ViewContainer<*, *>.segmentedControl(
     View {
         attr {
             flexDirectionRow()
-            backgroundColor(trackColor)
+            backgroundColor(trackColor())
             borderRadius(trackRadius)
             padding(TRACK_PAD)
             marginTop(marginTop)
@@ -83,7 +83,7 @@ internal fun ViewContainer<*, *>.segmentedControl(
                 absolutePosition(top = TRACK_PAD, left = TRACK_PAD, bottom = TRACK_PAD)
                 width(itemWidth)
                 borderRadius(thumbRadius)
-                backgroundColor(thumbColor)
+                backgroundColor(thumbColor())
                 transform(translate = Translate(percentageX = index.toFloat()))
             }
         }
@@ -107,9 +107,9 @@ internal fun ViewContainer<*, *>.segmentedControl(
                         fontWeightBold()
                         color(
                             if (selectedIndex().coerceIn(0, options.lastIndex) == index) {
-                                selectedTextColor
+                                selectedTextColor()
                             } else {
-                                unselectedTextColor
+                                unselectedTextColor()
                             },
                         )
                     }

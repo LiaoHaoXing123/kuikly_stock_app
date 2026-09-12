@@ -103,7 +103,7 @@ class HomeDashboardPage : BasePager() {
                     val updated = pageResult { DataUpdater.refreshNow() }
                     applySnapshot()
                     refreshMessage = if (updated) "行情数据已更新" else "数据已是最新"
-                } else refreshMessage = "本地摘要已刷新"
+                }
                 refreshIsError = false
             } catch (e: Throwable) {
                 refreshIsError = true
@@ -121,11 +121,11 @@ class HomeDashboardPage : BasePager() {
         reload(force = true)
     }
 
-    /** 提示浮窗悬浮 5 秒后自动消失；期间若有新消息则以新消息为准。 */
+    /** 主动刷新成功后短暂提示，期间若有新消息则以新消息为准。 */
     private fun autoDismiss(message: String) {
         if (message.isEmpty()) return
         lifecycleScope.launch {
-            delay(5000)
+            delay(2500)
             if (refreshMessage == message) refreshMessage = ""
         }
     }
@@ -171,7 +171,6 @@ class HomeDashboardPage : BasePager() {
                         flex(1f)
                         flexDirectionColumn()
                         scrollEnable(true)
-                        padding(left = 16f, right = 16f, bottom = 20f)
                     }
                     pullToRefresh(
                         bind = { ctx.pullRefreshRef = it },
@@ -181,8 +180,10 @@ class HomeDashboardPage : BasePager() {
                         spin = ctx.refreshSpin,
                         spinning = { ctx.refreshing },
                     )
+                    View {
+                    attr { padding(left = 16f, right = 16f, bottom = 20f) }
                     marketBriefCard(ctx)
-                    sectionTitle("研究工作台", "把重要动作拆开，减少首页拥挤")
+                    sectionTitle("研究工作台", "行情、研究与持仓管理")
                     researchGrid(ctx)
                     calendarEntryCard(ctx)
                     sectionTitle("今日关注", "提醒优先，其次是自选仓信号", onClick = { ctx.openModule(AppRoutes.WATCHLIST) })
@@ -198,6 +199,7 @@ class HomeDashboardPage : BasePager() {
                             textAlignCenter()
                         }
                     }
+                }
                 }
                 appBottomNav(ctx, AppRoutes.HOME)
             }
@@ -240,7 +242,7 @@ private fun ViewContainer<*, *>.marketBriefCard(ctx: HomeDashboardPage) {
     View {
         attr {
             marginTop(14f)
-            padding(18f)
+            padding(16f)
             borderRadius(18f)
             backgroundColor(AppColor.INK_PANEL)
         }
@@ -263,11 +265,11 @@ private fun ViewContainer<*, *>.marketBriefCard(ctx: HomeDashboardPage) {
         Text {
             attr {
                 text(ctx.headline)
-                fontSize(24f)
-                lineHeight(31f)
+                fontSize(21f)
+                lineHeight(28f)
                 fontWeightBold()
                 color(Color.WHITE)
-                marginTop(14f)
+                marginTop(10f)
             }
         }
         Text {
@@ -312,16 +314,16 @@ private fun ViewContainer<*, *>.researchGrid(ctx: HomeDashboardPage) {
         // 第一行：AI研究室 + 组合风险
         View {
             attr { flexDirectionRow(); marginBottom(12f) }
-            researchModule(ctx, "AI 研究室", { "带本地行情上下文提问" }, "AI", AppColor.PRIMARY_BG_LIGHT, AppColor.PRIMARY, AppRoutes.CHAT)
+            researchModule(ctx, "AI 研究室", { "带本地行情上下文提问" }, "AI", { AppColor.PRIMARY_BG_LIGHT }, { AppColor.PRIMARY }, AppRoutes.CHAT)
             View { attr { width(12f) } }
-            researchModule(ctx, "组合风险", { "仓位、行业与回撤" }, "盾", AppColor.WARNING_BG, AppColor.WARNING_TEXT, AppRoutes.RISK)
+            researchModule(ctx, "组合风险", { "仓位、行业与回撤" }, "盾", { AppColor.WARNING_BG }, { AppColor.WARNING_TEXT }, AppRoutes.RISK)
         }
         // 第二行：全市场 + 自选仓
         View {
             attr { flexDirectionRow(); marginBottom(12f) }
-            researchModule(ctx, "全市场", { "搜索与涨跌幅排序" }, "势", AppColor.SUCCESS_BG, AppColor.SUCCESS, AppRoutes.MARKET)
+            researchModule(ctx, "全市场", { "搜索与涨跌幅排序" }, "势", { AppColor.SUCCESS_BG }, { AppColor.SUCCESS }, AppRoutes.MARKET)
             View { attr { width(12f) } }
-            researchModule(ctx, "自选仓", { ctx.watchRoll.display }, "盯", AppColor.VIOLET_BG, AppColor.VIOLET, AppRoutes.WATCHLIST)
+            researchModule(ctx, "自选仓", { ctx.watchRoll.display }, "盯", { AppColor.VIOLET_BG }, { AppColor.VIOLET }, AppRoutes.WATCHLIST)
         }
     }
 }
@@ -331,14 +333,14 @@ private fun ViewContainer<*, *>.researchModule(
     title: String,
     subtitle: () -> String,
     mark: String,
-    tint: Long,
-    accent: Long,
+    tint: () -> Long,
+    accent: () -> Long,
     route: String,
 ) {
     View {
         attr {
             flex(1f)
-            minHeight(132f)
+            minHeight(112f)
             padding(14f)
             borderRadius(16f)
             backgroundColor(AppColor.SURFACE)
@@ -349,8 +351,8 @@ private fun ViewContainer<*, *>.researchModule(
         }
         event { click { ctx.open(route) } }
         View {
-            attr { size(34f, 34f); borderRadius(10f); allCenter(); backgroundColor(tint) }
-            Text { attr { text(mark); fontSize(if (mark == "AI") 12f else 15f); fontWeightBold(); color(accent) } }
+            attr { size(34f, 34f); borderRadius(10f); allCenter(); backgroundColor(tint()) }
+            Text { attr { text(mark); fontSize(if (mark == "AI") 12f else 15f); fontWeightBold(); color(accent()) } }
         }
         Text { attr { text(title); fontSize(15f); fontWeightBold(); color(AppColor.TEXT_STRONG); marginTop(12f) } }
         Text { attr { text(subtitle()); fontSize(11f); lineHeight(16f); color(AppColor.TEXT_SUB_DEEP); marginTop(4f) } }
@@ -389,9 +391,9 @@ private fun ViewContainer<*, *>.guideEntryCard(ctx: HomeDashboardPage) {
     View {
         attr {
             margin(top = 10f, left = 16f, right = 16f)
-            padding(14f)
-            borderRadius(16f)
-            backgroundColor(AppColor.INK_PANEL)
+            padding(top = 8f, left = 12f, bottom = 8f, right = 12f)
+            borderRadius(12f)
+            backgroundColor(AppColor.PRIMARY_BG_LIGHT)
             flexDirectionRow()
             alignItems(FlexAlign.CENTER)
             accessibility("打开使用指南，功能介绍、提问示例与常见问题")
@@ -400,15 +402,14 @@ private fun ViewContainer<*, *>.guideEntryCard(ctx: HomeDashboardPage) {
         }
         event { click { ctx.open(AppRoutes.GUIDE) } }
         View {
-            attr { size(34f, 34f); borderRadius(10f); allCenter(); backgroundColor(AppColor.INK_PANEL_ALT) }
-            Text { attr { text("?"); fontSize(17f); fontWeightBold(); color(AppColor.ON_DARK_ACCENT_STRONG) } }
+            attr { size(28f, 28f); borderRadius(9f); allCenter(); backgroundColor(AppColor.PRIMARY_BG) }
+            Text { attr { text("?"); fontSize(15f); fontWeightBold(); color(AppColor.PRIMARY) } }
         }
         View {
             attr { flex(1f); marginLeft(12f) }
-            Text { attr { text("使用指南"); fontSize(15f); fontWeightBold(); color(Color.WHITE) } }
-            Text { attr { text("功能介绍 · 提问示例 · 常见问题"); fontSize(11f); color(AppColor.ON_DARK_ACCENT); marginTop(3f) } }
+            Text { attr { text("使用指南 · 提问示例与常见问题"); fontSize(12f); color(AppColor.PRIMARY_TEXT) } }
         }
-        Text { attr { text("›"); fontSize(26f); color(AppColor.ON_DARK_ACCENT) } }
+        Text { attr { text("›"); fontSize(22f); color(AppColor.PRIMARY) } }
     }
 }
 

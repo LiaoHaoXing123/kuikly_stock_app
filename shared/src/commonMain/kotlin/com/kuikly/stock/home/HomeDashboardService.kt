@@ -44,12 +44,12 @@ internal fun buildDashboardBrief(
     val (headline, summary, marketLabel) = when {
         up > down -> Triple(
             "顺势观察，精选强势",
-            "上涨 $up 家、下跌 $down 家，涨跌家数偏强；仍需结合仓位与关键价位。",
+            "涨跌家数偏强，结合仓位与关键价位观察。",
             "市场偏强",
         )
         down > up -> Triple(
             "先看风险，再找机会",
-            "上涨 $up 家、下跌 $down 家，涨跌家数偏弱；优先处理提醒和持仓风险。",
+            "涨跌家数偏弱，优先处理提醒和持仓风险。",
             "市场偏弱",
         )
         else -> Triple(
