@@ -59,6 +59,12 @@ expect object StockDb {
      * （实测同一时刻 25 只到 09-11、其余停在 09-10），全库最大值代表「数据最新到哪天」。
      */
     fun latestTradeDate(): String
+
+    /** 除权除息事件（按日期升序）。表不存在时返回空列表。 */
+    fun dividendEvents(code: String): List<CalendarEventMark>
+
+    /** 财报披露事件（按日期升序）。表不存在时返回空列表。 */
+    fun earningsEvents(code: String): List<CalendarEventMark>
 }
 
 data class StockListPage(

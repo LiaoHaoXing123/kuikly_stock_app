@@ -20,7 +20,7 @@ internal fun ViewContainer<*, *>.sectorCard(ctx: StockDetailPage) {
             View {
                 attr { flexDirectionRow(); alignItemsCenter(); minHeight(36f) }
                 event { click { ctx.sectorExpanded = !ctx.sectorExpanded } }
-                Text { attr { text("官方板块 · ${ctx.sectorSnapshot?.board?.boardName.orEmpty()}"); fontSize(13f); fontWeightBold(); flex(1f); color(0xFF26384A) } }
+                Text { attr { text("官方板块 · ${ctx.sectorSnapshot?.board?.boardName.orEmpty()}"); fontSize(13f); flex(1f); color(0xFF26384A) } }
                 Text {
                     attr {
                         text(ctx.sectorSnapshot?.board?.changePercent?.let { fmtSignedPct(it) } ?: "—")

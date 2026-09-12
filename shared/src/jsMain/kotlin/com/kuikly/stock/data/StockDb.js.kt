@@ -65,4 +65,7 @@ actual object StockDb {
 
     actual fun dataSources(): List<Pair<String, String>> =
         JsonBackedStockDb.dataSources()
+
+    actual fun dividendEvents(code: String): List<CalendarEventMark> = emptyList()
+    actual fun earningsEvents(code: String): List<CalendarEventMark> = emptyList()
 }

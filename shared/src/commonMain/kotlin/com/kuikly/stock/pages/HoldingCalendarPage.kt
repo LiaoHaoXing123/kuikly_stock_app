@@ -11,6 +11,7 @@ import com.kuikly.stock.data.CAL_EVENT_DIVIDEND
 import com.kuikly.stock.data.CAL_EVENT_EARNINGS
 import com.kuikly.stock.data.CAL_EVENT_LIMIT_DOWN
 import com.kuikly.stock.data.CAL_EVENT_LIMIT_UP
+import com.kuikly.stock.data.CalendarEventMark
 import com.kuikly.stock.data.CalendarCellVm
 import com.kuikly.stock.data.CalendarDaySnapshot
 import com.kuikly.stock.data.CivilDate
@@ -56,7 +57,7 @@ class HoldingCalendarPage : BasePager() {
     internal var loading by observable(false)
     internal var hasHoldings by observable(false)
     internal var monthTitle by observable("盈亏日历")
-    internal var subtitle by observable("行情更新后自动记下当天持仓")
+    internal var subtitle by observable("结合当前持仓，算出每天盈亏")
     internal var viewYear by observable(2026)
     internal var viewMonth by observable(9)
     internal var canPrev by observable(false)
@@ -80,6 +81,7 @@ class HoldingCalendarPage : BasePager() {
     internal val dayOverlay = Overlay(this)
     internal val press = PressState(this)
     private var cached = emptyList<CalendarDaySnapshot>()
+    private var externalEvents = emptyMap<String, MutableList<CalendarEventMark>>()
     private var minMonth = CivilDate(2026, 9, 1)
     private var maxMonth = CivilDate(2026, 9, 1)
 
@@ -111,7 +113,7 @@ class HoldingCalendarPage : BasePager() {
                         calendarHeat(ctx)
                         Text {
                             attr {
-                                text("颜色越深，当天盈亏幅度越大。点格子看哪只股票贡献了多少。除权/财报需要独立数据源，当前行情库没有这两张表时不会出现标记。")
+                                text("颜色越深，当天盈亏幅度越大。点格子看哪只股票贡献了多少。彩色圆点标记涨跌停、提醒、除权和财报日。")
                                 fontSize(11f)
                                 color(0xFF929CAB)
                                 margin(top = 14f, bottom = 8f)
@@ -132,6 +134,9 @@ class HoldingCalendarPage : BasePager() {
             try {
                 val pack = pageResult {
                     HoldingCalendar.syncQuietly()
+                    // 用当前持仓 + 日线收盘价历史补齐最近的交易日，让用户能看到「上一天亏了多少」，
+                    // 而不是只有接入当天一个格子。只补缺失日期，不覆盖 sync 记下的真实快照。
+                    HoldingCalendar.backfillQuietly()
                     Triple(
                         HoldingCalendar.days(),
                         WatchStore.list().any { it.shares > 0 },
@@ -140,11 +145,28 @@ class HoldingCalendarPage : BasePager() {
                 }
                 cached = pack.first
                 hasHoldings = pack.second
+                // 读取当前持仓的除权/财报事件，独立于盈亏快照显示
+                val evtMap = HashMap<String, MutableList<CalendarEventMark>>()
+                for (h in WatchStore.list()) {
+                    if (h.shares <= 0.0 || !h.shares.isFinite()) continue
+                    runCatching { StockDb.dividendEvents(h.code) }.getOrDefault(emptyList()).forEach { e ->
+                        if (e.date.isNotEmpty()) evtMap.getOrPut(e.date) { mutableListOf() }.add(e)
+                    }
+                    runCatching { StockDb.earningsEvents(h.code) }.getOrDefault(emptyList()).forEach { e ->
+                        if (e.date.isNotEmpty()) evtMap.getOrPut(e.date) { mutableListOf() }.add(e)
+                    }
+                }
+                externalEvents = evtMap
                 val trade = CivilDate.parse(pack.third)
                 val first = cached.firstOrNull()?.let { CivilDate.parse(it.date) }
                 val last = cached.lastOrNull()?.let { CivilDate.parse(it.date) } ?: trade
-                minMonth = (first ?: trade ?: CivilDate(2026, 9, 1)).startOfMonth()
-                maxMonth = (last ?: CivilDate(2026, 9, 1)).startOfMonth()
+                val evtDates = externalEvents.keys.mapNotNull { CivilDate.parse(it) }.sorted()
+                val evtFirst = evtDates.firstOrNull()
+                val evtLast = evtDates.lastOrNull()
+                val allFirst = listOfNotNull(first, evtFirst).minOrNull()
+                val allLast = listOfNotNull(last, evtLast).maxOrNull()
+                minMonth = (allFirst ?: trade ?: CivilDate(2026, 9, 1)).startOfMonth()
+                maxMonth = (allLast ?: CivilDate(2026, 9, 1)).startOfMonth()
                 if (cached.isEmpty()) {
                     val seed = trade ?: CivilDate(2026, 9, 1)
                     viewYear = seed.year
@@ -178,10 +200,18 @@ class HoldingCalendarPage : BasePager() {
         selectedSnap = snap
         detailCodes.clear()
         detailEvents.clear()
+        val extEvts = externalEvents[cell.date].orEmpty()
         if (snap == null) {
-            selectedHeadline = "这一天还没有持仓记录"
-            selectedSub = "日历只从接入后的交易日往后累，不回填历史。"
-            selectedVs = ""
+            if (extEvts.isNotEmpty()) {
+                selectedHeadline = extEvts.joinToString("、") { it.label }
+                selectedSub = "当天无持仓盈亏记录，但有以下事件：" + extEvts.joinToString("、") { eventLegend(it.kind) }
+                selectedVs = ""
+                detailEvents.addAll(extEvts.map { it.label }.distinct())
+            } else {
+                selectedHeadline = "这一天没有持仓盈亏记录"
+                selectedSub = "非交易日，或当时行情库没有这天的日线数据。"
+                selectedVs = ""
+            }
         } else {
             selectedHeadline = compactPnl(snap.dayPnl)
             selectedSub = "市值 ${fmt2(snap.marketValue)}  ·  当日 ${fmtSignedPct(snap.dayPnlPct)}"
@@ -236,18 +266,20 @@ class HoldingCalendarPage : BasePager() {
         canPrev = current > minMonth
         canNext = current < maxMonth
         val byDate = cached.associateBy { it.date }
-        val grid = monthCells(viewYear, viewMonth, byDate, maxAbs)
+        val grid = monthCells(viewYear, viewMonth, byDate, maxAbs, externalEvents)
         weeks.clear()
         weeks.addAll(grid.mapIndexed { i, row -> CalendarWeekRow("w$i-${row.first().date}", row) })
         heatCells.clear()
         heatCells.addAll(heatStrip(cached, maxAbs))
-        val kinds = cached.filter { it.date.startsWith(prefix) }.flatMap { it.events }.map { it.kind }.toSet()
+        val snapKinds = cached.filter { it.date.startsWith(prefix) }.flatMap { it.events }.map { it.kind }.toSet()
+        val extKinds = externalEvents.entries.filter { it.key.startsWith(prefix) }.flatMap { it.value }.map { it.kind }.toSet()
+        val kinds = snapKinds + extKinds
         legend.clear()
         legend.addAll(kinds.map { eventLegend(it) }.filter { it.isNotEmpty() }.distinct())
         subtitle = if (cached.isEmpty()) {
-            if (hasHoldings) "等行情更新后会出现第一笔记录，不回填历史。" else "先在自选里填持仓，之后每天自动记。"
+            if (hasHoldings) "正在按当前持仓补齐最近交易日…" else "先在自选里填持仓，就能看到每天盈亏。"
         } else {
-            "已记录 ${cached.size} 个交易日 · 只累积接入后的数据"
+            "已记录 ${cached.size} 个交易日 · 结合当前持仓估算历史"
         }
     }
 }
@@ -282,7 +314,7 @@ private fun ViewContainer<*, *>.calendarEmpty(ctx: HoldingCalendarPage) {
         Text { attr { text("还没有可记的持仓"); fontSize(16f); fontWeightBold(); color(0xFF24364D) } }
         Text {
             attr {
-                text("在自选里填股数和成本。之后每次行情更新会自动记下当天市值和盈亏，日历不回填历史。")
+                text("在自选里填股数和成本。日历会结合当前持仓和日线收盘价，算出最近每个交易日的盈亏。")
                 fontSize(12f)
                 lineHeight(19f)
                 color(0xFF7F8998)
@@ -427,8 +459,13 @@ private fun ViewContainer<*, *>.calendarDayCell(ctx: HoldingCalendarPage, day: C
         Text {
             attr {
                 text(if (day.inMonth) day.pnlText else "")
-                fontSize(9f)
-                color(if (day.pnl != null) StockColors.byChange(day.pnl) else 0xFFB0B7C0)
+                fontSize(10f)
+                fontWeightBold()
+                color(
+                    if (day.pnl != null) {
+                        if (day.pnl > 0) 0xFF1A1A1A else 0xFFFFFFFF
+                    } else 0xFFB0B7C0
+                )
                 marginTop(2f)
             }
         }

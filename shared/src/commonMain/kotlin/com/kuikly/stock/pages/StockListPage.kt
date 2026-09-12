@@ -528,6 +528,22 @@ private fun ViewContainer<*, *>.modeTab(ctx: StockListPage, mode: String, select
     }
 }
 
+/** 排序单格宽度（dp）。指示器宽度与它一致，percentageX 位移才能正好跨一格。 */
+private const val SORT_TAB_W = 54f
+
+/** 排序项固定顺序，下标即滑块位移量。「成交量」3 个字，宽度按它取。 */
+private val SORT_OPTIONS = listOf("默认", "涨幅", "跌幅", "成交量")
+
+private val SORT_TAB_ANIMATION = Animation.easeOut(0.2f)
+
+/**
+ * 排序切换。
+ *
+ * 原来是四个 chip 各自硬切底色，切换时像「灭一盏、亮一盏」，看不出选中的跑哪去了。
+ * 换成和 K 线周期（日K/周K/月K）、股票/指数同一套「滑块 + 位移」：一个蓝色滑块在四格间
+ * 平移，位移本身就表达「在同一组选项里切换」。位移用百分比（相对滑块自身宽度=单格宽），
+ * 原因见 modeTabBar 注释。
+ */
 internal fun ViewContainer<*, *>.sortBar(ctx: StockListPage) {
     View {
         attr {
@@ -538,8 +554,29 @@ internal fun ViewContainer<*, *>.sortBar(ctx: StockListPage) {
         }
 
         vif({ ctx.listMode != "指数" }) {
-            listOf("默认", "涨幅", "跌幅", "成交量").forEach { option ->
-                selectionChip(option, { ctx.sortOption == option }) { ctx.applySort(option) }
+            View {
+                attr {
+                    flexDirectionRow()
+                    backgroundColor(0xFFF0F4F9)
+                    borderRadius(14f)
+                    padding(3f)
+                }
+
+                // 滑块：绝对定位铺满内区高度，靠 transform 平移到选中格
+                View {
+                    attr {
+                        // 先读 observable 再声明动画（顺序不能反，见 Interaction.kt）
+                        val sort = ctx.sortOption
+                        animate(SORT_TAB_ANIMATION, sort)
+                        absolutePosition(top = 3f, left = 3f, bottom = 3f)
+                        width(SORT_TAB_W)
+                        borderRadius(11f)
+                        backgroundColor(0xFF1976D2)
+                        transform(translate = Translate(percentageX = sortOffset(sort)))
+                    }
+                }
+
+                SORT_OPTIONS.forEach { option -> sortTab(ctx, option) }
             }
         }
 
@@ -550,6 +587,31 @@ internal fun ViewContainer<*, *>.sortBar(ctx: StockListPage) {
         legendItem(0xFF999999, "平")
     }
 }
+
+private fun ViewContainer<*, *>.sortTab(ctx: StockListPage, option: String) {
+    View {
+        attr {
+            width(SORT_TAB_W)
+            height(28f)
+            allCenter()
+            accessibility(if (ctx.sortOption == option) "$option，已选择" else option)
+            accessibilityRole(AccessibilityRole.BUTTON)
+            accessibilityInfo(ctx.sortOption != option, false)
+        }
+        event { click { hapticTick(HapticStyle.Light); ctx.applySort(option) } }
+        Text {
+            attr {
+                text(option)
+                fontSize(12f)
+                fontWeightBold()
+                color(if (ctx.sortOption == option) 0xFFFFFFFF else 0xFF666666)
+            }
+        }
+    }
+}
+
+private fun sortOffset(option: String): Float =
+    SORT_OPTIONS.indexOf(option).coerceAtLeast(0).toFloat()
 
 internal fun ViewContainer<*, *>.legendItem(color: Long, label: String) {
     View {
@@ -682,7 +744,6 @@ internal fun ViewContainer<*, *>.stockListItem(
                     attr {
                         text(seg)
                         fontSize(15f)
-                        fontWeightBold()
                         color(if (hit) StockColors.UP else 0xFF333333)
                     }
                 }

@@ -23,10 +23,11 @@ internal data class HoldingDayLine(
     val limit: String = "",
 )
 
-internal data class CalendarEventMark(
+data class CalendarEventMark(
     val kind: String,
     val code: String,
     val label: String,
+    val date: String = "",
 )
 
 internal data class CalendarDaySnapshot(
@@ -111,6 +112,13 @@ internal fun compactPnl(v: Double): String {
     val sign = if (v > 0) "+" else "-"
     val a = abs(v)
     return if (a >= 10000) sign + fmt1(a / 10000.0) + "万" else sign + fmt0(a)
+}
+
+internal fun arrowPnl(v: Double): String {
+    if (!v.isFinite() || v == 0.0) return "0"
+    val arrow = if (v > 0) "↑" else "↓"
+    val a = abs(v)
+    return if (a >= 10000) arrow + fmt1(a / 10000.0) + "万" else arrow + fmt0(a)
 }
 
 internal fun buildHoldingDaySnapshot(
@@ -252,19 +260,27 @@ internal object HoldingCalendar {
     fun syncQuietly(): CalendarDaySnapshot? = runCatching { sync() }.getOrNull()
 
     /**
-     * 用「当前行情快照的交易日」记一笔持仓。
-     * 不回填历史 K 线——方案 A：从接入这天起往后累。同一天再更新会覆盖。
+     * 用「当前行情快照的交易日」记一笔持仓（真实日记：随当天持仓变化如实记录）。
+     * 历史交易日由 [backfill] 用日线收盘价补齐；同一天再更新会覆盖。
      */
     fun sync(): CalendarDaySnapshot? {
         val date = runCatching { StockDb.latestTradeDate() }.getOrDefault("").trim()
         if (date.isEmpty() || CivilDate.parse(date) == null) return null
         val holdings = WatchStore.list()
+        val extraEvents = buildList {
+            for (h in holdings) {
+                if (h.shares <= 0.0 || !h.shares.isFinite()) continue
+                addAll(runCatching { StockDb.dividendEvents(h.code) }.getOrDefault(emptyList()).filter { it.date == date })
+                addAll(runCatching { StockDb.earningsEvents(h.code) }.getOrDefault(emptyList()).filter { it.date == date })
+            }
+        }
         val snap = buildHoldingDaySnapshot(
             date = date,
             holdings = holdings,
             quoteOf = { code -> probeQuote(code) },
             hs300Pct = probeHs300(),
             alertHits = runCatching { AlertEngine.hits() }.getOrDefault(emptyList()),
+            extraEvents = extraEvents,
         ) ?: return store.find(date)
         store.upsert(snap)
         return snap
@@ -273,6 +289,126 @@ internal object HoldingCalendar {
     private fun probeQuote(code: String): QuoteProbe? {
         val d = runCatching { StockDb.stockDetail(code) }.getOrNull() ?: return null
         return quoteFromDetail(d)
+    }
+
+    /**
+     * 用「当前持仓 + 各股日线收盘价历史」把最近的交易日补齐。
+     *
+     * 某天盈亏 = Σ (当日收盘 − 前一交易日收盘) × 当前股数；市值 = Σ 当日收盘 × 当前股数。
+     * 语义是「按我现在的持仓，过去这些天每天赚 / 亏多少」——正是用户要的
+     * 「结合自持股算上一天亏了多少」。数据来源就是个股详情页那张日线表（约 30 个交易日）。
+     *
+     * 只补 store 里**还没有**的日期：sync() 逐日记下的真实快照是随持仓变化的日记，
+     * 比这里的「等仓估算」准，不能被覆盖。因此本方法反复调用是幂等的（已补过的天不再动）。
+     *
+     * @return 本次新补入的交易日数量。
+     */
+    fun backfill(): Int {
+        val positions = WatchStore.list().filter { it.shares > 0.0 && it.shares.isFinite() }
+        if (positions.isEmpty()) return 0
+        val existing = store.days().map { it.date }.toSet()
+        val hs300 = hs300DailyPct()
+
+        val mvByDate = HashMap<String, Double>()
+        val pnlByDate = HashMap<String, Double>()
+        val linesByDate = HashMap<String, MutableList<HoldingDayLine>>()
+        val eventsByDate = HashMap<String, MutableList<CalendarEventMark>>()
+        // 除权/财报事件：从 StockDb 读取，按日期预填入 eventsByDate
+        for (h in positions) {
+            runCatching { StockDb.dividendEvents(h.code) }.getOrDefault(emptyList()).forEach { e ->
+                if (e.date.isNotEmpty()) eventsByDate.getOrPut(e.date) { mutableListOf() }.add(e)
+            }
+            runCatching { StockDb.earningsEvents(h.code) }.getOrDefault(emptyList()).forEach { e ->
+                if (e.date.isNotEmpty()) eventsByDate.getOrPut(e.date) { mutableListOf() }.add(e)
+            }
+        }
+
+        for (h in positions) {
+            val detail = runCatching { StockDb.stockDetail(h.code) }.getOrNull() ?: continue
+            // 收盘价历史按日期升序（YYYY-MM-DD 字典序即时间序），保证 bars[i-1] 是前一交易日。
+            val bars = detail.kline.orEmpty().sortedBy { it.tradeDate }
+            if (bars.size < 2) continue
+            val name = h.name.ifBlank { detail.realtime?.name ?: detail.info?.name ?: h.code }
+            val cap = limitThresholdPercent(h.code, name)
+            for (i in 1 until bars.size) {
+                val cur = bars[i]
+                val date = cur.tradeDate
+                if (date in existing) continue
+                if (CivilDate.parse(date) == null) continue
+                val prevClose = bars[i - 1].close
+                if (!prevClose.isFinite() || prevClose <= 0.0) continue
+                if (!cur.close.isFinite() || cur.close <= 0.0) continue
+                val change = cur.close - prevClose
+                val pct = change / prevClose * 100.0
+                val linePnl = change * h.shares
+                val mv = cur.close * h.shares
+                if (!linePnl.isFinite() || !mv.isFinite()) continue
+                val limit = classifyLimit(pct, cap)
+                mvByDate[date] = (mvByDate[date] ?: 0.0) + mv
+                pnlByDate[date] = (pnlByDate[date] ?: 0.0) + linePnl
+                linesByDate.getOrPut(date) { mutableListOf() }.add(
+                    HoldingDayLine(
+                        code = h.code,
+                        name = name,
+                        shares = h.shares,
+                        cost = h.cost,
+                        price = cur.close,
+                        changePercent = pct,
+                        dayPnl = linePnl,
+                        marketValue = mv,
+                        limit = limit,
+                    )
+                )
+                if (limit == "up") eventsByDate.getOrPut(date) { mutableListOf() }
+                    .add(CalendarEventMark(CAL_EVENT_LIMIT_UP, h.code, "$name 涨停"))
+                if (limit == "down") eventsByDate.getOrPut(date) { mutableListOf() }
+                    .add(CalendarEventMark(CAL_EVENT_LIMIT_DOWN, h.code, "$name 跌停"))
+            }
+        }
+
+        var written = 0
+        for ((date, dayLines) in linesByDate) {
+            if (dayLines.isEmpty()) continue
+            val mv = mvByDate[date] ?: continue
+            val dayPnl = pnlByDate[date] ?: 0.0
+            val prevMv = mv - dayPnl
+            val dayPnlPct = if (prevMv > 0.0) dayPnl / prevMv * 100.0 else 0.0
+            store.upsert(
+                CalendarDaySnapshot(
+                    date = date,
+                    marketValue = mv,
+                    dayPnl = dayPnl,
+                    dayPnlPct = dayPnlPct,
+                    hs300Pct = hs300[date],
+                    holdings = dayLines.sortedByDescending { abs(it.dayPnl) },
+                    events = eventsByDate[date].orEmpty(),
+                )
+            )
+            written++
+        }
+        return written
+    }
+
+    /** 补齐历史；没持仓、没日线、解析失败都吞掉，返回补入天数（失败为 0）。 */
+    fun backfillQuietly(): Int = runCatching { backfill() }.getOrDefault(0)
+
+    /** 沪深300 每个交易日的涨跌幅（%），按日期查表，供历史天的跑赢 / 跑输判定。 */
+    private fun hs300DailyPct(): Map<String, Double> {
+        for (code in listOf("000300", "399300")) {
+            val bars = runCatching { StockDb.indexDetail(code)?.kline }.getOrNull().orEmpty()
+                .sortedBy { it.tradeDate }
+            if (bars.size >= 2) {
+                val out = HashMap<String, Double>()
+                for (i in 1 until bars.size) {
+                    val prev = bars[i - 1].close
+                    if (prev.isFinite() && prev > 0.0 && bars[i].close.isFinite()) {
+                        out[bars[i].tradeDate] = (bars[i].close - prev) / prev * 100.0
+                    }
+                }
+                if (out.isNotEmpty()) return out
+            }
+        }
+        return emptyMap()
     }
 
     private fun probeHs300(): Double? {
@@ -317,6 +453,7 @@ internal fun monthCells(
     month: Int,
     byDate: Map<String, CalendarDaySnapshot>,
     maxAbs: Double,
+    extraEventsByDate: Map<String, List<CalendarEventMark>> = emptyMap(),
 ): List<List<CalendarCellVm>> {
     val first = CivilDate(year, month, 1)
     val start = first.mondayOfWeek()
@@ -336,10 +473,10 @@ internal fun monthCells(
                 dayNum = d.day,
                 inMonth = d.month == month,
                 pnl = snap?.dayPnl,
-                pnlText = if (snap != null) compactPnl(snap.dayPnl) else "",
+                pnlText = if (snap != null) arrowPnl(snap.dayPnl) else "",
                 color = if (snap != null) heatColor(snap.dayPnl, maxAbs) else if (d.month == month) 0xFFF7F8FA else 0xFFF2F4F7,
                 vsHs300 = vs,
-                events = snap?.events.orEmpty(),
+                events = (snap?.events.orEmpty() + extraEventsByDate[d.iso].orEmpty()).distinctBy { it.kind + it.code + it.label },
                 snapshot = snap,
             )
         }
@@ -419,6 +556,7 @@ private fun encodeDay(d: CalendarDaySnapshot): JSONObject {
                 .put("kind", e.kind)
                 .put("code", e.code)
                 .put("label", e.label)
+                .put("date", e.date)
         )
     }
     val o = JSONObject()
@@ -466,6 +604,7 @@ private fun decodeDay(o: JSONObject): CalendarDaySnapshot? {
                         kind = e.optString("kind", ""),
                         code = e.optString("code", ""),
                         label = e.optString("label", ""),
+                        date = e.optString("date", ""),
                     )
                 )
             }

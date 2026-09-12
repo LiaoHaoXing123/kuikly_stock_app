@@ -103,34 +103,42 @@ internal fun ViewContainer<*, *>.minuteCardContent(ctx: StockDetailPage, data: L
                 attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginBottom(6f) }
                 View {
                     attr {
-                        padding(4f, 10f, 4f, 10f)
-                        backgroundColor(if (ctx.minuteShowAvg) 0xFFE3F2FD else 0xFFF5F5F5)
-                        borderRadius(10f)
-                        marginRight(6f)
+                        flexDirectionRow()
+                        backgroundColor(0xFFF0F4F9)
+                        borderRadius(14f)
+                        padding(3f)
+                        marginRight(8f)
                     }
-                    event { click { ctx.toggleMinuteAvg() } }
-                    Text {
+                    View {
                         attr {
-                            text(if (ctx.minuteShowAvg) "均线开" else "均线关")
-                            fontSize(11f)
-                            color(if (ctx.minuteShowAvg) 0xFF1976D2 else 0xFF999999)
-                            fontWeightBold()
+                            padding(left = 14f, top = 6f, right = 14f, bottom = 6f)
+                            borderRadius(11f)
+                            backgroundColor(if (ctx.minuteShowAvg) 0xFF1976D2 else 0x00000000)
+                        }
+                        event { click { ctx.toggleMinuteAvg() } }
+                        Text {
+                            attr {
+                                text("均线")
+                                fontSize(11f)
+                                fontWeightBold()
+                                color(if (ctx.minuteShowAvg) 0xFFFFFFFF else 0xFF666666)
+                            }
                         }
                     }
-                }
-                View {
-                    attr {
-                        padding(4f, 10f, 4f, 10f)
-                        backgroundColor(if (ctx.minuteShowVolume) 0xFFF5F5F5 else 0xFFE8F5E9)
-                        borderRadius(10f)
-                        marginRight(6f)
-                    }
-                    event { click { ctx.toggleMinuteVolume() } }
-                    Text {
+                    View {
                         attr {
-                            text(if (ctx.minuteShowVolume) "成交量" else "无量")
-                            fontSize(11f)
-                            color(0xFF666666)
+                            padding(left = 14f, top = 6f, right = 14f, bottom = 6f)
+                            borderRadius(11f)
+                            backgroundColor(if (ctx.minuteShowVolume) 0xFF1976D2 else 0x00000000)
+                        }
+                        event { click { ctx.toggleMinuteVolume() } }
+                        Text {
+                            attr {
+                                text("成交量")
+                                fontSize(11f)
+                                fontWeightBold()
+                                color(if (ctx.minuteShowVolume) 0xFFFFFFFF else 0xFF666666)
+                            }
                         }
                     }
                 }

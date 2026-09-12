@@ -8,6 +8,8 @@ import com.kuikly.stock.base.overlayEnterExit
 import com.kuikly.stock.base.PressState
 import com.kuikly.stock.base.pressFeedback
 import com.kuikly.stock.base.pressedScale
+import com.kuikly.stock.base.HapticStyle
+import com.kuikly.stock.base.hapticTick
 import com.kuikly.stock.base.skeletonBlock
 import com.kuikly.stock.data.StockColors
 
@@ -242,8 +244,10 @@ class WatchlistPage : BasePager() {
     internal fun openEdit(row: WatchRowData) {
         editCode = row.code
         editName = row.name
-        editSharesText = trimNum(row.shares)
-        editCostText = fmt2(row.cost)
+        // 仅关注（未设持仓）时不再灌 "0" / "0.00" 占位——那是用户要先删掉才能填的「默认底字」。
+        // 留空即可，输入框自己的 placeholder 会给提示；保存时 saveEdit 把空当作「仅关注」处理。
+        editSharesText = if (row.shares > 0.0) trimNum(row.shares) else ""
+        editCostText = if (row.cost > 0.0) fmt2(row.cost) else ""
         editRules.clear()
         editRules.addAll(WatchStore.alertsOf(row.code))
         editAlertType = -1
@@ -258,9 +262,13 @@ class WatchlistPage : BasePager() {
     }
 
     internal fun saveEdit() {
-        val input = HoldingInput.parse(editCode, editSharesText, editCostText, allowClear = true)
+        // 空输入 = 仅关注（不持仓）。HoldingInput.parse 只认数字，所以把空归一成 "0" 走 clear 分支，
+        // 用户就不必为了「只关注不持仓」而手动敲 0 / 0.00。
+        val sharesForParse = editSharesText.trim().ifEmpty { "0" }
+        val costForParse = editCostText.trim().ifEmpty { "0" }
+        val input = HoldingInput.parse(editCode, sharesForParse, costForParse, allowClear = true)
         if (input == null) {
-            editMessage = "请输入有效股数和成本价；股数填0保留自选"
+            editMessage = "股数与成本价需为有效正数；都留空表示仅关注不持仓"
             return
         }
         val threshold = editThresholdText.trim().toDoubleOrNull()
@@ -596,7 +604,6 @@ internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowD
                     attr {
                         text(row.name)
                         fontSize(15f)
-                        fontWeightBold()
                         color(0xFF333333)
                     }
                 }
@@ -772,13 +779,22 @@ internal fun ViewContainer<*, *>.watchEditDialog(ctx: WatchlistPage) {
             backgroundColor(0x88000000)
             alignItems(FlexAlign.CENTER)
             justifyContent(FlexJustifyContent.CENTER)
+            padding(left = 20f, right = 20f)
         }
         event { click { ctx.dismissEdit() } }
 
         View {
             attr {
                 overlayEnterExit(ctx.editOverlay)
+                // 之前这层只有入场动画、没有任何版式 → 内容直接铺在半透明遮罩上、顶到屏幕两边，
+                // 就是用户说的「错位」。补上白卡片：定宽居中、圆角、内边距。
+                width((ctx.pagerData.pageViewWidth - 48f).coerceIn(280f, 360f))
+                backgroundColor(0xFFFFFFFF)
+                borderRadius(16f)
+                padding(20f)
             }
+            // 消费点击，阻止冒泡到遮罩——否则点输入框/卡片空白处都会触发 dismiss，弹窗一点就关。
+            event { click { } }
 
             Text {
                 attr {
@@ -791,7 +807,7 @@ internal fun ViewContainer<*, *>.watchEditDialog(ctx: WatchlistPage) {
 
             Text {
                 attr {
-                    text("持仓股数（0 表示仅关注不持仓）")
+                    text("持仓股数")
                     fontSize(12f)
                     color(0xFF666666)
                     marginTop(12f)
@@ -805,6 +821,8 @@ internal fun ViewContainer<*, *>.watchEditDialog(ctx: WatchlistPage) {
                     color(Color(0xFF333333))
                     editable(true)
                     text(ctx.editSharesText)
+                    placeholder("留空或 0 表示仅关注")
+                    placeholderColor(Color(0xFFBBBBBB))
                     backgroundColor(0xFFF5F5F5)
                     borderRadius(8f)
                 }
@@ -829,6 +847,8 @@ internal fun ViewContainer<*, *>.watchEditDialog(ctx: WatchlistPage) {
                     color(Color(0xFF333333))
                     editable(true)
                     text(ctx.editCostText)
+                    placeholder("每股成本，如 3.20")
+                    placeholderColor(Color(0xFFBBBBBB))
                     backgroundColor(0xFFF5F5F5)
                     borderRadius(8f)
                 }
@@ -869,14 +889,28 @@ internal fun ViewContainer<*, *>.watchEditDialog(ctx: WatchlistPage) {
             View {
                 attr {
                     flexDirectionRow()
-                    flexWrapWrap()
+                    alignSelf(FlexAlign.FLEX_START)
+                    backgroundColor(0xFFF0F4F9)
+                    borderRadius(14f)
+                    padding(3f)
                     marginTop(6f)
                 }
-                watchAlertChip(ctx, -1, "不新增")
-                watchAlertChip(ctx, 0, "价格 ≥")
-                watchAlertChip(ctx, 1, "价格 ≤")
-                watchAlertChip(ctx, 2, "涨幅 ≥")
-                watchAlertChip(ctx, 3, "跌幅 ≥")
+                View {
+                    attr {
+                        val t = ctx.editAlertType
+                        animate(Animation.easeOut(0.2f), t)
+                        absolutePosition(top = 3f, left = 3f, bottom = 3f)
+                        width(56f)
+                        borderRadius(11f)
+                        backgroundColor(0xFF1976D2)
+                        transform(translate = Translate(percentageX = (t + 1).toFloat()))
+                    }
+                }
+                alertTab(ctx, -1, "不新增")
+                alertTab(ctx, 0, "价格≥")
+                alertTab(ctx, 1, "价格≤")
+                alertTab(ctx, 2, "涨幅≥")
+                alertTab(ctx, 3, "跌幅≥")
             }
 
             vif({ ctx.editAlertType >= 0 }) {
@@ -896,6 +930,8 @@ internal fun ViewContainer<*, *>.watchEditDialog(ctx: WatchlistPage) {
                         color(Color(0xFF333333))
                         editable(true)
                         text(ctx.editThresholdText)
+                        placeholder(if (ctx.editAlertType == 2 || ctx.editAlertType == 3) "如 5 表示 5%" else "如 3.50")
+                        placeholderColor(Color(0xFFBBBBBB))
                         backgroundColor(0xFFF5F5F5)
                         borderRadius(8f)
                     }
@@ -968,4 +1004,26 @@ internal fun ViewContainer<*, *>.watchEditDialog(ctx: WatchlistPage) {
 
 internal fun ViewContainer<*, *>.watchAlertChip(ctx: WatchlistPage, type: Int, label: String) {
     selectionChip(label, { ctx.editAlertType == type }) { ctx.editAlertType = type }
+}
+
+internal fun ViewContainer<*, *>.alertTab(ctx: WatchlistPage, type: Int, label: String) {
+    View {
+        attr {
+            width(56f)
+            height(28f)
+            allCenter()
+            accessibility(if (ctx.editAlertType == type) "$label，已选择" else label)
+            accessibilityRole(AccessibilityRole.BUTTON)
+            accessibilityInfo(ctx.editAlertType != type, false)
+        }
+        event { click { hapticTick(HapticStyle.Light); ctx.editAlertType = type } }
+        Text {
+            attr {
+                text(label)
+                fontSize(11f)
+                fontWeightBold()
+                color(if (ctx.editAlertType == type) 0xFFFFFFFF else 0xFF666666)
+            }
+        }
+    }
 }

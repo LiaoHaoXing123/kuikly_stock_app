@@ -699,6 +699,54 @@ actual object StockDb {
         }
     }
 
+    actual fun dividendEvents(code: String): List<CalendarEventMark> {
+        val db = openDb() ?: return emptyList()
+        return try {
+            db.rawQuery(
+                "SELECT event_date, type, content FROM stock_dividend WHERE code = ? ORDER BY event_date",
+                arrayOf(code)
+            ).use { c ->
+                buildList {
+                    while (c.moveToNext()) {
+                        add(CalendarEventMark(
+                            kind = CAL_EVENT_DIVIDEND,
+                            code = code,
+                            date = c.getStringOrEmpty("event_date"),
+                            label = c.getStringOrEmpty("content").ifEmpty { c.getStringOrEmpty("type") }
+                        ))
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "dividendEvents 异常: " + (e.message ?: e.toString()))
+            emptyList()
+        }
+    }
+
+    actual fun earningsEvents(code: String): List<CalendarEventMark> {
+        val db = openDb() ?: return emptyList()
+        return try {
+            db.rawQuery(
+                "SELECT event_date, type, content FROM stock_earnings WHERE code = ? ORDER BY event_date",
+                arrayOf(code)
+            ).use { c ->
+                buildList {
+                    while (c.moveToNext()) {
+                        add(CalendarEventMark(
+                            kind = CAL_EVENT_EARNINGS,
+                            code = code,
+                            date = c.getStringOrEmpty("event_date"),
+                            label = c.getStringOrEmpty("content").ifEmpty { c.getStringOrEmpty("type") }
+                        ))
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "earningsEvents 异常: " + (e.message ?: e.toString()))
+            emptyList()
+        }
+    }
+
     actual fun dataSources(): List<Pair<String, String>> {
     val db = openDb() ?: return emptyList()
     return try {
