@@ -365,7 +365,7 @@ internal fun ViewContainer<*, *>.navigationBar(ctx: StockListPage) {
             }
             Text {
                 attr {
-                    text("☆ 自选")
+                    text("☆ 自选仓")
                     fontSize(13f)
                     color(AppColor.ON_DARK)
                 }

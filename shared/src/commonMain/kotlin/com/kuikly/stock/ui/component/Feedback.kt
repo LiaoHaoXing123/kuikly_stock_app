@@ -85,6 +85,7 @@ internal fun ViewContainer<*, *>.selectionChip(label: String, selected: () -> Bo
  * @param note     说明文字；空串则不渲染第二行
  * @param size     主标题字号。大分区用默认的 [AppFont.HEAD]，子分区可降到 [AppFont.TITLE]
  * @param marginLeft 需要与页面主内容对齐时用（例如卡片区整体左移 4dp）
+ * @param onClick    非空时整块标题变为可点击（带无障碍按钮语义），用于区块标题即入口的场景
  */
 internal fun ViewContainer<*, *>.sectionHeader(
     title: String,
@@ -95,9 +96,20 @@ internal fun ViewContainer<*, *>.sectionHeader(
     marginTop: Float = AppSpace.AIRY,
     marginBottom: Float = 10f,
     marginLeft: Float = 0f,
+    onClick: (() -> Unit)? = null,
 ) {
     View {
-        attr { margin(top = marginTop, left = marginLeft, bottom = marginBottom) }
+        attr {
+            margin(top = marginTop, left = marginLeft, bottom = marginBottom)
+            if (onClick != null) {
+                accessibility(title)
+                accessibilityRole(AccessibilityRole.BUTTON)
+                accessibilityInfo(true, false)
+            }
+        }
+        if (onClick != null) {
+            event { click { onClick() } }
+        }
         Text { attr { text(title); fontSize(size); fontWeightBold(); color(color) } }
         if (note.isNotEmpty()) {
             Text { attr { text(note); fontSize(AppFont.CAPTION); color(noteColor); marginTop(2f) } }

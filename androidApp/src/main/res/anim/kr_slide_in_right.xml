@@ -1,10 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  下钻进入：新页面从右侧滑入。300ms 对齐 Material 大位移时长，曲线用 emphasized。
+  下钻进入：新页面从右侧滑入。450ms 对齐 iOS push 大位移时长，曲线用 emphasized。
   与 kr_slide_out_left 成对，做出 iOS push 的「新页覆盖 + 旧页视差」观感。
+
+  为什么是 450ms 而不是 300ms：详情页 Kuikly 首帧（骨架 + 内容）渲染约需
+  250-350ms，动画若只有 300ms，窗口滑入的几乎全程都是「未绘制的空白 surface」，
+  内容渲染完成后动画已经结束，看起来就是「空白滑过 + 内容硬切」，用户感知不到
+  过渡层。把动画拉长到内容渲染完成之后，用户才能看到「页面内容本身从右滑入」。
 -->
 <translate xmlns:android="http://schemas.android.com/apk/res/android"
     android:interpolator="@interpolator/kr_emphasized"
-    android:duration="300"
+    android:duration="450"
     android:fromXDelta="100%p"
     android:toXDelta="0" />

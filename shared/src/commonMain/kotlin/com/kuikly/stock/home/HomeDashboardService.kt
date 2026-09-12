@@ -83,14 +83,14 @@ internal fun buildFocusItems(
             add(DashboardFocusItem(message, "请核对现价与交易计划", "提醒触发", DashboardFocusKind.ALERT))
         }
         watchSignals.forEach { signal ->
-            add(DashboardFocusItem(signal, "来自自选股本地指标", "自选信号", DashboardFocusKind.WATCH))
+            add(DashboardFocusItem(signal, "来自自选仓本地指标", "自选信号", DashboardFocusKind.WATCH))
         }
     }.take(limit)
     return items.ifEmpty {
         listOf(
             DashboardFocusItem(
                 title = "暂无需要立即处理的信号",
-                subtitle = "添加自选股或价格提醒后，这里会优先展示重点",
+                subtitle = "添加自选仓或价格提醒后，这里会优先展示重点",
                 tag = "今日关注",
                 kind = DashboardFocusKind.EMPTY,
             )
@@ -129,7 +129,7 @@ internal object HomeDashboardService {
         // 用户在看平安银行(09-11)，就对不上了；自选为空时还会退化成「待更新」。
         val dataDate = runCatching { StockDb.latestTradeDate() }.getOrNull().orEmpty()
 
-        // 卡片计数：自选股总数（每只都在监控信号）+ 已启用的价格提醒总数（含未触发的）
+        // 卡片计数：自选仓总数（每只都在监控信号）+ 已启用的价格提醒总数（含未触发的）
         val watchTotal = runCatching { WatchStore.list().size }.getOrDefault(0)
         val alertTotal = runCatching { WatchStore.alerts().count { it.enabled } }.getOrDefault(0)
 

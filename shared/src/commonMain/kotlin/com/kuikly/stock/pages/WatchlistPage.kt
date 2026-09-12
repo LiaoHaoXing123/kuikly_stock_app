@@ -8,6 +8,7 @@ import com.kuikly.stock.ui.component.overlayEnterExit
 import com.kuikly.stock.ui.component.PressState
 import com.kuikly.stock.ui.component.pressFeedback
 import com.kuikly.stock.ui.component.pressedScale
+import com.kuikly.stock.ui.component.ensureSkeletonVisible
 import com.kuikly.stock.ui.component.skeletonBlock
 import com.kuikly.stock.data.StockColors
 
@@ -174,6 +175,7 @@ class WatchlistPage : BasePager() {
         // 刷新头箭头开始转
         refreshSpin.loop(REFRESH_SPIN_STEP_MS) { isLoading }
         lifecycleScope.launch {
+            val startedAt = System.currentTimeMillis()
             try {
                 val built = pageResult {
                     HoldingCalendar.syncQuietly()
@@ -188,10 +190,12 @@ class WatchlistPage : BasePager() {
                 rows.clear()
                 rows.addAll(built)
                 summaryRoll.rollTo(*summarize(built))
-                if (showFeedback) saveMessage = "自选已刷新，共 ${built.size} 只"
+                if (showFeedback) saveMessage = "自选仓已刷新，共 ${built.size} 只"
             } catch (e: Throwable) {
                 saveMessage = "刷新失败，请重试"
             } finally {
+                // 骨架屏保证最短展示：本地数据秒载时也不让骨架"一闪而过"
+                ensureSkeletonVisible(startedAt)
                 isLoading = false
                 pullRefreshRef?.view?.endRefresh()
             }
@@ -295,7 +299,7 @@ class WatchlistPage : BasePager() {
             WatchStore.upsertAlert(PriceAlertRule(editCode, editName, editAlertType, threshold, true))
         } else true
         dismissEdit()
-        saveMessage = if (alertSaved) "已保存自选与提醒" else "提醒保存失败，请重试"
+        saveMessage = if (alertSaved) "已保存自选仓与提醒" else "提醒保存失败，请重试"
         reload()
     }
 
@@ -374,7 +378,7 @@ internal fun ViewContainer<*, *>.watchlistNavBar(ctx: WatchlistPage) {
         }
         Text {
             attr {
-                text("自选股")
+                text("自选仓")
                 fontSize(17f)
                 fontWeightBold()
                 color(AppColor.ON_DARK)
@@ -527,59 +531,67 @@ internal fun ViewContainer<*, *>.watchlistEmptyView(ctx: WatchlistPage) {
             justifyContent(FlexJustifyContent.CENTER)
             padding(left = 32f, right = 32f)
         }
-        Text {
-            attr {
-                text("还没有自选股")
-                fontSize(16f)
-                fontWeightBold()
-                color(AppColor.TEXT_INK)
-            }
-        }
-        Text {
-            attr {
-                text("加入自选后可以设置持仓成本、盯盘提醒，\n并在行情明细里看到持仓盈亏。")
-                fontSize(13f)
-                color(AppColor.TEXT_HINT)
-                marginTop(6f)
-                textAlignCenter()
-                lineHeight(19f)
-            }
-        }
-
         View {
             attr {
-                marginTop(18f)
-                padding(top = 11f, left = 26f, bottom = 11f, right = 26f)
-                backgroundColor(AppColor.PRIMARY_SOFT)
-                borderRadius(22f)
-                pressedScale(ctx.press, WATCH_EMPTY_CTA_TAG, normal = 1f, pressed = 0.97f)
-                accessibility("去行情页添加自选")
-                accessibilityRole(AccessibilityRole.BUTTON)
-                accessibilityInfo(true, false)
+                marginTop(24f)
+                marginBottom(24f)
+                padding(20f)
+                borderRadius(AppRadius.LG)
+                backgroundColor(AppColor.SURFACE)
+                alignItems(FlexAlign.CENTER)
             }
-            event {
-                pressFeedback(ctx.press, WATCH_EMPTY_CTA_TAG)
-                click {
-                    ctx.press.releaseAll()
-                    ctx.openModule(AppRoutes.MARKET)
+            Text {
+                attr {
+                    text("还没有自选仓")
+                    fontSize(16f)
+                    fontWeightBold()
+                    color(AppColor.TEXT_INK)
                 }
             }
             Text {
                 attr {
-                    text("去行情添加自选")
-                    fontSize(14f)
-                    fontWeightBold()
-                    color(AppColor.ON_DARK)
+                    text("加入自选仓后可以设置持仓成本、盯盘提醒，\n并在行情明细里看到持仓盈亏。")
+                    fontSize(13f)
+                    color(AppColor.TEXT_SUB)
+                    marginTop(6f)
+                    textAlignCenter()
+                    lineHeight(19f)
                 }
             }
-        }
-
-        Text {
-            attr {
-                text("在个股详情页标题栏点 ☆ 也可以加入")
-                fontSize(11f)
-                color(AppColor.TEXT_MUTED)
-                marginTop(10f)
+            View {
+                attr {
+                    marginTop(18f)
+                    padding(top = 11f, left = 26f, bottom = 11f, right = 26f)
+                    backgroundColor(AppColor.PRIMARY_SOFT)
+                    borderRadius(22f)
+                    pressedScale(ctx.press, WATCH_EMPTY_CTA_TAG, normal = 1f, pressed = 0.97f)
+                    accessibility("去行情页添加自选仓")
+                    accessibilityRole(AccessibilityRole.BUTTON)
+                    accessibilityInfo(true, false)
+                }
+                event {
+                    pressFeedback(ctx.press, WATCH_EMPTY_CTA_TAG)
+                    click {
+                        ctx.press.releaseAll()
+                        ctx.openModule(AppRoutes.MARKET)
+                    }
+                }
+                Text {
+                    attr {
+                        text("去行情添加自选仓")
+                        fontSize(14f)
+                        fontWeightBold()
+                        color(AppColor.ON_DARK)
+                    }
+                }
+            }
+            Text {
+                attr {
+                    text("在个股详情页标题栏点 ☆ 也可以加入")
+                    fontSize(11f)
+                    color(AppColor.TEXT_MUTED)
+                    marginTop(10f)
+                }
             }
         }
     }
@@ -776,14 +788,14 @@ internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowD
                 attr {
                     minHeight(44f)
                     padding(left = 10f, top = 5f, right = 4f, bottom = 5f)
-                    accessibility("将${row.name}移出自选及提醒")
+                    accessibility("将${row.name}移出自选仓及提醒")
                     accessibilityRole(AccessibilityRole.BUTTON)
                     accessibilityInfo(true, false)
                 }
                 event { click { ctx.removeItem(row.code) } }
                 Text {
                     attr {
-                        text("移出自选及提醒")
+                        text("移出自选仓及提醒")
                         fontSize(12f)
                         color(StockColors.UP)
                     }
@@ -820,7 +832,7 @@ internal fun ViewContainer<*, *>.watchEditDialog(ctx: WatchlistPage) {
 
             Text {
                 attr {
-                    text("自选设置 · " + ctx.editName + " (" + ctx.editCode + ")")
+                    text("自选仓设置 · " + ctx.editName + " (" + ctx.editCode + ")")
                     fontSize(AppFont.TITLE)
                     fontWeightBold()
                     color(AppColor.TEXT_INK)

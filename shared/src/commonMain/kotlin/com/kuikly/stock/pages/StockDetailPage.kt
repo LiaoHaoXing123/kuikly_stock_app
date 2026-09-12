@@ -30,6 +30,7 @@ import com.kuikly.stock.data.StockRepository
 import com.kuikly.stock.ui.component.PressState
 import com.kuikly.stock.ui.component.pressFeedback
 import com.kuikly.stock.ui.component.pressedBg
+import com.kuikly.stock.ui.component.ensureSkeletonVisible
 import com.kuikly.stock.ui.component.skeletonBlock
 import com.kuikly.stock.data.WatchStore
 import com.kuikly.stock.data.nowMillis
@@ -280,6 +281,7 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         }
 
         lifecycleScope.launch {
+            val startedAt = System.currentTimeMillis()
             try {
                 val data = StockRepository.loadStockDetail(stockCode)
                 delay(0)
@@ -307,6 +309,8 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
                 stockDetail = null
                 loadErrorMessage = e.message ?: "数据加载失败"
             } finally {
+                // 首屏骨架保证最短展示：本地数据秒载时也不让骨架"一闪而过"
+                if (firstLoad) ensureSkeletonVisible(startedAt)
                 isLoading = false
                 refreshing = false
             }
@@ -435,6 +439,7 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         minuteError = ""
         skeletonPulse.bump()
         lifecycleScope.launch {
+            val startedAt = System.currentTimeMillis()
             try {
                 val data = StockRepository.loadMinute(stockCode)
                 delay(0)
@@ -444,7 +449,10 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
                 delay(0)
                 minuteData = emptyList()
                 minuteError = e.message ?: "分时加载失败"
-            } finally { minuteLoading = false }
+            } finally {
+                ensureSkeletonVisible(startedAt)
+                minuteLoading = false
+            }
         }
     }
 
@@ -454,6 +462,7 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         orderBookError = ""
         skeletonPulse.bump()
         lifecycleScope.launch {
+            val startedAt = System.currentTimeMillis()
             try {
                 val data = StockRepository.loadOrderBook(stockCode)
                 delay(0)
@@ -462,7 +471,10 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
                 delay(0)
                 orderBook = null
                 orderBookError = e.message ?: "盘口加载失败"
-            } finally { orderBookLoading = false }
+            } finally {
+                ensureSkeletonVisible(startedAt)
+                orderBookLoading = false
+            }
         }
     }
 

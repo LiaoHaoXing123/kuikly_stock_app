@@ -461,7 +461,7 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
                     }
                     Text {
                         attr {
-                            text("· 点击AI价位卡片 → K线标注虚线\n· 点击K线 → 查看与AI价位的距离\n· 设提醒 → 写入自选盯盘，行情刷新时触发\n· 周K/月K → 聚合查看中长期趋势")
+                            text("· 点击AI价位卡片 → K线标注虚线\n· 点击K线 → 查看与AI价位的距离\n· 设提醒 → 写入自选仓，行情刷新时触发\n· 周K/月K → 聚合查看中长期趋势")
                             fontSize(11f)
                             color(AppColor.TEXT_GRAY)
                             marginTop(4f)
@@ -643,7 +643,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                         }
                         Text {
                             attr {
-                                text("操作说明：点击价位可在K线标注虚线，设提醒后可在自选页查看触发状态。价格为AI基于历史数据推算，仅供参考。")
+                                text("操作说明：点击价位可在K线标注虚线，设提醒后可在自选仓查看触发状态。价格为AI基于历史数据推算，仅供参考。")
                                 fontSize(11f)
                                 color(AppColor.TEXT_HINT_SOFT)
                                 lineHeight(16f)

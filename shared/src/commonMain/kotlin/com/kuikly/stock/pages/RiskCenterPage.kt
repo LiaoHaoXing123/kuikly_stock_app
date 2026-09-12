@@ -166,7 +166,7 @@ class RiskCenterPage : BasePager() {
     internal fun confirmEdit() {
         val input = HoldingInput.parse(editCode, editSharesText, editCostText, allowClear = true)
         if (input == null) {
-            editMessage = "请输入有效股数和成本价；股数填0清空持仓并保留自选"
+            editMessage = "请输入有效股数和成本价；股数填0清空持仓并保留自选仓"
             return
         }
         WatchStore.updateHolding(WatchHolding(input.code, editName, input.shares, input.cost))
@@ -176,7 +176,7 @@ class RiskCenterPage : BasePager() {
 
     internal fun removeHolding(code: String) {
         WatchStore.clearHolding(code)
-        refreshMessage = "已清空持仓，保留自选和提醒"
+        refreshMessage = "已清空持仓，保留自选仓和提醒"
         reload()
     }
 
@@ -360,7 +360,7 @@ private fun ViewContainer<*, *>.riskEmpty() {
     View {
         attr { padding(24f); marginTop(14f); borderRadius(15f); backgroundColor(AppColor.SURFACE); alignItems(FlexAlign.CENTER) }
         Text { attr { text("还没有持仓数据"); fontSize(16f); fontWeightBold(); color(AppColor.TEXT_DEEP) } }
-        Text { attr { text("点击“添加持仓”或在自选页设置持仓股数与成本，风险中心会实时计算集中度与回撤，并支持压力测试。"); fontSize(12f); lineHeight(19f); color(AppColor.TEXT_SUB); marginTop(7f); textAlignCenter() } }
+        Text { attr { text("点击“添加持仓”或在自选仓设置持仓股数与成本，风险中心会实时计算集中度与回撤，并支持压力测试。"); fontSize(12f); lineHeight(19f); color(AppColor.TEXT_SUB); marginTop(7f); textAlignCenter() } }
     }
 }
 
@@ -459,7 +459,7 @@ private fun ViewContainer<*, *>.holdingRiskRow(ctx: RiskCenterPage, line: Holdin
                     marginRight(8f)
                 }
                 event { click { ctx.removeHolding(line.code) } }
-                Text { attr { text("清仓留自选"); fontSize(11f); color(AppColor.DANGER) } }
+                Text { attr { text("清仓留自选仓"); fontSize(11f); color(AppColor.DANGER) } }
             }
             View { attr { flex(1f) } }
             View {
@@ -702,7 +702,7 @@ private fun ViewContainer<*, *>.riskEditDialog(ctx: RiskCenterPage) {
             }
 
             Text { attr { text(ctx.editMessage); fontSize(12f); color(AppColor.DANGER); marginTop(8f) } }
-            Text { attr { text("股数填0将清空持仓，保留自选和提醒"); fontSize(11f); color(AppColor.TEXT_HINT); marginTop(8f) } }
+            Text { attr { text("股数填0将清空持仓，保留自选仓和提醒"); fontSize(11f); color(AppColor.TEXT_HINT); marginTop(8f) } }
 
             View {
                 attr { flexDirectionRow(); marginTop(16f) }

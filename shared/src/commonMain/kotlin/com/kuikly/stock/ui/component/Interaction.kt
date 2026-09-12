@@ -41,6 +41,8 @@ package com.kuikly.stock.ui.component
 
 import com.kuikly.stock.ui.theme.AppColor
 import com.kuikly.stock.ui.theme.AppMotion
+import com.kuikly.stock.ui.theme.ThemeManager
+import kotlinx.coroutines.delay
 import com.tencent.kuikly.core.base.Animation
 import com.tencent.kuikly.core.base.Attr
 import com.tencent.kuikly.core.base.Color
@@ -253,6 +255,27 @@ internal fun ViewContainer<*, *>.skeletonBlock(
  * 圆角父块会裁剪子视图（框架文档明示：设置圆角后子孩子无法超出自身区域），
  * 这正是扫光「只在块内可见」所依赖的行为。
  */
+/**
+ * 骨架屏最短展示时长（ms）。
+ *
+ * 数据来源本地化后加载普遍在 100ms 内完成，骨架屏「一闪而过」，用户感知为
+ * 「过渡层没了」。给骨架屏一个最短展示窗口，即使数据秒载，也保证加载态
+ * 可见这段时间，让「骨架 + 扫光」的过渡感成立。
+ */
+internal const val MIN_SKELETON_SHOW_MS = 400L
+
+/**
+ * 保证从 [startedAt] 起至少展示了 [MIN_SKELETON_SHOW_MS] 再返回。
+ *
+ * 用法：加载方法里 `val startedAt = System.currentTimeMillis()`，在 `finally`
+ * 里、翻转 loading 标志之前调用。数据快时补足剩余时长，数据慢时不额外等待。
+ */
+internal suspend fun ensureSkeletonVisible(startedAt: Long) {
+    val elapsed = System.currentTimeMillis() - startedAt
+    if (elapsed < MIN_SKELETON_SHOW_MS) delay(MIN_SKELETON_SHOW_MS - elapsed)
+}
+
+/** 骨架屏组件。每个块都是深色圆角矩形 + 一条随 [MountPulse] 往返扫过的渐变带。 */
 private fun ViewContainer<*, *>.skeletonShimmerBand(sweep: MountPulse, radius: Float) {
     View {
         attr {
@@ -263,9 +286,11 @@ private fun ViewContainer<*, *>.skeletonShimmerBand(sweep: MountPulse, radius: F
             borderRadius(radius)
             backgroundLinearGradient(
                 Direction.TO_RIGHT,
-                ColorStop(Color(0x00FFFFFFL), 0f),
-                ColorStop(Color(0x66FFFFFFL), 0.5f),
-                ColorStop(Color(0x00FFFFFFL), 1f),
+                // 扫光带按主题取反色：浅色骨架（0xFFE9EDF2）上白色带几乎不可见，
+                // 改用黑色半透明带扫过才看得清；深色骨架（0xFF333A44）上白色带明显。
+                ColorStop(Color(if (ThemeManager.isDark) 0x00FFFFFFL else 0x00000000L), 0f),
+                ColorStop(Color(if (ThemeManager.isDark) 0x66FFFFFFL else 0x33000000L), 0.5f),
+                ColorStop(Color(if (ThemeManager.isDark) 0x00FFFFFFL else 0x00000000L), 1f),
             )
             val x = if (generation % 2 == 0) SHIMMER_START else SHIMMER_END
             transform(translate = Translate(percentageX = x))

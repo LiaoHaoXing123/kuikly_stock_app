@@ -365,7 +365,7 @@ class HoldingCalendarPage : BasePager() {
         legend.clear()
         legend.addAll(kinds.map { eventLegend(it) }.filter { it.isNotEmpty() }.distinct())
         subtitle = if (cached.isEmpty()) {
-            if (hasHoldings) "正在按当前持仓补齐最近交易日…" else "先在自选里填持仓，就能看到每天盈亏。"
+            if (hasHoldings) "正在按当前持仓补齐最近交易日…" else "先在自选仓里填持仓，就能看到每天盈亏。"
         } else {
             "已记录 ${cached.size} 个交易日 · 结合当前持仓估算历史"
         }
@@ -393,8 +393,8 @@ private fun eventDotColor(kind: String): Long = when (kind) {
 private fun ViewContainer<*, *>.calendarEmpty(ctx: HoldingCalendarPage) {
     emptyStatePanel(
         title = "还没有可记的持仓",
-        message = "在自选里填股数和成本。日历会结合当前持仓和日线收盘价，算出最近每个交易日的盈亏。",
-        actionLabel = "去自选设置持仓",
+        message = "在自选仓里填股数和成本。日历会结合当前持仓和日线收盘价，算出最近每个交易日的盈亏。",
+        actionLabel = "去自选仓设置持仓",
         press = ctx.press,
         actionTag = "cal_empty",
         onAction = { ctx.goWatchlist() },

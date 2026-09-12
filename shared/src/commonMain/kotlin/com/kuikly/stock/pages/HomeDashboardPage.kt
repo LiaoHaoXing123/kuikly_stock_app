@@ -58,7 +58,7 @@ class HomeDashboardPage : BasePager() {
         initialText = "上涨 --  ·  下跌 --  ·  平盘 --",
     ) { v -> "上涨 ${v[0].toInt()}  ·  下跌 ${v[1].toInt()}  ·  平盘 ${v[2].toInt()}" }
 
-    /** 自选盯盘的「N 个信号 · M 个提醒」，同样滚一下。 */
+    /** 自选仓的「N 个信号 · M 个提醒」，同样滚一下。 */
     internal val watchRoll = NumberRoll(
         this,
         initialText = "0 个信号 · 0 个提醒",
@@ -185,7 +185,7 @@ class HomeDashboardPage : BasePager() {
                     sectionTitle("研究工作台", "把重要动作拆开，减少首页拥挤")
                     researchGrid(ctx)
                     calendarEntryCard(ctx)
-                    sectionTitle("今日关注", "提醒优先，其次是自选信号")
+                    sectionTitle("今日关注", "提醒优先，其次是自选仓信号", onClick = { ctx.openModule(AppRoutes.WATCHLIST) })
                     vfor({ ctx.focusItems }) { item ->
                         focusRow(item)
                     }
@@ -293,9 +293,14 @@ private fun ViewContainer<*, *>.marketBriefCard(ctx: HomeDashboardPage) {
 /**
  * 首页区块标题。样式来自共享的 [sectionHeader]——「18f 加粗标题 + 11f 灰色说明」
  * 这套层级在首页、风险中心是同一件事，各写一份迟早会漂。
+ * [onClick] 非空时区块标题变为入口（如「今日关注」→ 自选仓）。
  */
-private fun ViewContainer<*, *>.sectionTitle(title: String, note: String) {
-    sectionHeader(title, note)
+private fun ViewContainer<*, *>.sectionTitle(
+    title: String,
+    note: String,
+    onClick: (() -> Unit)? = null,
+) {
+    sectionHeader(title, note, onClick = onClick)
 }
 
 private fun ViewContainer<*, *>.researchGrid(ctx: HomeDashboardPage) {
@@ -311,12 +316,12 @@ private fun ViewContainer<*, *>.researchGrid(ctx: HomeDashboardPage) {
             View { attr { width(12f) } }
             researchModule(ctx, "组合风险", { "仓位、行业与回撤" }, "盾", AppColor.WARNING_BG, AppColor.WARNING_TEXT, AppRoutes.RISK)
         }
-        // 第二行：全市场 + 自选盯盘
+        // 第二行：全市场 + 自选仓
         View {
             attr { flexDirectionRow(); marginBottom(12f) }
             researchModule(ctx, "全市场", { "搜索与涨跌幅排序" }, "势", AppColor.SUCCESS_BG, AppColor.SUCCESS, AppRoutes.MARKET)
             View { attr { width(12f) } }
-            researchModule(ctx, "自选盯盘", { ctx.watchRoll.display }, "盯", AppColor.VIOLET_BG, AppColor.VIOLET, AppRoutes.WATCHLIST)
+            researchModule(ctx, "自选仓", { ctx.watchRoll.display }, "盯", AppColor.VIOLET_BG, AppColor.VIOLET, AppRoutes.WATCHLIST)
         }
     }
 }

@@ -22,7 +22,7 @@ object AlertNotifier {
             "盯盘提醒",
             NotificationManager.IMPORTANCE_HIGH
         )
-        channel.description = "自选股价格与涨跌幅触达提醒"
+        channel.description = "自选仓价格与涨跌幅触达提醒"
         manager.createNotificationChannel(channel)
     }
 

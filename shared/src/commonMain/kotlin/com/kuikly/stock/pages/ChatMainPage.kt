@@ -327,7 +327,7 @@ class ChatMainPage : BasePager() {
             val qs = mutableListOf<String>()
             if (!name.isNullOrBlank()) qs.add("请帮我分析$name 近期走势")
             qs.add("今天大盘整体怎么样")
-            qs.add("对比一下我自选里的股票表现")
+            qs.add("对比一下我自选仓里的股票表现")
             qs.add("帮我看看当前持仓有什么风险")
             recommendedQuestions.clear()
             recommendedQuestions.addAll(qs)
@@ -1650,7 +1650,7 @@ internal fun ViewContainer<*, *>.welcomeHint(ctx: ChatMainPage) {
 
         Text {
             attr {
-                text("带本地行情上下文提问，回答会引用你自选和行情库里的真实数据")
+                text("带本地行情上下文提问，回答会引用你自选仓和行情库里的真实数据")
                 fontSize(AppFont.NOTE)
                 color(AppColor.TEXT_SUB)
                 marginTop(6f)

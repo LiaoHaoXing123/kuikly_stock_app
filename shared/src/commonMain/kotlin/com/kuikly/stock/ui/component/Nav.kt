@@ -40,7 +40,7 @@ private val APP_NAV_ITEMS = listOf(
     AppNavItem(AppRoutes.HOME, "⌂", "首页"),
     AppNavItem(AppRoutes.MARKET, "⌁", "行情"),
     AppNavItem(AppRoutes.CHAT, "AI", "研究"),
-    AppNavItem(AppRoutes.WATCHLIST, "☆", "自选"),
+    AppNavItem(AppRoutes.WATCHLIST, "☆", "自选仓"),
     AppNavItem(AppRoutes.PROFILE, "●", "我的"),
 )
 
