@@ -5,8 +5,8 @@
 package com.kuikly.stock.pages
 
 import com.kuikly.stock.data.StockColors
-import com.kuikly.stock.base.MountPulse
-import com.kuikly.stock.base.skeletonBlock
+import com.kuikly.stock.ui.component.MountPulse
+import com.kuikly.stock.ui.component.skeletonBlock
 
 import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
 import com.tencent.kuikly.core.annotations.Page
@@ -43,10 +43,11 @@ import com.kuikly.stock.data.fmt3
 import com.kuikly.stock.data.fmtSigned2
 import com.kuikly.stock.data.fmtSignedPct
 import kotlin.math.abs
+import com.kuikly.stock.ui.theme.AppColor
 
 internal fun ViewContainer<*, *>.orderBookCard(ctx: StockDetailPage) {
     View {
-        attr { margin(4f, 12f, 4f, 12f); padding(12f); backgroundColor(0xFFFFFFFF); borderRadius(10f) }
+        attr { margin(4f, 12f, 4f, 12f); padding(12f); backgroundColor(AppColor.SURFACE); borderRadius(10f) }
         Text { attr { text("五档盘口"); fontSize(15f); fontWeightBold() } }
         vif({ ctx.orderBookLoading }) { orderBookLoadingSkeleton(ctx) }
         velseif({ ctx.orderBookError.isNotEmpty() || ctx.orderBook == null }) {
@@ -73,11 +74,11 @@ internal fun ViewContainer<*, *>.orderBookLoadingSkeleton(ctx: StockDetailPage) 
 
         View {
             attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); margin(6f, 0f, 6f, 0f) }
-            View { attr { height(1f); backgroundColor(0xFFEEEEEE); flex(1f) } }
+            View { attr { height(1f); backgroundColor(AppColor.DIVIDER_SOFT); flex(1f) } }
             View { attr { marginLeft(8f); marginRight(8f) } }
             skeletonBlock(height = 11f, w = 72f, sweep = sweep)
             View { attr { marginLeft(8f); marginRight(8f) } }
-            View { attr { height(1f); backgroundColor(0xFFEEEEEE); flex(1f) } }
+            View { attr { height(1f); backgroundColor(AppColor.DIVIDER_SOFT); flex(1f) } }
         }
 
         repeat(5) { orderBookSkeletonRow(sweep) }
@@ -117,7 +118,7 @@ internal fun ViewContainer<*, *>.orderBookCardContent(ctx: StockDetailPage, book
             flexDirectionColumn()
             margin(4f, 12f, 4f, 12f)
             padding(top = 12f, left = 12f, bottom = 10f, right = 12f)
-            backgroundColor(0xFFFFFFFF)
+            backgroundColor(AppColor.SURFACE)
             borderRadius(10f)
         }
 
@@ -126,13 +127,13 @@ internal fun ViewContainer<*, *>.orderBookCardContent(ctx: StockDetailPage, book
             Text {
                 attr {
                     text("五档盘口${book.updateTime?.let { "（$it）" } ?: ""}")
-                    fontSize(15f); fontWeightBold(); color(0xFF333333); flex(1f)
+                    fontSize(15f); fontWeightBold(); color(AppColor.TEXT_INK); flex(1f)
                 }
             }
             View {
                 attr {
                     padding(4f, 10f, 4f, 10f)
-                    backgroundColor(if (ctx.orderBookMode == "depth") 0xFFE3F2FD else 0xFFF5F5F5)
+                    backgroundColor(if (ctx.orderBookMode == "depth") AppColor.PRIMARY_BG else AppColor.SURFACE_SOFT)
                     borderRadius(10f)
                     marginRight(6f)
                 }
@@ -141,7 +142,7 @@ internal fun ViewContainer<*, *>.orderBookCardContent(ctx: StockDetailPage, book
                     attr {
                         text(if (ctx.orderBookMode == "depth") "深度图" else "列表")
                         fontSize(11f)
-                        color(if (ctx.orderBookMode == "depth") 0xFF1976D2 else 0xFF666666)
+                        color(if (ctx.orderBookMode == "depth") AppColor.PRIMARY_SOFT else AppColor.TEXT_GRAY)
                         fontWeightBold()
                     }
                 }
@@ -150,7 +151,7 @@ internal fun ViewContainer<*, *>.orderBookCardContent(ctx: StockDetailPage, book
                 attr {
                     text("点击价位联动K线")
                     fontSize(10f)
-                    color(0xFF999999)
+                    color(AppColor.TEXT_HINT)
                 }
             }
         }
@@ -167,18 +168,18 @@ internal fun ViewContainer<*, *>.orderBookCardContent(ctx: StockDetailPage, book
         }
         View {
             attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); margin(6f, 0f, 6f, 0f) }
-            View { attr { height(1f); backgroundColor(0xFFEEEEEE); flex(1f) } }
+            View { attr { height(1f); backgroundColor(AppColor.DIVIDER_SOFT); flex(1f) } }
             Text {
                 attr {
                     text("现价 ${ctx.stockDetail?.realtime?.price?.let { fmt2(it) } ?: "-"}")
                     fontSize(11f)
-                    color(0xFF1976D2)
+                    color(AppColor.PRIMARY_SOFT)
                     fontWeightBold()
                     marginLeft(8f)
                     marginRight(8f)
                 }
             }
-            View { attr { height(1f); backgroundColor(0xFFEEEEEE); flex(1f) } }
+            View { attr { height(1f); backgroundColor(AppColor.DIVIDER_SOFT); flex(1f) } }
         }
         book.bids.forEachIndexed { i, (price, vol) ->
             val r = (vol ?: 0.0) / maxLevelVol
@@ -192,18 +193,18 @@ internal fun ViewContainer<*, *>.orderBookCardContent(ctx: StockDetailPage, book
                 View {
                     attr {
                         padding(4f, 8f, 4f, 8f)
-                        backgroundColor(0xFFF5F5F5)
+                        backgroundColor(AppColor.SURFACE_SOFT)
                         borderRadius(8f)
                         marginRight(6f)
                     }
-                    Text { attr { text("委比 ${fmt2(ratio)}%"); fontSize(11f); color(0xFF666666) } }
+                    Text { attr { text("委比 ${fmt2(ratio)}%"); fontSize(11f); color(AppColor.TEXT_GRAY) } }
                 }
             }
             // 委差（手）：买总量 - 卖总量，>0 偏多(红)、<0 偏空(绿)
             View {
                 attr {
                     padding(4f, 8f, 4f, 8f)
-                    backgroundColor(0xFFF5F5F5)
+                    backgroundColor(AppColor.SURFACE_SOFT)
                     borderRadius(8f)
                     marginRight(6f)
                 }
@@ -221,20 +222,20 @@ internal fun ViewContainer<*, *>.orderBookCardContent(ctx: StockDetailPage, book
                         flexDirectionRow()
                         alignItems(FlexAlign.CENTER)
                         padding(4f, 8f, 4f, 8f)
-                        backgroundColor(0xFFFFF3E8)
+                        backgroundColor(AppColor.WARNING_BG)
                         borderRadius(8f)
                     }
                     Text {
                         attr {
                             text("已标注 ¥${fmt2(ctx.orderBookHighlightPrice)}")
                             fontSize(11f)
-                            color(0xFFA56100)
+                            color(AppColor.WARNING_TEXT)
                         }
                     }
                     View {
-                        attr { marginLeft(6f); padding(2f, 6f, 2f, 6f); backgroundColor(0xFFFFFFFF); borderRadius(6f) }
+                        attr { marginLeft(6f); padding(2f, 6f, 2f, 6f); backgroundColor(AppColor.SURFACE); borderRadius(6f) }
                         event { click { ctx.clearHighlight() } }
-                        Text { attr { text("✕"); fontSize(10f); color(0xFF999999) } }
+                        Text { attr { text("✕"); fontSize(10f); color(AppColor.TEXT_HINT) } }
                     }
                 }
             }
@@ -244,7 +245,7 @@ internal fun ViewContainer<*, *>.orderBookCardContent(ctx: StockDetailPage, book
             attr {
                 text("盘口价位可一键标注到K线，或设提醒，联动分时与日K")
                 fontSize(10f)
-                color(0xFFBBBBBB)
+                color(AppColor.DISABLED)
                 marginTop(8f)
             }
         }
@@ -259,7 +260,7 @@ internal fun ViewContainer<*, *>.orderBookRow(ctx: StockDetailPage, label: Strin
             marginTop(3f)
             alignItems(FlexAlign.CENTER)
             padding(4f, 6f, 4f, 6f)
-            backgroundColor(if (price != null && ctx.orderBookHighlightPrice == price) 0xFFFFF3E8 else 0xFFFFFFFF)
+            backgroundColor(if (price != null && ctx.orderBookHighlightPrice == price) AppColor.WARNING_BG else AppColor.SURFACE)
             borderRadius(6f)
         }
         // 量能比例背景条（绝对铺底、无事件，不拦截点击；靠右填充，买红/卖绿低透明度）
@@ -268,26 +269,26 @@ internal fun ViewContainer<*, *>.orderBookRow(ctx: StockDetailPage, label: Strin
             View { attr { flex((1000 - barFlex).toFloat()) } }
             View { attr { flex(barFlex.toFloat()); backgroundColor(if (isAsk) StockColors.down(0x15) else StockColors.up(0x15)) } }
         }
-        Text { attr { text(label); fontSize(12f); color(0xFF666666); width(36f) } }
+        Text { attr { text(label); fontSize(12f); color(AppColor.TEXT_GRAY); width(36f) } }
         Text { attr { text(fmtOpt(price)); fontSize(13f); fontWeightBold(); color(color); flex(1f) } }
-        Text { attr { text(fmtOpt(vol)); fontSize(11f); color(0xFF666666); width(60f); textAlignRight() } }
+        Text { attr { text(fmtOpt(vol)); fontSize(11f); color(AppColor.TEXT_GRAY); width(60f); textAlignRight() } }
 
         vif({ isBig }) {
             View {
                 attr {
                     marginLeft(6f)
                     padding(2f, 5f, 2f, 5f)
-                    backgroundColor(if (isAsk) 0xFFEAF7EF else 0xFFFFF0F0)
+                    backgroundColor(if (isAsk) AppColor.SUCCESS_BG else AppColor.DANGER_BG)
                     borderRadius(6f)
                 }
-                Text { attr { text("大单"); fontSize(9f); color(if (isAsk) 0xFF2E7D32 else 0xFFC62828); fontWeightBold() } }
+                Text { attr { text("大单"); fontSize(9f); color(if (isAsk) AppColor.SUCCESS else AppColor.DANGER); fontWeightBold() } }
             }
         }
         View {
             attr {
                 marginLeft(6f)
                 padding(3f, 8f, 3f, 8f)
-                backgroundColor(if (price != null && ctx.orderBookHighlightPrice == price) 0xFFFFE0B2 else 0xFFF0F2F5)
+                backgroundColor(if (price != null && ctx.orderBookHighlightPrice == price) AppColor.HIGHLIGHT_BG else AppColor.BG_SOFT)
                 borderRadius(8f)
             }
             event {
@@ -295,7 +296,7 @@ internal fun ViewContainer<*, *>.orderBookRow(ctx: StockDetailPage, label: Strin
                     if (price != null) ctx.highlightOrderBookPrice(price, label)
                 }
             }
-            Text { attr { text(if (price != null && ctx.orderBookHighlightPrice == price) "已标" else "标注"); fontSize(10f); color(if (price != null && ctx.orderBookHighlightPrice == price) 0xFFA56100 else 0xFF666666); fontWeightBold() } }
+            Text { attr { text(if (price != null && ctx.orderBookHighlightPrice == price) "已标" else "标注"); fontSize(10f); color(if (price != null && ctx.orderBookHighlightPrice == price) AppColor.WARNING_TEXT else AppColor.TEXT_GRAY); fontWeightBold() } }
         }
         View {
             attr {
@@ -309,7 +310,7 @@ internal fun ViewContainer<*, *>.orderBookRow(ctx: StockDetailPage, label: Strin
                     if (price != null) ctx.prepareAlertFromOrderBook(price)
                 }
             }
-            Text { attr { text("提醒"); fontSize(10f); color(0xFFFFFFFF); fontWeightBold() } }
+            Text { attr { text("提醒"); fontSize(10f); color(AppColor.ON_DARK); fontWeightBold() } }
         }
     }
 }
@@ -319,7 +320,7 @@ internal fun ViewContainer<*, *>.orderBookDepthCanvas(ctx: StockDetailPage, book
         attr {
             height(120f)
             marginBottom(8f)
-            backgroundColor(0xFFFAFAFA)
+            backgroundColor(AppColor.SURFACE_ALT)
             borderRadius(8f)
         }
     }) { context, width, height ->
@@ -391,13 +392,13 @@ internal fun ViewContainer<*, *>.orderBookDepthCanvas(ctx: StockDetailPage, book
         ctx.stockDetail?.realtime?.price?.let { curPrice ->
             if (curPrice in minP..maxP) {
                 val x = px(curPrice)
-                context.strokeStyle(Color(0xFF1976D2))
+                context.strokeStyle(Color(AppColor.PRIMARY_SOFT))
                 context.lineWidth(1f)
                 context.beginPath()
                 context.moveTo(x, 0f)
                 context.lineTo(x, height - 16f)
                 context.stroke()
-                context.fillStyle(Color(0xFF1976D2))
+                context.fillStyle(Color(AppColor.PRIMARY_SOFT))
                 context.font(8f)
                 context.textAlign(TextAlign.CENTER)
                 context.fillText("现价", x, 10f)
@@ -405,7 +406,7 @@ internal fun ViewContainer<*, *>.orderBookDepthCanvas(ctx: StockDetailPage, book
         }
 
         // 标签
-        context.fillStyle(Color(0xFF999999))
+        context.fillStyle(Color(AppColor.TEXT_HINT))
         context.font(8f)
         context.textAlign(TextAlign.LEFT)
         context.fillText(fmt2(minP), 2f, height - 2f)

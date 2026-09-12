@@ -3,17 +3,17 @@
 
 package com.kuikly.stock.pages
 
-import com.kuikly.stock.base.AI_DOT_STEP_MS
+import com.kuikly.stock.ui.component.AI_DOT_STEP_MS
 import com.kuikly.stock.base.BasePager
-import com.kuikly.stock.base.PRESS_BG_DARK
-import com.kuikly.stock.base.PRESS_BG_NONE
-import com.kuikly.stock.base.PressState
-import com.kuikly.stock.base.pressFeedback
-import com.kuikly.stock.base.pressedBg
-import com.kuikly.stock.base.pressedScale
+import com.kuikly.stock.ui.component.PRESS_BG_DARK
+import com.kuikly.stock.ui.component.PRESS_BG_NONE
+import com.kuikly.stock.ui.component.PressState
+import com.kuikly.stock.ui.component.pressFeedback
+import com.kuikly.stock.ui.component.pressedBg
+import com.kuikly.stock.ui.component.pressedScale
 import com.tencent.kuikly.core.base.attr.AccessibilityRole
-import com.kuikly.stock.base.NumberRoll
-import com.kuikly.stock.base.aiDotWaveDots
+import com.kuikly.stock.ui.component.NumberRoll
+import com.kuikly.stock.ui.component.aiDotWaveDots
 import com.kuikly.stock.data.StockColors
 
 import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
@@ -43,6 +43,11 @@ import com.kuikly.stock.data.fmt2
 import com.kuikly.stock.data.fmtSigned2
 import com.kuikly.stock.data.fmtSignedPct
 import kotlin.math.abs
+import com.kuikly.stock.ui.component.AppRoutes
+import com.kuikly.stock.ui.component.openModule
+import com.kuikly.stock.ui.theme.AppColor
+import com.kuikly.stock.ui.component.chartControlButton
+import com.kuikly.stock.ui.component.quoteItem
 
 @Page("index_detail")
 class IndexDetailPage : BasePager(), KlineInteractionHost {
@@ -113,7 +118,7 @@ class IndexDetailPage : BasePager(), KlineInteractionHost {
                 attr {
                     flex(1f)
                     flexDirectionColumn()
-                    backgroundColor(0xFFF5F5F5)
+                    backgroundColor(AppColor.SURFACE_SOFT)
                 }
 
                 vif({ ctx.isLoading }) {
@@ -523,7 +528,7 @@ internal fun ViewContainer<*, *>.indexNavigationBar(ctx: IndexDetailPage) {
         attr {
             flexDirectionRow()
             alignItems(FlexAlign.CENTER)
-            backgroundColor(0xFF2E7D32)
+            backgroundColor(AppColor.SUCCESS)
             paddingTop(ctx.pagerData.statusBarHeight)
             height(48f + ctx.pagerData.statusBarHeight)
         }
@@ -539,7 +544,7 @@ internal fun ViewContainer<*, *>.indexNavigationBar(ctx: IndexDetailPage) {
                 attr {
                     text("< 返回")
                     fontSize(16f)
-                    color(0xFFFFFFFF)
+                    color(AppColor.ON_DARK)
                 }
             }
         }
@@ -549,7 +554,7 @@ internal fun ViewContainer<*, *>.indexNavigationBar(ctx: IndexDetailPage) {
                 text(name)
                 fontSize(16f)
                 fontWeightBold()
-                color(0xFFFFFFFF)
+                color(AppColor.ON_DARK)
                 marginLeft(8f)
             }
         }
@@ -558,7 +563,7 @@ internal fun ViewContainer<*, *>.indexNavigationBar(ctx: IndexDetailPage) {
             attr {
                 text("($code)")
                 fontSize(12f)
-                color(0xFFC8E6C9)
+                color(AppColor.SUCCESS_LINE)
                 marginLeft(4f)
             }
         }
@@ -588,7 +593,7 @@ internal fun ViewContainer<*, *>.indexNavigationBar(ctx: IndexDetailPage) {
                     text(if (ctx.refreshing) "…" else "↻")
                     fontSize(17f)
                     fontWeightBold()
-                    color(if (ctx.refreshing) 0xFFC8E6C9 else 0xFFFFFFFF)
+                    color(if (ctx.refreshing) AppColor.SUCCESS_LINE else AppColor.ON_DARK)
                 }
             }
         }
@@ -600,7 +605,7 @@ internal fun ViewContainer<*, *>.indexNavigationBar(ctx: IndexDetailPage) {
                 attr {
                     text("AI分析")
                     fontSize(13f)
-                    color(0xFFFFFFFF)
+                    color(AppColor.ON_DARK)
                 }
             }
         }
@@ -617,7 +622,7 @@ internal fun ViewContainer<*, *>.indexInfoCard(ctx: IndexDetailPage) {
             flexDirectionColumn()
             margin(8f, 12f, 4f, 12f)
             padding(top = 12f, left = 16f, bottom = 12f, right = 16f)
-            backgroundColor(0xFFFFFFFF)
+            backgroundColor(AppColor.SURFACE)
             borderRadius(10f)
         }
 
@@ -626,7 +631,7 @@ internal fun ViewContainer<*, *>.indexInfoCard(ctx: IndexDetailPage) {
                 text("基础信息")
                 fontSize(15f)
                 fontWeightBold()
-                color(0xFF333333)
+                color(AppColor.TEXT_INK)
                 marginBottom(8f)
             }
         }
@@ -641,7 +646,7 @@ internal fun ViewContainer<*, *>.indexRealtimeCard(ctx: IndexDetailPage) {
     val realtime = ctx.indexDetail?.realtime ?: return
     val pct = realtime.changePercent
     val priceColor = when {
-        pct == null || pct == 0.0 -> 0xFF999999
+        pct == null || pct == 0.0 -> AppColor.TEXT_HINT
         pct > 0 -> StockColors.UP
         else -> StockColors.DOWN
     }
@@ -651,7 +656,7 @@ internal fun ViewContainer<*, *>.indexRealtimeCard(ctx: IndexDetailPage) {
             flexDirectionColumn()
             margin(4f, 12f, 4f, 12f)
             padding(top = 12f, left = 16f, bottom = 12f, right = 16f)
-            backgroundColor(0xFFFFFFFF)
+            backgroundColor(AppColor.SURFACE)
             borderRadius(10f)
         }
 
@@ -660,7 +665,7 @@ internal fun ViewContainer<*, *>.indexRealtimeCard(ctx: IndexDetailPage) {
                 text("实时行情")
                 fontSize(15f)
                 fontWeightBold()
-                color(0xFF333333)
+                color(AppColor.TEXT_INK)
                 marginBottom(8f)
             }
         }
@@ -709,36 +714,21 @@ internal fun ViewContainer<*, *>.indexRealtimeCard(ctx: IndexDetailPage) {
     }
 }
 
+/**
+ * 指数页的行情小格。宽度算式比个股页少扣一点（指数卡没有额外涨跌条占位）。
+ */
 internal fun ViewContainer<*, *>.indexQuoteItem(
     pageViewWidth: Float,
     label: String,
     value: Double?,
     format: ((Double) -> String)? = null
 ) {
-    View {
-        attr {
-            width((pageViewWidth - 40f) / 4f)
-            flexDirectionColumn()
-            marginTop(4f)
-        }
-
-        Text {
-            attr {
-                text(label)
-                fontSize(11f)
-                color(0xFF999999)
-            }
-        }
-
-        Text {
-            attr {
-                text(value?.let { format?.invoke(it) ?: fmt2(it) } ?: "-")
-                fontSize(13f)
-                fontWeightBold()
-                color(0xFF333333)
-            }
-        }
-    }
+    quoteItem(
+        label = label,
+        valueText = value?.let { format?.invoke(it) ?: fmt2(it) } ?: "-",
+        width = (pageViewWidth - 40f) / 4f,
+        marginTop = 4f,
+    )
 }
 
 internal fun ViewContainer<*, *>.indexQuoteColumn(
@@ -757,7 +747,7 @@ internal fun ViewContainer<*, *>.indexQuoteColumn(
             attr {
                 text(label)
                 fontSize(11f)
-                color(0xFF999999)
+                color(AppColor.TEXT_HINT)
             }
         }
 
@@ -791,7 +781,7 @@ internal fun ViewContainer<*, *>.indexDataSourceFooter(ctx: IndexDetailPage) {
             flexDirectionColumn()
             margin(4f, 12f, 4f, 12f)
             padding(top = 10f, left = 16f, bottom = 10f, right = 16f)
-            backgroundColor(0xFFFAFAFA)
+            backgroundColor(AppColor.SURFACE_ALT)
             borderRadius(8f)
         }
 
@@ -799,7 +789,7 @@ internal fun ViewContainer<*, *>.indexDataSourceFooter(ctx: IndexDetailPage) {
             attr {
                 text("数据来源")
                 fontSize(11f)
-                color(0xFF999999)
+                color(AppColor.TEXT_HINT)
                 marginBottom(4f)
             }
         }
@@ -808,7 +798,7 @@ internal fun ViewContainer<*, *>.indexDataSourceFooter(ctx: IndexDetailPage) {
             attr {
                 text(ctx.dataSourceText)
                 fontSize(11f)
-                color(0xFF888888)
+                color(AppColor.TEXT_HINT_SOFT)
             }
         }
     }
@@ -822,7 +812,7 @@ internal fun ViewContainer<*, *>.indexKlineChartArea(ctx: IndexDetailPage) {
             flexDirectionColumn()
             margin(4f, 12f, 4f, 12f)
             padding(top = 10f, left = 12f, bottom = 10f, right = 12f)
-            backgroundColor(0xFFFFFFFF)
+            backgroundColor(AppColor.SURFACE)
             borderRadius(10f)
         }
 
@@ -833,7 +823,7 @@ internal fun ViewContainer<*, *>.indexKlineChartArea(ctx: IndexDetailPage) {
                     text("K线走势")
                     fontSize(15f)
                     fontWeightBold()
-                    color(0xFF333333)
+                    color(AppColor.TEXT_INK)
                     flex(1f)
                 }
             }
@@ -841,7 +831,7 @@ internal fun ViewContainer<*, *>.indexKlineChartArea(ctx: IndexDetailPage) {
                 attr {
                     text(ctx.klineInfoText.ifEmpty { "${ctx.getAggregatedKline().size}根 · ${ctx.klineVisibleCount}显示" })
                     fontSize(10f)
-                    color(0xFF999999)
+                    color(AppColor.TEXT_HINT)
                     flex(1f)
                     textAlignRight()
                 }
@@ -857,11 +847,11 @@ internal fun ViewContainer<*, *>.indexKlineChartArea(ctx: IndexDetailPage) {
             View {
                 attr {
                     padding(4f, 8f, 4f, 8f)
-                    backgroundColor(0xFFF5F5F5)
+                    backgroundColor(AppColor.SURFACE_SOFT)
                     borderRadius(10f)
                 }
                 event { click { ctx.resetView() } }
-                Text { attr { text("重置"); fontSize(11f); color(0xFF666666) } }
+                Text { attr { text("重置"); fontSize(11f); color(AppColor.TEXT_GRAY) } }
             }
         }
 
@@ -871,28 +861,28 @@ internal fun ViewContainer<*, *>.indexKlineChartArea(ctx: IndexDetailPage) {
         velseif({ original != null && original.isNotEmpty() }) {
             View {
                 attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginBottom(6f) }
-                indexControlBtn(ctx, "◀◀", { ctx.panLeft() })
-                indexControlBtn(ctx, "－", { ctx.zoomIn() })
+                chartControlButton("◀◀", { ctx.panLeft() })
+                chartControlButton("－", { ctx.zoomIn() })
                 Text {
                     attr {
                         text("${ctx.klineVisibleCount}根")
                         fontSize(11f)
-                        color(0xFF666666)
+                        color(AppColor.TEXT_GRAY)
                         marginLeft(6f)
                         marginRight(6f)
                         width(40f)
                         textAlignCenter()
                     }
                 }
-                indexControlBtn(ctx, "＋", { ctx.zoomOut() })
-                indexControlBtn(ctx, "▶▶", { ctx.panRight() })
+                chartControlButton("＋", { ctx.zoomOut() })
+                chartControlButton("▶▶", { ctx.panRight() })
                 View { attr { flex(1f) } }
                 vif({ ctx.highlightedPrice > 0 }) {
                     View {
                         attr {
                             flexDirectionRow()
                             alignItems(FlexAlign.CENTER)
-                            backgroundColor(0xFFE8F5E9)
+                            backgroundColor(AppColor.SUCCESS_BG)
                             borderRadius(8f)
                             padding(3f, 8f, 3f, 8f)
                         }
@@ -900,13 +890,13 @@ internal fun ViewContainer<*, *>.indexKlineChartArea(ctx: IndexDetailPage) {
                             attr {
                                 text("${ctx.highlightedPriceLabel} ${fmt2(ctx.highlightedPrice)}")
                                 fontSize(11f)
-                                color(0xFF2E7D32)
+                                color(AppColor.SUCCESS)
                             }
                         }
                         View {
-                            attr { marginLeft(6f); padding(2f, 6f, 2f, 6f); backgroundColor(0xFFFFFFFF); borderRadius(6f) }
+                            attr { marginLeft(6f); padding(2f, 6f, 2f, 6f); backgroundColor(AppColor.SURFACE); borderRadius(6f) }
                             event { click { ctx.clearHighlight() } }
-                            Text { attr { text("✕"); fontSize(10f); color(0xFF999999) } }
+                            Text { attr { text("✕"); fontSize(10f); color(AppColor.TEXT_HINT) } }
                         }
                     }
                 }
@@ -919,19 +909,19 @@ internal fun ViewContainer<*, *>.indexKlineChartArea(ctx: IndexDetailPage) {
                     View {
                         attr {
                             flexDirectionRow(); alignItems(FlexAlign.CENTER)
-                            backgroundColor(0xFFF0F3F8); borderRadius(8f)
+                            backgroundColor(AppColor.SURFACE_ALT); borderRadius(8f)
                             padding(4f, 8f, 4f, 8f); marginBottom(6f)
                         }
                         Text {
                             attr {
                                 text(if (ctx.rangeStats != null) "已框选区间 · 查看统计" else "已锁定单根 K 线")
-                                fontSize(11f); color(0xFF627083); flex(1f)
+                                fontSize(11f); color(AppColor.TEXT_SUB_DEEP); flex(1f)
                             }
                         }
                         View {
-                            attr { padding(2f, 10f, 2f, 10f); backgroundColor(0xFFFFFFFF); borderRadius(6f) }
+                            attr { padding(2f, 10f, 2f, 10f); backgroundColor(AppColor.SURFACE); borderRadius(6f) }
                             event { click { ctx.clearInteraction() } }
-                            Text { attr { text("✕ 退出"); fontSize(11f); color(0xFF1976D2) } }
+                            Text { attr { text("✕ 退出"); fontSize(11f); color(AppColor.PRIMARY_SOFT) } }
                         }
                     }
                 }
@@ -958,10 +948,10 @@ internal fun ViewContainer<*, *>.indexKlineChartArea(ctx: IndexDetailPage) {
                                 padding(3f, 8f, 3f, 8f)
                                 backgroundColor(
                                     when (lvl.type) {
-                                        "support" -> 0xFFEAF7EF
-                                        "resistance" -> 0xFFFFF0F0
-                                        "target" -> 0xFFE8F2FF
-                                        else -> 0xFFFFF3E8
+                                        "support" -> AppColor.SUCCESS_BG
+                                        "resistance" -> AppColor.DANGER_BG
+                                        "target" -> AppColor.INFO_BG
+                                        else -> AppColor.WARNING_BG
                                     }
                                 )
                                 borderRadius(10f)
@@ -993,7 +983,7 @@ internal fun ViewContainer<*, *>.indexKlineChartArea(ctx: IndexDetailPage) {
                 attr {
                     text("点击/长按K线查看详情 · 缩放平移查看历史 · 点击AI价位联动标注")
                     fontSize(10f)
-                    color(0xFFBBBBBB)
+                    color(AppColor.DISABLED)
                     marginTop(6f)
                 }
             }
@@ -1008,7 +998,7 @@ internal fun ViewContainer<*, *>.indexPeriodChip(ctx: IndexDetailPage, period: S
     View {
         attr {
             padding(5f, 12f, 5f, 12f)
-            backgroundColor(if (ctx.klinePeriod == period) 0xFF2E7D32 else 0xFFF5F5F5)
+            backgroundColor(if (ctx.klinePeriod == period) AppColor.SUCCESS else AppColor.SURFACE_SOFT)
             borderRadius(14f)
             marginRight(6f)
         }
@@ -1018,30 +1008,7 @@ internal fun ViewContainer<*, *>.indexPeriodChip(ctx: IndexDetailPage, period: S
                 text(label)
                 fontSize(12f)
                 fontWeightBold()
-                color(if (ctx.klinePeriod == period) 0xFFFFFFFF else 0xFF666666)
-            }
-        }
-    }
-}
-
-internal fun ViewContainer<*, *>.indexControlBtn(ctx: IndexDetailPage, label: String, action: () -> Unit) {
-    View {
-        attr {
-            width(32f)
-            height(28f)
-            backgroundColor(0xFFF5F5F5)
-            borderRadius(8f)
-            alignItems(FlexAlign.CENTER)
-            justifyContent(FlexJustifyContent.CENTER)
-            marginRight(4f)
-        }
-        event { click { action() } }
-        Text {
-            attr {
-                text(label)
-                fontSize(12f)
-                color(0xFF666666)
-                textAlignCenter()
+                color(if (ctx.klinePeriod == period) AppColor.ON_DARK else AppColor.TEXT_GRAY)
             }
         }
     }
@@ -1058,7 +1025,7 @@ internal fun ViewContainer<*, *>.indexKlineErrorView(ctx: IndexDetailPage) {
             attr {
                 text("指数K线暂无数据（旧版数据库请更新后重试）")
                 fontSize(13f)
-                color(0xFF999999)
+                color(AppColor.TEXT_HINT)
                 textAlignCenter()
             }
         }
@@ -1066,7 +1033,7 @@ internal fun ViewContainer<*, *>.indexKlineErrorView(ctx: IndexDetailPage) {
             attr {
                 marginTop(12f)
                 padding(top = 8f, left = 20f, bottom = 8f, right = 20f)
-                backgroundColor(0xFFE8F5E9)
+                backgroundColor(AppColor.SUCCESS_BG)
                 borderRadius(16f)
             }
             event {
@@ -1077,7 +1044,7 @@ internal fun ViewContainer<*, *>.indexKlineErrorView(ctx: IndexDetailPage) {
                     text("重试")
                     fontSize(13f)
                     fontWeightBold()
-                    color(0xFF2E7D32)
+                    color(AppColor.SUCCESS)
                 }
             }
         }
@@ -1125,7 +1092,7 @@ internal fun ViewContainer<*, *>.indexKlineChartCanvas(ctx: IndexDetailPage, agg
         val step = width / nVisible.coerceAtLeast(1)
         val cw = (step * 0.55f).coerceAtLeast(2f).coerceAtMost(14f)
 
-        context.strokeStyle(Color(0xFFF0F2F5))
+        context.strokeStyle(Color(AppColor.BG_SOFT))
         context.lineWidth(1f)
         for (i in 0..4) {
             val gy = padT + chartH * i / 4f
@@ -1158,13 +1125,13 @@ internal fun ViewContainer<*, *>.indexKlineChartCanvas(ctx: IndexDetailPage, agg
 
         if (ctx.highlightedPrice > 0 && ctx.highlightedPrice in minP..maxP) {
             val y = py(ctx.highlightedPrice)
-            context.strokeStyle(Color(0xFF2E7D32))
+            context.strokeStyle(Color(AppColor.SUCCESS))
             context.lineWidth(2f)
             context.beginPath()
             context.moveTo(0f, y)
             context.lineTo(width, y)
             context.stroke()
-            context.fillStyle(Color(0xFF2E7D32))
+            context.fillStyle(Color(AppColor.SUCCESS))
             context.font(10f)
             context.textAlign(TextAlign.LEFT)
             context.fillText("★ ${ctx.highlightedPriceLabel} ${fmt2(ctx.highlightedPrice)}", 4f, y - 4f)
@@ -1195,7 +1162,7 @@ internal fun ViewContainer<*, *>.indexKlineChartCanvas(ctx: IndexDetailPage, agg
         }
 
         val maxVol = visible.maxOf { it.volume }.toFloat().coerceAtLeast(1f)
-        context.strokeStyle(Color(0xFFE0E0E0))
+        context.strokeStyle(Color(AppColor.DIVIDER))
         context.lineWidth(1f)
         context.beginPath()
         context.moveTo(0f, volTop - 5f)
@@ -1215,12 +1182,12 @@ internal fun ViewContainer<*, *>.indexKlineChartCanvas(ctx: IndexDetailPage, agg
             context.closePath()
             context.fill()
         }
-        context.fillStyle(Color(0xFF999999))
+        context.fillStyle(Color(AppColor.TEXT_HINT))
         context.font(9f)
         context.textAlign(TextAlign.RIGHT)
         context.fillText("成交量", width - 2f, volTop - 8f)
 
-        context.fillStyle(Color(0xFF999999))
+        context.fillStyle(Color(AppColor.TEXT_HINT))
         context.font(10f)
         context.textAlign(TextAlign.LEFT)
         context.fillText(fmt2(maxP), 4f, padT + 9f)
@@ -1241,7 +1208,7 @@ internal fun ViewContainer<*, *>.indexKlineChartCanvas(ctx: IndexDetailPage, agg
                 val k = visible[localIdx]
                 val cx = step * localIdx + step / 2f
                 val cy = py(k.close)
-                context.strokeStyle(Color(0xFF333333))
+                context.strokeStyle(Color(AppColor.TEXT_INK))
                 context.lineWidth(1f)
                 var vx = 0f
                 while (vx < height) {
@@ -1259,7 +1226,7 @@ internal fun ViewContainer<*, *>.indexKlineChartCanvas(ctx: IndexDetailPage, agg
                     context.stroke()
                     hx += 8f
                 }
-                context.strokeStyle(Color(0xFF2E7D32))
+                context.strokeStyle(Color(AppColor.SUCCESS))
                 context.lineWidth(1.5f)
                 context.beginPath()
                 context.moveTo(cx - cw / 2f - 2f, py(k.high) - 2f)
@@ -1283,7 +1250,7 @@ internal fun ViewContainer<*, *>.indexKlineChartCanvas(ctx: IndexDetailPage, agg
                 val tooltipColor = if (up) Color(0xFFFF8A80) else Color(0xFFA5D6A7)
                 context.font(9f)
                 context.textAlign(TextAlign.LEFT)
-                context.fillStyle(Color(0xFFFFFFFF))
+                context.fillStyle(Color(AppColor.ON_DARK))
                 context.fillText(
                     "${k.tradeDate} 开${fmt2(k.open)} 收${fmt2(k.close)} 高${fmt2(k.high)} 低${fmt2(k.low)}",
                     4f, 12f
@@ -1356,7 +1323,7 @@ internal fun ViewContainer<*, *>.indexKlineSummary(ctx: IndexDetailPage, visible
         View {
             attr {
                 height(1f)
-                backgroundColor(0xFFEEEEEE)
+                backgroundColor(AppColor.DIVIDER_SOFT)
                 marginBottom(8f)
             }
         }
@@ -1371,7 +1338,7 @@ internal fun ViewContainer<*, *>.indexKlineSummary(ctx: IndexDetailPage, visible
                 attr {
                     text("最新: ${latest.tradeDate}")
                     fontSize(11f)
-                    color(0xFF666666)
+                    color(AppColor.TEXT_GRAY)
                 }
             }
 
@@ -1380,7 +1347,7 @@ internal fun ViewContainer<*, *>.indexKlineSummary(ctx: IndexDetailPage, visible
                     text("收盘: ${fmt2(latest.close)}")
                     fontSize(11f)
                     fontWeightBold()
-                    color(0xFF333333)
+                    color(AppColor.TEXT_INK)
                     marginLeft(10f)
                 }
             }
@@ -1389,7 +1356,7 @@ internal fun ViewContainer<*, *>.indexKlineSummary(ctx: IndexDetailPage, visible
                 attr {
                     text("量: ${fmtIndexVolume(latest.volume)}")
                     fontSize(11f)
-                    color(0xFF666666)
+                    color(AppColor.TEXT_GRAY)
                     marginLeft(10f)
                 }
             }
@@ -1416,7 +1383,7 @@ internal fun ViewContainer<*, *>.indexAiAnalysisCards(ctx: IndexDetailPage) {
                     text("AI 智能解读")
                     fontSize(15f)
                     fontWeightBold()
-                    color(0xFF333333)
+                    color(AppColor.TEXT_INK)
                     flex(1f)
                 }
             }
@@ -1426,7 +1393,7 @@ internal fun ViewContainer<*, *>.indexAiAnalysisCards(ctx: IndexDetailPage) {
                     attr {
                         text("${ctx.aiAnalysis!!.cards.size}张卡片")
                         fontSize(11f)
-                        color(0xFF999999)
+                        color(AppColor.TEXT_HINT)
                         marginRight(8f)
                     }
                 }
@@ -1436,7 +1403,7 @@ internal fun ViewContainer<*, *>.indexAiAnalysisCards(ctx: IndexDetailPage) {
                 View {
                     attr {
                         padding(top = 4f, left = 10f, bottom = 4f, right = 10f)
-                        backgroundColor(0xFF2E7D32)
+                        backgroundColor(AppColor.SUCCESS)
                         borderRadius(12f)
                     }
                     event {
@@ -1448,7 +1415,7 @@ internal fun ViewContainer<*, *>.indexAiAnalysisCards(ctx: IndexDetailPage) {
                         attr {
                             text(if (ctx.aiAnalysis == null) "开始分析" else "刷新")
                             fontSize(11f)
-                            color(0xFFFFFFFF)
+                            color(AppColor.ON_DARK)
                             fontWeightBold()
                         }
                     }
@@ -1483,7 +1450,7 @@ internal fun ViewContainer<*, *>.indexAiAnalysisCards(ctx: IndexDetailPage) {
                         flexDirectionColumn()
                         marginTop(10f)
                         padding(10f, 12f, 10f, 12f)
-                        backgroundColor(0xFFEAF4EA)
+                        backgroundColor(AppColor.SUCCESS_BG)
                         borderRadius(10f)
                     }
                     Text {
@@ -1491,14 +1458,14 @@ internal fun ViewContainer<*, *>.indexAiAnalysisCards(ctx: IndexDetailPage) {
                             text("指数联动说明")
                             fontSize(12f)
                             fontWeightBold()
-                            color(0xFF2E7D32)
+                            color(AppColor.SUCCESS)
                         }
                     }
                     Text {
                         attr {
                             text("· 点击AI点位 → K线标注\n· 点击K线 → 查看与AI点位的距离\n· 周K/月K 聚合看大势")
                             fontSize(11f)
-                            color(0xFF666666)
+                            color(AppColor.TEXT_GRAY)
                             marginTop(4f)
                             lineHeight(16f)
                         }
@@ -1528,22 +1495,22 @@ internal fun ViewContainer<*, *>.indexRenderAICard(ctx: IndexDetailPage, card: M
                 attr {
                     flexDirectionColumn()
                     marginTop(8f)
-                    backgroundColor(0xFFFFFFFF)
+                    backgroundColor(AppColor.SURFACE)
                     borderRadius(12f)
                     padding(12f, 14f, 12f, 14f)
-                    border(Border(1f, BorderStyle.SOLID, Color(0xFFC8E6C9)))
+                    border(Border(1f, BorderStyle.SOLID, Color(AppColor.SUCCESS_LINE)))
                 }
                 View {
                     attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
-                    View { attr { width(4f); height(16f); backgroundColor(0xFF2E7D32); borderRadius(2f); marginRight(8f) } }
-                    Text { attr { text(title); fontSize(14f); fontWeightBold(); color(0xFF2E7D32); flex(1f) } }
+                    View { attr { width(4f); height(16f); backgroundColor(AppColor.SUCCESS); borderRadius(2f); marginRight(8f) } }
+                    Text { attr { text(title); fontSize(14f); fontWeightBold(); color(AppColor.SUCCESS); flex(1f) } }
                     View {
-                        attr { padding(3f, 8f, 3f, 8f); backgroundColor(0xFFE8F5E9); borderRadius(10f) }
+                        attr { padding(3f, 8f, 3f, 8f); backgroundColor(AppColor.SUCCESS_BG); borderRadius(10f) }
                         event { click { ctx.toggleAISection(key) } }
-                        Text { attr { text(if (ctx.isAIExpanded(key)) "收起" else "展开"); fontSize(11f); color(0xFF2E7D32) } }
+                        Text { attr { text(if (ctx.isAIExpanded(key)) "收起" else "展开"); fontSize(11f); color(AppColor.SUCCESS) } }
                     }
                 }
-                Text { attr { text(content); fontSize(13f); color(0xFF333333); marginTop(8f); lineHeight(19f) } }
+                Text { attr { text(content); fontSize(13f); color(AppColor.TEXT_INK); marginTop(8f); lineHeight(19f) } }
             }
         }
         "signal_card" -> {
@@ -1552,25 +1519,25 @@ internal fun ViewContainer<*, *>.indexRenderAICard(ctx: IndexDetailPage, card: M
                 attr {
                     flexDirectionColumn()
                     marginTop(8f)
-                    backgroundColor(0xFFFFF9C4)
+                    backgroundColor(AppColor.WARNING_BG)
                     borderRadius(12f)
                     padding(12f, 14f, 12f, 14f)
                 }
                 View {
                     attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
-                    Text { attr { text("$title (${signals.size})"); fontSize(14f); fontWeightBold(); color(0xFFA56100); flex(1f) } }
+                    Text { attr { text("$title (${signals.size})"); fontSize(14f); fontWeightBold(); color(AppColor.WARNING_TEXT); flex(1f) } }
                     View {
-                        attr { padding(3f, 8f, 3f, 8f); backgroundColor(0xFFFFFFFF); borderRadius(10f) }
+                        attr { padding(3f, 8f, 3f, 8f); backgroundColor(AppColor.SURFACE); borderRadius(10f) }
                         event { click { ctx.toggleAISection(key) } }
-                        Text { attr { text(if (ctx.isAIExpanded(key)) "收起" else "展开"); fontSize(11f); color(0xFFA56100) } }
+                        Text { attr { text(if (ctx.isAIExpanded(key)) "收起" else "展开"); fontSize(11f); color(AppColor.WARNING_TEXT) } }
                     }
                 }
                 val displaySignals = if (ctx.isAIExpanded(key)) signals else signals.take(2)
                 displaySignals.forEach { sig ->
                     View {
                         attr { flexDirectionRow(); marginTop(6f) }
-                        Text { attr { text("•"); fontSize(13f); color(0xFFA56100); width(14f) } }
-                        Text { attr { text(sig); fontSize(12f); color(0xFF5D4037); flex(1f); lineHeight(17f) } }
+                        Text { attr { text("•"); fontSize(13f); color(AppColor.WARNING_TEXT); width(14f) } }
+                        Text { attr { text(sig); fontSize(12f); color(AppColor.TEXT_WARM); flex(1f); lineHeight(17f) } }
                     }
                 }
             }
@@ -1587,28 +1554,28 @@ internal fun ViewContainer<*, *>.indexRenderAICard(ctx: IndexDetailPage, card: M
                 attr {
                     flexDirectionColumn()
                     marginTop(8f)
-                    backgroundColor(0xFFFFFFFF)
+                    backgroundColor(AppColor.SURFACE)
                     borderRadius(12f)
                     padding(12f, 14f, 12f, 14f)
-                    border(Border(1.2f, BorderStyle.SOLID, Color(0xFF2E7D32)))
+                    border(Border(1.2f, BorderStyle.SOLID, Color(AppColor.SUCCESS)))
                 }
                 View {
                     attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
-                    Text { attr { text("$title"); fontSize(14f); fontWeightBold(); color(0xFF2E7D32); flex(1f) } }
+                    Text { attr { text("$title"); fontSize(14f); fontWeightBold(); color(AppColor.SUCCESS); flex(1f) } }
                     View {
-                        attr { padding(4f, 10f, 4f, 10f); backgroundColor(0xFF2E7D32); borderRadius(12f) }
+                        attr { padding(4f, 10f, 4f, 10f); backgroundColor(AppColor.SUCCESS); borderRadius(12f) }
                         event { click { ctx.toggleAISection(key) } }
-                        Text { attr { text(if (ctx.isAIExpanded(key)) "收起详情" else "展开点位"); fontSize(11f); color(0xFFFFFFFF); fontWeightBold() } }
+                        Text { attr { text(if (ctx.isAIExpanded(key)) "收起详情" else "展开点位"); fontSize(11f); color(AppColor.ON_DARK); fontWeightBold() } }
                     }
                 }
-                Text { attr { text(suggestion); fontSize(13f); color(0xFF333333); marginTop(8f); lineHeight(19f) } }
+                Text { attr { text(suggestion); fontSize(13f); color(AppColor.TEXT_INK); marginTop(8f); lineHeight(19f) } }
 
                 View {
                     attr { flexDirectionColumn(); marginTop(10f) }
-                    if (resistance != null) indexPriceLevelRow(ctx, "压力位", resistance, currentPrice, 0xFFD64545)
-                    if (support != null) indexPriceLevelRow(ctx, "支撑位", support, currentPrice, 0xFF2E9E5B)
-                    if (targetPrice != null) indexPriceLevelRow(ctx, "目标点位", targetPrice, currentPrice, 0xFF0E67D1)
-                    if (stopLoss != null) indexPriceLevelRow(ctx, "止损点位", stopLoss, currentPrice, 0xFFA56100)
+                    if (resistance != null) indexPriceLevelRow(ctx, "压力位", resistance, currentPrice, AppColor.UP_ALT)
+                    if (support != null) indexPriceLevelRow(ctx, "支撑位", support, currentPrice, AppColor.DOWN_ALT)
+                    if (targetPrice != null) indexPriceLevelRow(ctx, "目标点位", targetPrice, currentPrice, AppColor.PRIMARY)
+                    if (stopLoss != null) indexPriceLevelRow(ctx, "止损点位", stopLoss, currentPrice, AppColor.WARNING_TEXT)
                 }
             }
         }
@@ -1620,28 +1587,28 @@ internal fun ViewContainer<*, *>.indexRenderAICard(ctx: IndexDetailPage, card: M
                 attr {
                     flexDirectionColumn()
                     marginTop(8f)
-                    backgroundColor(0xFFFFEBEE)
+                    backgroundColor(AppColor.DANGER_BG)
                     borderRadius(12f)
                     padding(12f, 14f, 12f, 14f)
                 }
                 View {
                     attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
-                    Text { attr { text("$title"); fontSize(14f); fontWeightBold(); color(0xFFD32F2F); flex(1f) } }
+                    Text { attr { text("$title"); fontSize(14f); fontWeightBold(); color(AppColor.DANGER); flex(1f) } }
                     if (riskLevel.isNotEmpty()) {
                         View {
-                            attr { padding(3f, 8f, 3f, 8f); backgroundColor(0xFFD32F2F); borderRadius(10f) }
-                            Text { attr { text(riskLevel); fontSize(11f); color(0xFFFFFFFF); fontWeightBold() } }
+                            attr { padding(3f, 8f, 3f, 8f); backgroundColor(AppColor.DANGER); borderRadius(10f) }
+                            Text { attr { text(riskLevel); fontSize(11f); color(AppColor.ON_DARK); fontWeightBold() } }
                         }
                     }
                 }
                 if (content.isNotBlank()) {
-                    Text { attr { text(content); fontSize(12f); color(0xFF5D4037); marginTop(6f); lineHeight(17f) } }
+                    Text { attr { text(content); fontSize(12f); color(AppColor.TEXT_WARM); marginTop(6f); lineHeight(17f) } }
                 }
                 risks.forEach { r ->
                     View {
                         attr { flexDirectionRow(); marginTop(6f) }
-                        Text { attr { text("•"); fontSize(12f); color(0xFFD32F2F); width(12f) } }
-                        Text { attr { text(r); fontSize(12f); color(0xFF5D4037); flex(1f); lineHeight(17f) } }
+                        Text { attr { text("•"); fontSize(12f); color(AppColor.DANGER); width(12f) } }
+                        Text { attr { text(r); fontSize(12f); color(AppColor.TEXT_WARM); flex(1f); lineHeight(17f) } }
                     }
                 }
             }
@@ -1652,12 +1619,12 @@ internal fun ViewContainer<*, *>.indexRenderAICard(ctx: IndexDetailPage, card: M
                 attr {
                     flexDirectionColumn()
                     marginTop(8f)
-                    backgroundColor(0xFFE8F5E9)
+                    backgroundColor(AppColor.SUCCESS_BG)
                     borderRadius(12f)
                     padding(12f, 14f, 12f, 14f)
                 }
-                Text { attr { text("$title"); fontSize(14f); fontWeightBold(); color(0xFF2E7D32) } }
-                Text { attr { text(summary); fontSize(13f); color(0xFF1B5E20); marginTop(6f); lineHeight(19f) } }
+                Text { attr { text("$title"); fontSize(14f); fontWeightBold(); color(AppColor.SUCCESS) } }
+                Text { attr { text(summary); fontSize(13f); color(AppColor.SUCCESS); marginTop(6f); lineHeight(19f) } }
             }
         }
         else -> {
@@ -1666,12 +1633,12 @@ internal fun ViewContainer<*, *>.indexRenderAICard(ctx: IndexDetailPage, card: M
                 attr {
                     flexDirectionColumn()
                     marginTop(8f)
-                    backgroundColor(0xFFFFFFFF)
+                    backgroundColor(AppColor.SURFACE)
                     borderRadius(10f)
                     padding(12f)
                 }
-                Text { attr { text(title); fontSize(13f); fontWeightBold(); color(0xFF333333) } }
-                Text { attr { text(content); fontSize(12f); color(0xFF666666); marginTop(4f) } }
+                Text { attr { text(title); fontSize(13f); fontWeightBold(); color(AppColor.TEXT_INK) } }
+                Text { attr { text(content); fontSize(12f); color(AppColor.TEXT_GRAY); marginTop(4f) } }
             }
         }
     }
@@ -1692,19 +1659,19 @@ internal fun ViewContainer<*, *>.indexPriceLevelRow(
             alignItems(FlexAlign.CENTER)
             marginTop(6f)
             padding(8f, 10f, 8f, 10f)
-            backgroundColor(0xFFF7F9FC)
+            backgroundColor(AppColor.SURFACE_TINT)
             borderRadius(8f)
         }
         View { attr { width(6f); height(6f); borderRadius(3f); backgroundColor(color); marginRight(8f) } }
-        Text { attr { text(label); fontSize(12f); color(0xFF666666); width(60f) } }
+        Text { attr { text(label); fontSize(12f); color(AppColor.TEXT_GRAY); width(60f) } }
         Text { attr { text(fmt2(price)); fontSize(13f); fontWeightBold(); color(color); flex(1f) } }
         if (distText.isNotEmpty()) {
             Text { attr { text(distText); fontSize(11f); color(if (dist >= 0) StockColors.UP else StockColors.DOWN); marginRight(8f) } }
         }
         View {
-            attr { padding(4f, 8f, 4f, 8f); backgroundColor(0xFFE8F5E9); borderRadius(10f) }
+            attr { padding(4f, 8f, 4f, 8f); backgroundColor(AppColor.SUCCESS_BG); borderRadius(10f) }
             event { click { ctx.highlightAIPrice(price, label) } }
-            Text { attr { text("标注"); fontSize(10f); color(0xFF2E7D32); fontWeightBold() } }
+            Text { attr { text("标注"); fontSize(10f); color(AppColor.SUCCESS); fontWeightBold() } }
         }
     }
 }
@@ -1723,7 +1690,7 @@ internal fun ViewContainer<*, *>.indexAnalysisBubble(ctx: IndexDetailPage, analy
             attr {
                 flexDirectionColumn()
                 width(bubbleW)
-                backgroundColor(0xFFEAF4EA)
+                backgroundColor(AppColor.SUCCESS_BG)
                 borderRadius(12f)
                 padding(left = 12f, top = 10f, right = 12f, bottom = 10f)
             }
@@ -1738,7 +1705,7 @@ internal fun ViewContainer<*, *>.indexAnalyzingView(ctx: IndexDetailPage) {
             flexDirectionColumn()
             alignItems(FlexAlign.CENTER)
             padding(top = 14f, left = 16f, bottom = 14f, right = 16f)
-            backgroundColor(0xFFFFFFFF)
+            backgroundColor(AppColor.SURFACE)
             borderRadius(10f)
         }
 
@@ -1746,7 +1713,7 @@ internal fun ViewContainer<*, *>.indexAnalyzingView(ctx: IndexDetailPage) {
             attr {
                 text("AI 正在分析中...")
                 fontSize(14f)
-                color(0xFF666666)
+                color(AppColor.TEXT_GRAY)
             }
         }
 
@@ -1754,14 +1721,14 @@ internal fun ViewContainer<*, *>.indexAnalyzingView(ctx: IndexDetailPage) {
             attr {
                 text("请稍候，当前 AI 服务正在生成指数分析报告")
                 fontSize(12f)
-                color(0xFF999999)
+                color(AppColor.TEXT_HINT)
                 marginTop(6f)
             }
         }
 
         // 与个股详情页同一套三点波浪（base/Anim.kt），两个页面的等待手感一致
         View { attr { marginTop(12f) } }
-        aiDotWaveDots(ctx.aiDotWave, color = 0xFF2E7D32)
+        aiDotWaveDots(ctx.aiDotWave, color = AppColor.SUCCESS)
     }
 }
 
@@ -1771,7 +1738,7 @@ internal fun ViewContainer<*, *>.indexNotAnalyzedView(ctx: IndexDetailPage) {
             flexDirectionColumn()
             alignItems(FlexAlign.CENTER)
             padding(top = 14f, left = 16f, bottom = 14f, right = 16f)
-            backgroundColor(0xFFFFFFFF)
+            backgroundColor(AppColor.SURFACE)
             borderRadius(10f)
         }
 
@@ -1779,7 +1746,7 @@ internal fun ViewContainer<*, *>.indexNotAnalyzedView(ctx: IndexDetailPage) {
             attr {
                 text("尚未进行 AI 分析")
                 fontSize(14f)
-                color(0xFF666666)
+                color(AppColor.TEXT_GRAY)
             }
         }
 
@@ -1787,7 +1754,7 @@ internal fun ViewContainer<*, *>.indexNotAnalyzedView(ctx: IndexDetailPage) {
             attr {
                 marginTop(12f)
                 padding(top = 10f, left = 24f, bottom = 10f, right = 24f)
-                backgroundColor(0xFF2E7D32)
+                backgroundColor(AppColor.SUCCESS)
                 borderRadius(20f)
             }
             event {
@@ -1800,7 +1767,7 @@ internal fun ViewContainer<*, *>.indexNotAnalyzedView(ctx: IndexDetailPage) {
                     text("开始 AI 分析")
                     fontSize(14f)
                     fontWeightBold()
-                    color(0xFFFFFFFF)
+                    color(AppColor.ON_DARK)
                 }
             }
         }
@@ -1809,7 +1776,7 @@ internal fun ViewContainer<*, *>.indexNotAnalyzedView(ctx: IndexDetailPage) {
             attr {
                 text("AI 将为您分析指数趋势、点位、风险并给出操作参考")
                 fontSize(11f)
-                color(0xFF999999)
+                color(AppColor.TEXT_HINT)
                 marginTop(8f)
             }
         }
@@ -1837,7 +1804,7 @@ internal fun ViewContainer<*, *>.indexErrorView(ctx: IndexDetailPage) {
             attr {
                 text(ctx.loadErrorMessage.ifEmpty { "未找到指数 ${ctx.indexCode} 的数据" })
                 fontSize(13f)
-                color(0xFF999999)
+                color(AppColor.TEXT_HINT)
                 marginTop(8f)
                 textAlignCenter()
             }
@@ -1847,7 +1814,7 @@ internal fun ViewContainer<*, *>.indexErrorView(ctx: IndexDetailPage) {
             attr {
                 marginTop(16f)
                 padding(top = 10f, left = 24f, bottom = 10f, right = 24f)
-                backgroundColor(0xFF2E7D32)
+                backgroundColor(AppColor.SUCCESS)
                 borderRadius(20f)
             }
             event {
@@ -1860,7 +1827,7 @@ internal fun ViewContainer<*, *>.indexErrorView(ctx: IndexDetailPage) {
                     text("重试")
                     fontSize(14f)
                     fontWeightBold()
-                    color(0xFFFFFFFF)
+                    color(AppColor.ON_DARK)
                 }
             }
         }
@@ -1885,7 +1852,7 @@ internal fun ViewContainer<*, *>.indexAiToast(ctx: IndexDetailPage) {
                 attr {
                     text(ctx.aiToast)
                     fontSize(12f)
-                    color(0xFFFFFFFF)
+                    color(AppColor.ON_DARK)
                     textAlignCenter()
                 }
             }

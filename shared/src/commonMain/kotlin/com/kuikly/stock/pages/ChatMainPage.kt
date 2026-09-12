@@ -3,8 +3,9 @@
 package com.kuikly.stock.pages
 
 import com.kuikly.stock.base.BasePager
-import com.kuikly.stock.base.Overlay
-import com.kuikly.stock.base.overlayEnterExit
+import com.kuikly.stock.ui.component.topToast
+import com.kuikly.stock.ui.component.Overlay
+import com.kuikly.stock.ui.component.overlayEnterExit
 import com.kuikly.stock.data.StockColors
 
 import com.tencent.kuikly.core.annotations.Page
@@ -12,6 +13,7 @@ import com.tencent.kuikly.core.base.*
 import com.tencent.kuikly.core.base.attr.AccessibilityRole
 import com.tencent.kuikly.core.directives.vfor
 import com.tencent.kuikly.core.directives.vif
+import com.tencent.kuikly.core.directives.vbind
 import com.tencent.kuikly.core.directives.velse
 import com.tencent.kuikly.core.module.RouterModule
 import com.tencent.kuikly.core.module.SharedPreferencesModule
@@ -29,7 +31,7 @@ import com.tencent.kuiklybase.KuiklyMarkdown
 import com.tencent.kuiklybase.KuiklyStreamingMarkdown
 import com.tencent.kuiklybase.streaming.MarkdownBlock
 import com.tencent.kuiklybase.streaming.MarkdownStreamingState
-import com.kuikly.stock.base.splitBreaks
+import com.kuikly.stock.util.splitBreaks
 import com.kuikly.stock.data.copyTextToClipboard
 import com.kuikly.stock.data.exportTimestampString
 import com.kuikly.stock.data.saveTextToDownloads
@@ -50,6 +52,21 @@ import com.tencent.kuikly.core.coroutines.delay
 import com.tencent.kuikly.core.coroutines.launch
 import com.kuikly.stock.data.fmt2
 import com.kuikly.stock.data.nowMillis
+import com.kuikly.stock.ui.component.AppRoutes
+import com.kuikly.stock.ui.component.DrawerSide
+import com.kuikly.stock.ui.component.appBottomNav
+import com.kuikly.stock.ui.component.drawerState
+import com.kuikly.stock.ui.component.sideDrawer
+import com.kuikly.stock.ui.component.entryCard
+import com.kuikly.stock.ui.component.PressState
+import com.kuikly.stock.ui.component.pressFeedback
+import com.kuikly.stock.ui.component.pressedBg
+import com.kuikly.stock.ui.component.pressedScale
+import com.kuikly.stock.util.relativeTimeLabel
+import com.kuikly.stock.ui.theme.AppColor
+import com.kuikly.stock.ui.theme.AppFont
+import com.kuikly.stock.ui.theme.AppRadius
+import com.kuikly.stock.ui.theme.AppSize
 
 @Page("chat_main")
 class ChatMainPage : BasePager() {
@@ -64,12 +81,24 @@ class ChatMainPage : BasePager() {
 
     internal var activeTitle by observable("AI 智能助手")
 
-    /** 会话抽屉：显隐 + 入场动画绑在一起（见 Overlay）。 */
-    internal val drawerOverlay = Overlay(this)
+    /**
+     * 会话抽屉。用 [drawerState] 建而不是 `Overlay(this)`：
+     * 抽屉是滑动退场，比弹窗淡出慢，卸载时机要跟着变（见 Drawer.kt）。
+     */
+    internal val drawerOverlay = drawerState(this)
 
     internal var quickQuestion by observable("")
 
-    internal var devModeOnline by observable(DataSourceManager.isOnline)
+    /** 按压态容器。抽屉里的按钮、空状态推荐问题都要它（见 Interaction.kt）。 */
+    internal val press = PressState(this)
+
+    /**
+     * 空状态推荐问题。
+     *
+     * 从本地行情取一只股票生成第一条，其余是通用问题。
+     * 比只列「我能做什么」更容易上手——用户不用先想清楚怎么问。
+     */
+    internal val recommendedQuestions: ObservableList<String> by observableList()
 
     internal var isThinking by observable(false)
     internal var streamingText by observable("")
@@ -109,17 +138,7 @@ class ChatMainPage : BasePager() {
     }
 
 
-    internal var aiStatusLines: ObservableList<String> by observableList()
-
-    internal val statusOverlay = Overlay(this)
-
     internal var aiErrorNotice by observable("")
-
-    internal var modeSwitchNotice by observable("")
-
-    internal var isRefreshing by observable(false)
-
-    internal var refreshNotice by observable("")
 
     internal var sessionOpsTargetId by observable("")
     internal var showSessionOps by observable(false)
@@ -164,12 +183,12 @@ class ChatMainPage : BasePager() {
                 attr {
                     flex(1f)
                     flexDirectionColumn()
-                    backgroundColor(0xFFF5F5F5)
+                    backgroundColor(AppColor.SURFACE_SOFT)
                     paddingBottom(ctx.keyboardHeight)
                 }
                 topBar(ctx)
                 vif({ ctx.messages.isEmpty() }) {
-                    welcomeHint()
+                    welcomeHint(ctx)
                 }
                 velse {
                     messageList(ctx)
@@ -181,10 +200,6 @@ class ChatMainPage : BasePager() {
 
                 vif({ ctx.drawerOverlay.isVisible }) {
                     drawer(ctx)
-                }
-
-                vif({ ctx.statusOverlay.isVisible }) {
-                    statusDialog(ctx)
                 }
 
                 vif({ ctx.aiErrorNotice.isNotEmpty() }) {
@@ -236,7 +251,6 @@ class ChatMainPage : BasePager() {
         if (saved == "ONLINE") {
             DataSourceManager.setMode(DataSourceManager.Mode.ONLINE)
         }
-        devModeOnline = DataSourceManager.isOnline
         activeProviderLabel = runCatching {
             val p = AiRuntimeConfig.activeProfile()
             if (AiRuntimeConfig.isConfigured()) "${p.name} · ${p.model}" else "${p.name} · 待配置"
@@ -309,30 +323,21 @@ class ChatMainPage : BasePager() {
             }
             delay(0)
             quickQuestion = if (name.isNullOrBlank()) "请帮我分析一只股票" else "请帮我分析$name"
+            // 推荐问题跟着行情一起刷新：第一条锚定用户当前能看到的一只股票
+            val qs = mutableListOf<String>()
+            if (!name.isNullOrBlank()) qs.add("请帮我分析$name 近期走势")
+            qs.add("今天大盘整体怎么样")
+            qs.add("对比一下我自选里的股票表现")
+            qs.add("帮我看看当前持仓有什么风险")
+            recommendedQuestions.clear()
+            recommendedQuestions.addAll(qs)
         }
     }
 
-    internal fun manualRefresh() {
-        if (isRefreshing) return
-        isRefreshing = true
-        refreshNotice = ""
-        lifecycleScope.launch {
-            try {
-                val updated = DataUpdater.refreshNow()
-                delay(0)
-                isRefreshing = false
-                loadQuickQuestion()
-                refreshNotice = if (updated) "数据已刷新到最新" else "已是最近数据"
-            } catch (e: Throwable) {
-                delay(0)
-                isRefreshing = false
-                refreshNotice = "刷新失败，请重试"
-            }
-            lifecycleScope.launch {
-                delay(3000)
-                refreshNotice = ""
-            }
-        }
+    /** 点推荐问题时只填入输入框、不直接发送：用户多半想先改两个字再问。 */
+    internal fun fillQuestion(question: String) {
+        inputText = question
+        inputRef.view?.setText(question)
     }
 
     private fun persistAllSessions() {
@@ -453,23 +458,6 @@ class ChatMainPage : BasePager() {
         activeSessionId = id
         activeTitle = "AI 智能助手"
         persistAllSessions()
-    }
-
-    internal fun selectMode(online: Boolean) {
-        DataSourceManager.setMode(
-            if (online) DataSourceManager.Mode.ONLINE else DataSourceManager.Mode.OFFLINE
-        )
-        val notice = if (online) "已切换到在线模式" else "已切换到离线模式"
-        modeSwitchNotice = notice
-        lifecycleScope.launch {
-            delay(3000)
-            if (modeSwitchNotice == notice) modeSwitchNotice = ""
-        }
-        lifecycleScope.launch {
-            devModeOnline = online
-            acquireModule<SharedPreferencesModule>(SharedPreferencesModule.MODULE_NAME)
-                .setItem(DataSourceManager.PREFS_KEY, if (online) "ONLINE" else "OFFLINE")
-        }
     }
 
     internal fun openSessionOps(sessionId: String) {
@@ -594,6 +582,20 @@ class ChatMainPage : BasePager() {
             sorted.forEach { sessions.add(it) }
         }
     }
+
+    /**
+     * 空状态「最近对话」的数据源：置顶优先，其次按更新时间；还没问过话的空会话不算历史。
+     */
+    internal fun recentSessions(limit: Int = RECENT_PREVIEW_MAX): List<ChatSession> =
+        sessions.asSequence()
+            .filter { it.messages.isNotEmpty() }
+            .sortedWith(compareByDescending<ChatSession> { it.pinned }.thenByDescending { it.updatedAt })
+            .take(limit)
+            .toList()
+
+    /** 上面那份列表的内容指纹，给 `vbind` 判断要不要重建（只比 id 会漏掉重命名）。 */
+    internal fun recentSessionsKey(): String =
+        recentSessions().joinToString("|") { it.id + "#" + it.title + "#" + it.updatedAt }
 
     internal fun openMsgActions(index: Int, content: String) {
         msgActionIndex = index
@@ -790,26 +792,6 @@ class ChatMainPage : BasePager() {
         alertOverlay.hide()
         aiErrorNotice = "提醒已创建 · ${pendingAlertName} ${if (pendingAlertType == 1) "跌至" else "涨至"} ${fmtCardNumber(pendingAlertValue)}"
     }
-
-    internal fun runAiStatusCheck() {
-        drawerOverlay.hide()
-        aiStatusLines.clear()
-        aiStatusLines.add("正在检测…（最多 30 秒）")
-        statusOverlay.show()
-        lifecycleScope.launch {
-            try {
-                val result = StockRepository.checkAiService()
-                delay(0)
-                aiStatusLines.clear()
-                result.split("\n").forEach { aiStatusLines.add(it) }
-            } catch (e: Throwable) {
-                delay(0)
-                aiStatusLines.clear()
-                ("检测失败\n原因：${e.message ?: "未知错误"}\n排查：①是否联网 ②本地 SQLite 库是否就绪 ③数据源是否已配置")
-                    .split("\n").forEach { aiStatusLines.add(it) }
-            }
-        }
-    }
 }
 
 internal fun ViewContainer<*, *>.topBar(ctx: ChatMainPage) {
@@ -818,7 +800,7 @@ internal fun ViewContainer<*, *>.topBar(ctx: ChatMainPage) {
             flexDirectionRow()
             alignItems(FlexAlign.CENTER)
             height(60f + ctx.pagerData.statusBarHeight)
-            backgroundColor(0xFFFFFFFF)
+            backgroundColor(AppColor.SURFACE)
             paddingTop(ctx.pagerData.statusBarHeight)
         }
 
@@ -831,7 +813,7 @@ internal fun ViewContainer<*, *>.topBar(ctx: ChatMainPage) {
                 attr {
                     text("‹")
                     fontSize(32f)
-                    color(0xFF243A55)
+                    color(AppColor.TEXT_DEEP)
                 }
             }
         }
@@ -843,14 +825,14 @@ internal fun ViewContainer<*, *>.topBar(ctx: ChatMainPage) {
                     text("AI 研究室")
                     fontSize(18f)
                     fontWeightBold()
-                    color(0xFF12263F)
+                    color(AppColor.TITLE)
                 }
             }
             Text {
                 attr {
                     text(ctx.activeProviderLabel)
                     fontSize(10f)
-                    color(0xFF0E67D1)
+                    color(AppColor.PRIMARY)
                     marginTop(1f)
                 }
             }
@@ -871,7 +853,7 @@ internal fun ViewContainer<*, *>.topBar(ctx: ChatMainPage) {
                 attr {
                     text("历史")
                     fontSize(12f)
-                    color(0xFF0E67D1)
+                    color(AppColor.PRIMARY)
                     fontWeightBold()
                 }
             }
@@ -904,42 +886,25 @@ internal fun ViewContainer<*, *>.messageList(ctx: ChatMainPage) {
 }
 
 internal fun ViewContainer<*, *>.aiErrorToast(ctx: ChatMainPage) {
-    View {
-        attr {
-            absolutePosition(top = 70f, left = 0f, right = 0f)
-            alignItems(FlexAlign.CENTER)
-        }
-        event { click { ctx.aiErrorNotice = "" } }
-        View {
-            attr {
-                maxWidth(ctx.pagerData.pageViewWidth - 60f)
-                backgroundColor(0xE6D32F2F)
-                borderRadius(10f)
-                padding(left = 14f, top = 8f, right = 14f, bottom = 8f)
-            }
-            Text {
-                attr {
-                    text(ctx.aiErrorNotice)
-                    fontSize(12f)
-                    color(0xFFFFFFFF)
-                    textAlignCenter()
-                }
-            }
-        }
-    }
+    topToast(
+        ctx = ctx,
+        text = { ctx.aiErrorNotice },
+        onDismiss = { ctx.aiErrorNotice = "" },
+        tint = AppColor.DANGER,
+    )
 }
 
 internal fun ViewContainer<*, *>.thinkingBubble(ctx: ChatMainPage) {
     View {
-        attr { flexDirectionColumn(); marginTop(8f); padding(12f); borderRadius(12f); backgroundColor(0xFFFFFFFF) }
-        Text { attr { text(ctx.requestStage); fontSize(12f); color(0xFF65758B) } }
+        attr { flexDirectionColumn(); marginTop(8f); padding(12f); borderRadius(12f); backgroundColor(AppColor.SURFACE) }
+        Text { attr { text(ctx.requestStage); fontSize(12f); color(AppColor.TEXT_SUB_DEEP) } }
         vfor({ ctx.streamBlocks }) { block ->
             KuiklyStreamingMarkdown(state = ctx.streamState, block = block, config = chatMarkdownConfig)
         }
         View {
             attr { height(44f); allCenter(); accessibility("停止生成"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }
             event { click { ctx.stopResponse() } }
-            Text { attr { text("停止生成"); fontSize(12f); color(0xFF0E67D1) } }
+            Text { attr { text("停止生成"); fontSize(12f); color(AppColor.PRIMARY) } }
         }
     }
 }
@@ -964,7 +929,7 @@ internal fun ViewContainer<*, *>.chatBubble(
             attr {
                 flexDirectionColumn()
                 width(bubbleW)
-                backgroundColor(if (message.isUser) 0xFFE3F2FD else 0xFFFFFFFF)
+                backgroundColor(if (message.isUser) AppColor.PRIMARY_BG else AppColor.SURFACE)
                 borderRadius(12f)
                 padding(left = 12f, top = 10f, right = 12f, bottom = 10f)
             }
@@ -982,7 +947,7 @@ internal fun ViewContainer<*, *>.chatBubble(
                     attr {
                         text(message.content)
                         fontSize(15f)
-                        color(0xFF333333)
+                        color(AppColor.TEXT_INK)
                     }
                 }
             } else {
@@ -994,7 +959,7 @@ internal fun ViewContainer<*, *>.chatBubble(
                     View {
                         attr { height(44f); allCenter(); accessibility("重试回答"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }
                         event { click { ctx.retryMessage(message) } }
-                        Text { attr { text("重试回答"); fontSize(13f); color(0xFF0E67D1) } }
+                        Text { attr { text("重试回答"); fontSize(13f); color(AppColor.PRIMARY) } }
                     }
                 }
                 message.cards?.forEach { card -> renderCard(ctx, card) }
@@ -1050,7 +1015,7 @@ internal fun ViewContainer<*, *>.compareCard(
         attr {
             flexDirectionColumn()
             marginTop(8f)
-            backgroundColor(0xFFFFFFFF)
+            backgroundColor(AppColor.SURFACE)
             borderRadius(12f)
             padding(left = 12f, top = 12f, right = 12f, bottom = 10f)
         }
@@ -1059,7 +1024,7 @@ internal fun ViewContainer<*, *>.compareCard(
                 text(title)
                 fontSize(14f)
                 fontWeightBold()
-                color(0xFF20242B)
+                color(AppColor.TEXT_STRONG)
             }
         }
         rawRows.forEach { cells -> compareStockBlock(headers, cells) }
@@ -1067,7 +1032,7 @@ internal fun ViewContainer<*, *>.compareCard(
             attr {
                 text("本地实时数据 · 仅供参考")
                 fontSize(10f)
-                color(0xFF9AA3B0)
+                color(AppColor.TEXT_MUTED)
                 marginTop(6f)
             }
         }
@@ -1078,10 +1043,10 @@ internal fun ViewContainer<*, *>.compareStockBlock(headers: List<String>, cells:
     val name = cells.getOrNull(0).orEmpty()
     val change = cells.getOrNull(2).orEmpty()
     View {
-        attr { marginTop(9f); padding(11f); borderRadius(10f); backgroundColor(0xFFF7F9FC) }
+        attr { marginTop(9f); padding(11f); borderRadius(10f); backgroundColor(AppColor.SURFACE_TINT) }
         View { attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
-            Text { attr { text(name); fontSize(14f); fontWeightBold(); color(0xFF23364D); flex(1f) } }
-            Text { attr { text(change); fontSize(14f); fontWeightBold(); color(if (change.startsWith("+")) 0xFFD64545 else if (change.startsWith("-")) 0xFF2E9E5B else 0xFF5F6B7A) } }
+            Text { attr { text(name); fontSize(14f); fontWeightBold(); color(AppColor.TEXT_DEEP); flex(1f) } }
+            Text { attr { text(change); fontSize(14f); fontWeightBold(); color(if (change.startsWith("+")) AppColor.UP_ALT else if (change.startsWith("-")) AppColor.DOWN_ALT else AppColor.TEXT_SUB_DEEP) } }
         }
         View { attr { flexDirectionRow(); marginTop(9f) }
             compareMetric(headers.getOrNull(1) ?: "现价", cells.getOrNull(1) ?: "-")
@@ -1098,9 +1063,9 @@ internal fun ViewContainer<*, *>.compareStockBlock(headers: List<String>, cells:
 
 internal fun ViewContainer<*, *>.compareMetric(label: String, value: String) {
     View {
-        attr { flex(1f); padding(8f); borderRadius(8f); backgroundColor(Color.WHITE) }
-        Text { attr { text(label); fontSize(10f); color(0xFF8490A0) } }
-        Text { attr { text(value); fontSize(14f); fontWeightBold(); color(0xFF1E3047); marginTop(3f) } }
+        attr { flex(1f); padding(8f); borderRadius(8f); backgroundColor(AppColor.SURFACE) }
+        Text { attr { text(label); fontSize(10f); color(AppColor.TEXT_SUB) } }
+        Text { attr { text(value); fontSize(14f); fontWeightBold(); color(AppColor.TEXT_STRONG); marginTop(3f) } }
     }
 }
 
@@ -1115,10 +1080,10 @@ internal fun ViewContainer<*, *>.compareTableLine(cells: List<String>, colCount:
             val cell = if (ci < cells.size) cells[ci] else ""
             val weight = if (ci == 0) 1.5f else 1f
             val tint = when {
-                isHeader -> 0xFF1976D2
+                isHeader -> AppColor.PRIMARY_SOFT
                 cell.startsWith("+") -> StockColors.UP
                 cell.startsWith("-") -> StockColors.DOWN
-                else -> 0xFF333333
+                else -> AppColor.TEXT_INK
             }
             View {
                 attr { flex(weight) }
@@ -1164,16 +1129,16 @@ internal fun ViewContainer<*, *>.conclusionCard(
     val evidenceExpanded = ctx.expandedEvidenceKey == evidenceKey
 
     val isUp = changePercent.contains("+")
-    val upColor = 0xFFD64545
-    val downColor = 0xFF2E9E5B
+    val upColor = AppColor.UP_ALT
+    val downColor = AppColor.DOWN_ALT
 
     View {
         attr {
             flexDirectionColumn()
             marginTop(8f)
-            backgroundColor(0xFFFFFFFF)
+            backgroundColor(AppColor.SURFACE)
             borderRadius(14f)
-            border(Border(1f, BorderStyle.SOLID, Color(0xFFEDF0F4)))
+            border(Border(1f, BorderStyle.SOLID, Color(AppColor.SURFACE_SOFT)))
             padding(left = 14f, top = 13f, right = 14f, bottom = 13f)
         }
         event {
@@ -1192,7 +1157,7 @@ internal fun ViewContainer<*, *>.conclusionCard(
                 text(if (code.isNotEmpty()) "$name · $code" else name)
                 fontSize(16f)
                 fontWeightBold()
-                color(0xFF20242B)
+                color(AppColor.TEXT_STRONG)
             }
         }
 
@@ -1206,18 +1171,18 @@ internal fun ViewContainer<*, *>.conclusionCard(
                 conclusionTag(
                     text = (bias + " " + changePercent).trim(),
                     textColor = if (isUp) upColor else downColor,
-                    bgColor = if (isUp) 0xFFFFF0F0 else 0xFFEAF7EF
+                    bgColor = if (isUp) AppColor.DANGER_BG else AppColor.SUCCESS_BG
                 )
             }
             if (biasNote.isNotEmpty()) {
-                conclusionTag(text = biasNote, textColor = 0xFFA56100, bgColor = 0xFFFFF6DF)
+                conclusionTag(text = biasNote, textColor = AppColor.WARNING_TEXT, bgColor = AppColor.WARNING_BG)
             }
         }
 
         if (oneLiner.isNotEmpty()) {
             View {
                 attr { marginTop(10f) }
-                renderInlineBold("**一句话：**$oneLiner", fontSize = 14f, color = 0xFF2C3542)
+                renderInlineBold("**一句话：**$oneLiner", fontSize = 14f, color = AppColor.TEXT_DEEP)
             }
         }
 
@@ -1228,7 +1193,7 @@ internal fun ViewContainer<*, *>.conclusionCard(
                     text("关键价位")
                     fontSize(14f)
                     fontWeightBold()
-                    color(0xFF20242B)
+                    color(AppColor.TEXT_STRONG)
                     marginTop(2f)
                 }
             }
@@ -1255,10 +1220,10 @@ internal fun ViewContainer<*, *>.conclusionCard(
 
         if (signals.isNotEmpty()) {
             View {
-                attr { minHeight(44f); flexDirectionRow(); alignItems(FlexAlign.CENTER); marginTop(8f); borderRadius(9f); backgroundColor(0xFFF4F7FB); accessibility(if (evidenceExpanded) "收起技术依据" else "展开技术依据"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }
+                attr { minHeight(44f); flexDirectionRow(); alignItems(FlexAlign.CENTER); marginTop(8f); borderRadius(9f); backgroundColor(AppColor.BG); accessibility(if (evidenceExpanded) "收起技术依据" else "展开技术依据"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }
                 event { click { ctx.toggleEvidence(evidenceKey) } }
-                Text { attr { text(if (evidenceExpanded) "收起技术依据" else "展开技术依据（${signals.size}）"); fontSize(12f); fontWeightBold(); color(0xFF0E67D1); flex(1f) } }
-                Text { attr { text(if (evidenceExpanded) "⌃" else "⌄"); fontSize(17f); color(0xFF0E67D1) } }
+                Text { attr { text(if (evidenceExpanded) "收起技术依据" else "展开技术依据（${signals.size}）"); fontSize(12f); fontWeightBold(); color(AppColor.PRIMARY); flex(1f) } }
+                Text { attr { text(if (evidenceExpanded) "⌃" else "⌄"); fontSize(17f); color(AppColor.PRIMARY) } }
             }
             if (evidenceExpanded) signals.forEach { sig -> signalBullet(sig) }
         }
@@ -1268,7 +1233,7 @@ internal fun ViewContainer<*, *>.conclusionCard(
                 attr {
                     flexDirectionColumn()
                     marginTop(11f)
-                    backgroundColor(0xFFF1F7FF)
+                    backgroundColor(AppColor.PRIMARY_BG_LIGHT)
                     borderRadius(8f)
                     padding(left = 11f, top = 9f, right = 11f, bottom = 9f)
                 }
@@ -1277,14 +1242,14 @@ internal fun ViewContainer<*, *>.conclusionCard(
                         text("观察动作")
                         fontSize(13f)
                         fontWeightBold()
-                        color(0xFF20242B)
+                        color(AppColor.TEXT_STRONG)
                     }
                 }
                 Text {
                     attr {
                         text(action)
                         fontSize(13f)
-                        color(0xFF687385)
+                        color(AppColor.TEXT_SUB_DEEP)
                         marginTop(3f)
                         lineHeight(19f)
                     }
@@ -1300,7 +1265,7 @@ internal fun ViewContainer<*, *>.conclusionCard(
                     if (indicatorDate.isNotBlank() && indicatorDate != dataDate) append(" · 指标 ").append(indicatorDate)
                 })
                 fontSize(10f)
-                color(0xFF9AA3B0)
+                color(AppColor.TEXT_MUTED)
                 marginTop(11f)
             }
         }
@@ -1316,34 +1281,34 @@ private fun fmtCardNumber(value: Double): String = fmt2(value)
 
 internal fun ViewContainer<*, *>.conclusionAction(label: String, action: () -> Unit) {
     View {
-        attr { flex(1f); minHeight(44f); allCenter(); borderRadius(9f); backgroundColor(0xFFE8F2FF); accessibility(label); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }
+        attr { flex(1f); minHeight(44f); allCenter(); borderRadius(9f); backgroundColor(AppColor.INFO_BG); accessibility(label); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }
         event { click { action() } }
-        Text { attr { text(label); fontSize(11f); fontWeightBold(); color(0xFF0E67D1) } }
+        Text { attr { text(label); fontSize(11f); fontWeightBold(); color(AppColor.PRIMARY) } }
     }
 }
 
 internal fun ViewContainer<*, *>.alertConfirmDialog(ctx: ChatMainPage) {
     View {
-        attr { absolutePositionAllZero(); backgroundColor(0x88000000); allCenter() }
+        attr { absolutePositionAllZero(); backgroundColor(AppColor.SCRIM); allCenter() }
         View {
             attr {
                 overlayEnterExit(ctx.alertOverlay)
                 width(ctx.pagerData.pageViewWidth - 46f)
                 padding(18f)
                 borderRadius(18f)
-                backgroundColor(Color.WHITE)
+                backgroundColor(AppColor.SURFACE)
             }
-            Text { attr { text("确认创建价格提醒"); fontSize(18f); fontWeightBold(); color(0xFF172A43) } }
-            Text { attr { text("${ctx.pendingAlertName} · ${ctx.pendingAlertCode}"); fontSize(13f); color(0xFF697789); marginTop(9f) } }
-            View { attr { padding(14f); marginTop(12f); borderRadius(12f); backgroundColor(0xFFF4F7FB) }
-                Text { attr { text(if (ctx.pendingAlertType == 1) "价格跌至或低于" else "价格涨至或高于"); fontSize(11f); color(0xFF7A8797) } }
-                Text { attr { text("¥ ${fmtCardNumber(ctx.pendingAlertValue)}"); fontSize(23f); fontWeightBold(); color(0xFF173C64); marginTop(4f) } }
+            Text { attr { text("确认创建价格提醒"); fontSize(18f); fontWeightBold(); color(AppColor.TEXT_STRONG) } }
+            Text { attr { text("${ctx.pendingAlertName} · ${ctx.pendingAlertCode}"); fontSize(13f); color(AppColor.TEXT_SUB_DEEP); marginTop(9f) } }
+            View { attr { padding(14f); marginTop(12f); borderRadius(12f); backgroundColor(AppColor.BG) }
+                Text { attr { text(if (ctx.pendingAlertType == 1) "价格跌至或低于" else "价格涨至或高于"); fontSize(11f); color(AppColor.TEXT_SUB_DEEP) } }
+                Text { attr { text("¥ ${fmtCardNumber(ctx.pendingAlertValue)}"); fontSize(23f); fontWeightBold(); color(AppColor.TEXT_STRONG); marginTop(4f) } }
             }
-            Text { attr { text("提醒在行情数据刷新时检查，可能存在延迟。"); fontSize(11f); color(0xFF8A94A1); marginTop(10f) } }
+            Text { attr { text("提醒在行情数据刷新时检查，可能存在延迟。"); fontSize(11f); color(AppColor.TEXT_SUB); marginTop(10f) } }
             View { attr { flexDirectionRow(); marginTop(16f) }
-                View { attr { flex(1f); height(44f); allCenter(); borderRadius(12f); backgroundColor(0xFFF0F2F5); accessibility("取消创建提醒"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }; event { click { ctx.alertOverlay.hide() } }; Text { attr { text("取消"); fontSize(13f); color(0xFF697586) } } }
+                View { attr { flex(1f); height(44f); allCenter(); borderRadius(12f); backgroundColor(AppColor.BG_SOFT); accessibility("取消创建提醒"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }; event { click { ctx.alertOverlay.hide() } }; Text { attr { text("取消"); fontSize(13f); color(AppColor.TEXT_SUB_DEEP) } } }
                 View { attr { width(10f) } }
-                View { attr { flex(1f); height(44f); allCenter(); borderRadius(12f); backgroundColor(0xFF0E67D1); accessibility("确认创建价格提醒"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }; event { click { ctx.confirmAlert() } }; Text { attr { text("确认创建"); fontSize(13f); fontWeightBold(); color(Color.WHITE) } } }
+                View { attr { flex(1f); height(44f); allCenter(); borderRadius(12f); backgroundColor(AppColor.PRIMARY); accessibility("确认创建价格提醒"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }; event { click { ctx.confirmAlert() } }; Text { attr { text("确认创建"); fontSize(13f); fontWeightBold(); color(Color.WHITE) } } }
             }
         }
     }
@@ -1374,7 +1339,7 @@ internal fun ViewContainer<*, *>.metricBox(label: String, value: String) {
         attr {
             flex(1f)
             flexDirectionColumn()
-            backgroundColor(0xFFF7F9FC)
+            backgroundColor(AppColor.SURFACE_TINT)
             borderRadius(9f)
             padding(left = 9f, top = 7f, right = 9f, bottom = 7f)
         }
@@ -1382,7 +1347,7 @@ internal fun ViewContainer<*, *>.metricBox(label: String, value: String) {
             attr {
                 text(label)
                 fontSize(10f)
-                color(0xFF788397)
+                color(AppColor.TEXT_SUB_DEEP)
             }
         }
         Text {
@@ -1390,7 +1355,7 @@ internal fun ViewContainer<*, *>.metricBox(label: String, value: String) {
                 text(value)
                 fontSize(14f)
                 fontWeightBold()
-                color(0xFF1F2937)
+                color(AppColor.TEXT_STRONG)
                 marginTop(3f)
             }
         }
@@ -1407,7 +1372,7 @@ internal fun ViewContainer<*, *>.signalBullet(text: String) {
             attr {
                 text("●")
                 fontSize(9f)
-                color(0xFF1976D2)
+                color(AppColor.PRIMARY_SOFT)
                 marginRight(6f)
                 marginTop(3f)
             }
@@ -1420,7 +1385,7 @@ internal fun ViewContainer<*, *>.signalBullet(text: String) {
             splitBreaks(text).forEach { line ->
                 View {
                     attr { marginTop(1f) }
-                    renderInlineBold(line, fontSize = 13f, color = 0xFF3A4255)
+                    renderInlineBold(line, fontSize = 13f, color = AppColor.TEXT_DEEP)
                 }
             }
         }
@@ -1431,7 +1396,7 @@ internal fun ViewContainer<*, *>.conclusionDivider() {
     View {
         attr {
             height(1f)
-            backgroundColor(0xFFEDF0F4)
+            backgroundColor(AppColor.SURFACE_SOFT)
             marginTop(11f)
             marginBottom(9f)
         }
@@ -1454,7 +1419,7 @@ internal fun ViewContainer<*, *>.stockCard(
             alignItems(FlexAlign.CENTER)
             marginTop(8f)
             padding(left = 12f, top = 10f, right = 12f, bottom = 10f)
-            backgroundColor(0xFFF0F7FF)
+            backgroundColor(AppColor.PRIMARY_BG_LIGHT)
             borderRadius(8f)
         }
         event {
@@ -1473,7 +1438,7 @@ internal fun ViewContainer<*, *>.stockCard(
                     text("$name ($code)")
                     fontSize(14f)
                     fontWeightBold()
-                    color(0xFF1976D2)
+                    color(AppColor.PRIMARY_SOFT)
                 }
             }
         }
@@ -1514,7 +1479,7 @@ internal fun ViewContainer<*, *>.indexCard(
             alignItems(FlexAlign.CENTER)
             marginTop(8f)
             padding(left = 12f, top = 10f, right = 12f, bottom = 10f)
-            backgroundColor(0xFFEFF6EE)
+            backgroundColor(AppColor.SUCCESS_BG)
             borderRadius(8f)
         }
         event {
@@ -1529,7 +1494,7 @@ internal fun ViewContainer<*, *>.indexCard(
         View {
             attr {
                 padding(left = 6f, top = 2f, right = 6f, bottom = 2f)
-                backgroundColor(0xFF2E7D32)
+                backgroundColor(AppColor.SUCCESS)
                 borderRadius(4f)
                 marginRight(8f)
             }
@@ -1538,7 +1503,7 @@ internal fun ViewContainer<*, *>.indexCard(
                     text("指数")
                     fontSize(11f)
                     fontWeightBold()
-                    color(0xFFFFFFFF)
+                    color(AppColor.ON_DARK)
                 }
             }
         }
@@ -1550,7 +1515,7 @@ internal fun ViewContainer<*, *>.indexCard(
                     text("$name ($code)")
                     fontSize(14f)
                     fontWeightBold()
-                    color(0xFF1B5E20)
+                    color(AppColor.SUCCESS)
                 }
             }
         }
@@ -1588,7 +1553,7 @@ internal fun ViewContainer<*, *>.aiCard(
             flexDirectionColumn()
             marginTop(8f)
             padding(left = 12f, top = 10f, right = 12f, bottom = 10f)
-            backgroundColor(0xFFFFF9C4)
+            backgroundColor(AppColor.WARNING_BG)
             borderRadius(8f)
         }
 
@@ -1597,7 +1562,7 @@ internal fun ViewContainer<*, *>.aiCard(
                 text(title)
                 fontSize(13f)
                 fontWeightBold()
-                color(0xFF333333)
+                color(AppColor.TEXT_INK)
             }
         }
 
@@ -1610,7 +1575,7 @@ internal fun ViewContainer<*, *>.aiCard(
                 if (line.isNotBlank()) {
                     View {
                         attr { marginTop(2f) }
-                        renderInlineBold(line, fontSize = 13f, color = 0xFF555555)
+                        renderInlineBold(line, fontSize = 13f, color = AppColor.TEXT_GRAY)
                     }
                 }
             }
@@ -1627,7 +1592,7 @@ internal fun ViewContainer<*, *>.suggestionChip(
             alignSelf(FlexAlign.FLEX_START)
             marginTop(6f)
             padding(left = 10f, top = 6f, right = 10f, bottom = 6f)
-            backgroundColor(0xFFE3F2FD)
+            backgroundColor(AppColor.PRIMARY_BG)
             borderRadius(16f)
         }
         event {
@@ -1641,7 +1606,7 @@ internal fun ViewContainer<*, *>.suggestionChip(
             attr {
                 text(suggestion)
                 fontSize(12f)
-                color(0xFF1976D2)
+                color(AppColor.PRIMARY_SOFT)
             }
         }
     }
@@ -1652,124 +1617,152 @@ internal fun ViewContainer<*, *>.unknownCard(card: Map<String, Any?>) {
         attr {
             text("[未知卡片类型: ${card["type"]}]\n")
             fontSize(12f)
-            color(0xFF999999)
+            color(AppColor.TEXT_HINT)
             marginTop(4f)
         }
     }
 }
 
-internal fun ViewContainer<*, *>.welcomeHint() {
+/**
+ * 空状态：标题 + 推荐问题。
+ *
+ * 原先只有「AI 智能助手」+ 4 条能力清单，等于让用户自己把能力翻译成一个能问出口的问题。
+ * 现在直接把可点的问题摆出来，点一下填进输入框。
+ */
+internal fun ViewContainer<*, *>.welcomeHint(ctx: ChatMainPage) {
     View {
         attr {
             flex(1f)
             flexDirectionColumn()
             alignItems(FlexAlign.CENTER)
             justifyContent(FlexJustifyContent.CENTER)
-            padding(left = 32f, top = 16f, right = 32f, bottom = 16f)
+            padding(left = 24f, top = 16f, right = 24f, bottom = 16f)
         }
 
         Text {
             attr {
-                text("AI 智能助手")
-                fontSize(18f)
+                text("AI 研究室")
+                fontSize(20f)
                 fontWeightBold()
-                color(0xFF333333)
+                color(AppColor.TEXT_STRONG)
             }
         }
 
         Text {
             attr {
-                text("我可以帮你：")
-                fontSize(14f)
-                color(0xFF666666)
-                marginTop(16f)
+                text("带本地行情上下文提问，回答会引用你自选和行情库里的真实数据")
+                fontSize(AppFont.NOTE)
+                color(AppColor.TEXT_SUB)
+                marginTop(6f)
+                textAlignCenter()
             }
         }
 
-        welcomeFeature("• 查询股票行情和分析")
-        welcomeFeature("• 解读市场动态")
-        welcomeFeature("• 对比个股表现")
-        welcomeFeature("• 风险评估和建议")
-
-        Text {
+        View {
             attr {
-                text("请在下方输入你的问题...")
-                fontSize(14f)
-                color(0xFF999999)
-                marginTop(24f)
+                flexDirectionColumn()
+                marginTop(20f)
+                width(ctx.pagerData.pageViewWidth - 48f)
+            }
+            welcomeSectionLabel("可以这样问")
+            vfor({ ctx.recommendedQuestions }) { q ->
+                welcomeSuggestion(ctx, q)
+            }
+        }
+
+        // 最近对话：没有历史整块不出现。派生列表用 vbind 按内容指纹重建——
+        // vfor 只吃 ObservableList，而这里是「排序 + 截断」的结果，没有对应的 observable。
+        vbind({ ctx.recentSessionsKey() }) {
+            val recent = ctx.recentSessions()
+            if (recent.isNotEmpty()) {
+                View {
+                    attr {
+                        flexDirectionColumn()
+                        marginTop(18f)
+                        width(ctx.pagerData.pageViewWidth - 48f)
+                    }
+                    welcomeSectionLabel("最近对话")
+                    recent.forEach { welcomeRecentItem(ctx, it) }
+                }
             }
         }
     }
 }
 
-internal fun ViewContainer<*, *>.welcomeFeature(text: String) {
+/** 空状态里的分组小标题（「可以这样问」「最近对话」）。 */
+private fun ViewContainer<*, *>.welcomeSectionLabel(title: String) {
     Text {
         attr {
-            text(text)
-            fontSize(14f)
-            color(0xFF666666)
-            marginTop(6f)
+            text(title)
+            fontSize(AppFont.NOTE)
+            fontWeightBold()
+            color(AppColor.TEXT_SUB)
+            marginBottom(2f)
         }
     }
 }
+
+/** 空状态里的一条推荐问题。点了只填输入框，见 [ChatMainPage.fillQuestion]。 */
+internal fun ViewContainer<*, *>.welcomeSuggestion(ctx: ChatMainPage, question: String) {
+    entryCard(
+        press = ctx.press,
+        tag = "wq:$question",
+        title = question,
+        accessibilityLabel = "推荐问题：$question",
+        onClick = { ctx.fillQuestion(question) },
+    )
+}
+
+/** 空状态「最近对话」里的一条：标题 + 「多久之前 · 几条消息」，点了直接进那条会话。 */
+internal fun ViewContainer<*, *>.welcomeRecentItem(ctx: ChatMainPage, s: ChatSession) {
+    val title = s.title.ifBlank { "新对话" }
+    val meta = relativeTimeLabel(s.updatedAt, nowMillis()) + " · " + s.messages.size + " 条消息"
+    entryCard(
+        press = ctx.press,
+        tag = "recent:" + s.id,
+        title = title,
+        meta = meta,
+        titleColor = AppColor.TEXT_INK,
+        accessibilityLabel = "最近对话：$title，$meta",
+        onClick = { ctx.switchToSession(s.id) },
+    )
+}
+
 
 internal fun ViewContainer<*, *>.inputArea(ctx: ChatMainPage) {
     View {
         attr {
             flexDirectionColumn()
-            backgroundColor(0xFFFFFFFF)
+            backgroundColor(AppColor.SURFACE)
         }
 
         vif({ ctx.quoteText.isNotEmpty() }) {
             quoteBar(ctx)
         }
 
-        View {
-            attr {
-                flexDirectionRow()
-                alignItems(FlexAlign.CENTER)
-                padding(left = 12f, top = 6f, right = 12f, bottom = 2f)
-            }
-
+        // 快捷提问只在空状态下出现：有对话之后用户已经在自己的上下文里，
+        // 再顶一条示例问题既占地方又容易误触。「新建对话」已收进抽屉。
+        vif({ ctx.messages.isEmpty() && ctx.quickQuestion.isNotEmpty() }) {
             View {
-                attr {
-                    padding(left = 10f, top = 5f, right = 10f, bottom = 5f)
-                    backgroundColor(0xFFE3F2FD)
-                    borderRadius(14f)
-                }
-                event {
-                    click { ctx.newChat() }
-                }
-                Text {
+                attr { padding(left = 12f, top = 6f, right = 12f, bottom = 2f) }
+                View {
                     attr {
-                        text("＋ 新建对话")
-                        fontSize(12f)
-                        color(0xFF1976D2)
-                        fontWeightBold()
+                        padding(left = 11f, top = 6f, right = 11f, bottom = 6f)
+                        backgroundColor(AppColor.PRIMARY_BG)
+                        borderRadius(14f)
                     }
-                }
-            }
-
-            View {
-                attr {
-                    flex(1f)
-                    marginLeft(8f)
-                    padding(left = 10f, top = 5f, right = 10f, bottom = 5f)
-                    backgroundColor(0xFFF5F5F5)
-                    borderRadius(14f)
-                }
-                event {
-                    click { ctx.sendQuickQuestion() }
-                }
-                Text {
-                    attr {
-                        text(ctx.quickQuestion)
-                        fontSize(12f)
-                        color(0xFF666666)
+                    event { click { ctx.sendQuickQuestion() } }
+                    Text {
+                        attr {
+                            text(ctx.quickQuestion)
+                            fontSize(AppFont.NOTE)
+                            color(AppColor.PRIMARY_SOFT)
+                        }
                     }
                 }
             }
         }
+
 
         View {
             attr {
@@ -1782,7 +1775,7 @@ internal fun ViewContainer<*, *>.inputArea(ctx: ChatMainPage) {
                 attr {
                     flex(1f)
                     height(50f)
-                    backgroundColor(0xFFF5F5F5)
+                    backgroundColor(AppColor.SURFACE_SOFT)
                     borderRadius(20f)
                     flexDirectionRow()
                     alignItems(FlexAlign.CENTER)
@@ -1795,9 +1788,9 @@ internal fun ViewContainer<*, *>.inputArea(ctx: ChatMainPage) {
                         flex(1f)
                         height(46f)
                         fontSize(14f)
-                        color(Color(0xFF333333))
+                        color(Color(AppColor.TEXT_INK))
                         placeholder("输入问题...")
-                        placeholderColor(Color(0xFF999999))
+                        placeholderColor(Color(AppColor.TEXT_HINT))
                         marginLeft(16f)
                         marginRight(16f)
                         lines(2)
@@ -1819,7 +1812,7 @@ internal fun ViewContainer<*, *>.inputArea(ctx: ChatMainPage) {
                 attr {
                     width(64f)
                     height(44f)
-                    backgroundColor(0xFF0E67D1)
+                    backgroundColor(AppColor.PRIMARY)
                     borderRadius(22f)
                     alignItems(FlexAlign.CENTER)
                     justifyContent(FlexJustifyContent.CENTER)
@@ -1835,7 +1828,7 @@ internal fun ViewContainer<*, *>.inputArea(ctx: ChatMainPage) {
                     attr {
                         text("发送")
                         fontSize(14f)
-                        color(0xFFFFFFFF)
+                        color(AppColor.ON_DARK)
                         fontWeightBold()
                     }
                 }
@@ -1844,180 +1837,95 @@ internal fun ViewContainer<*, *>.inputArea(ctx: ChatMainPage) {
     }
 }
 
+/**
+ * 会话抽屉：从左侧滑入的历史对话列表。
+ *
+ * 用 [sideDrawer] 而不是手写 Overlay：抽屉是「从屏幕外滑进来的一块面板」，
+ * 用缩放表达会让人以为它是浮在当前页上方的弹窗，和「点右上角拉开历史」对不上。
+ *
+ * 这里是**单纯的历史入口**——数据源 / 在线模式 / 连接检测已迁到「我的」页。
+ * 那些是低频设置，用户想找时会去设置页；挤在抽屉里会把会话列表压到屏幕下半截。
+ */
 internal fun ViewContainer<*, *>.drawer(ctx: ChatMainPage) {
-    View {
-        attr {
-            absolutePositionAllZero()
-            backgroundColor(0x88000000)
-        }
-        event { click { ctx.drawerOverlay.hide() } }
-
+    sideDrawer(
+        drawer = ctx.drawerOverlay,
+        pageWidth = ctx.pagerData.pageViewWidth,
+        side = DrawerSide.LEFT,
+        onScrimTap = { ctx.drawerOverlay.hide() },
+    ) {
         View {
             attr {
-                overlayEnterExit(ctx.drawerOverlay)
-                absolutePosition(left = 0f, top = 0f, bottom = 0f)
-                width(ctx.pagerData.pageViewWidth * 0.78f)
-                backgroundColor(0xFFFFFFFF)
-                flexDirectionColumn()
+                flexDirectionRow()
+                alignItems(FlexAlign.CENTER)
+                paddingTop(ctx.pagerData.statusBarHeight)
+                height(56f + ctx.pagerData.statusBarHeight)
+                backgroundColor(AppColor.PRIMARY_SOFT)
             }
+            Text {
+                attr {
+                    text("历史对话")
+                    fontSize(AppFont.TITLE)
+                    fontWeightBold()
+                    color(AppColor.ON_DARK)
+                    marginLeft(16f)
+                }
+            }
+        }
 
+        // 「新建对话」从输入栏搬到这里：它属于「会话管理」，和历史列表是一类动作
+        View {
+            attr { padding(left = 12f, top = 10f, right = 12f, bottom = 2f) }
             View {
                 attr {
-                    flexDirectionRow()
+                    height(AppSize.TOUCH_MIN)
+                    backgroundColor(AppColor.PRIMARY)
+                    borderRadius(AppSize.TOUCH_MIN / 2f)
                     alignItems(FlexAlign.CENTER)
-                    paddingTop(ctx.pagerData.statusBarHeight)
-                    height(56f + ctx.pagerData.statusBarHeight)
-                    backgroundColor(0xFF1976D2)
+                    justifyContent(FlexJustifyContent.CENTER)
+                    pressedScale(ctx.press, "drawer_new", normal = 1f, pressed = 0.97f)
+                    accessibility("新建对话")
+                    accessibilityRole(AccessibilityRole.BUTTON)
+                    accessibilityInfo(true, false)
+                }
+                event {
+                    pressFeedback(ctx.press, "drawer_new")
+                    click {
+                        ctx.press.releaseAll()
+                        ctx.newChat()
+                    }
                 }
                 Text {
                     attr {
-                        text("历史对话")
-                        fontSize(17f)
+                        text("＋ 新建对话")
+                        fontSize(AppFont.LABEL)
+                        color(AppColor.ON_DARK)
                         fontWeightBold()
-                        color(0xFFFFFFFF)
-                        marginLeft(16f)
                     }
                 }
             }
+        }
 
-            Scroller {
-                attr {
-                    flex(1f)
-                    flexDirectionColumn()
-                    scrollEnable(true)
-                }
-                vfor({ ctx.sessions }) { s ->
-                    drawerSessionItem(ctx, s)
-                }
-                vif({ ctx.sessions.isEmpty() }) {
-                    View {
-                        attr {
-                            padding(top = 40f, left = 16f, right = 16f)
-                            alignItems(FlexAlign.CENTER)
-                        }
-                        Text {
-                            attr {
-                                text("暂无历史对话\n点击下方「＋ 新建对话」开始提问")
-                                fontSize(13f)
-                                color(0xFF999999)
-                                textAlignCenter()
-                            }
-                        }
-                    }
-                }
+        Scroller {
+            attr {
+                flex(1f)
+                flexDirectionColumn()
+                scrollEnable(true)
             }
-
-            View {
-                attr {
-                    flexDirectionColumn()
-                    padding(left = 12f, top = 10f, right = 12f, bottom = 12f)
-                    backgroundColor(0xFFF7F8FA)
-                }
-
-                Text {
-                    attr {
-                        text("数据来源（开发者选项）")
-                        fontSize(12f)
-                        fontWeightBold()
-                        color(0xFF333333)
-                    }
-                }
-
-                devModeOption(ctx, "离线模式", "内置数据 + 本地模板回答（不联网）", online = false)
-                devModeOption(ctx, "在线模式", "使用当前 API 配置（需联网）", online = true)
-
-                vif({ ctx.modeSwitchNotice.isNotEmpty() }) {
-                    View {
-                        attr {
-                            marginTop(6f)
-                            padding(left = 10f, top = 6f, right = 10f, bottom = 6f)
-                            backgroundColor(0xFFE8F5E9)
-                            borderRadius(8f)
-                        }
-                        Text {
-                            attr {
-                                text(ctx.modeSwitchNotice)
-                                fontSize(11f)
-                                color(0xFF2E7D32)
-                            }
-                        }
-                    }
-                }
-
+            vfor({ ctx.sessions }) { s ->
+                drawerSessionItem(ctx, s)
+            }
+            vif({ ctx.sessions.isEmpty() }) {
                 View {
                     attr {
-                        marginTop(8f)
-                        height(38f)
-                        backgroundColor(0xFFE3F2FD)
-                        borderRadius(19f)
+                        padding(top = 40f, left = 16f, right = 16f)
                         alignItems(FlexAlign.CENTER)
-                        justifyContent(FlexJustifyContent.CENTER)
                     }
-                    event { click { ctx.runAiStatusCheck() } }
                     Text {
                         attr {
-                            text("检测 AI 服务连接")
-                            fontSize(13f)
-                            color(0xFF1976D2)
-                            fontWeightBold()
-                        }
-                    }
-                }
-
-                View {
-                    attr {
-                        marginTop(8f)
-                        height(38f)
-                        backgroundColor(0xFFE8F5E9)
-                        borderRadius(19f)
-                        alignItems(FlexAlign.CENTER)
-                        justifyContent(FlexJustifyContent.CENTER)
-                    }
-                    event { click { ctx.manualRefresh() } }
-                    Text {
-                        attr {
-                            text("手动刷新数据")
-                            fontSize(13f)
-                            color(0xFF2E7D32)
-                            fontWeightBold()
-                        }
-                    }
-                }
-
-                vif({ ctx.refreshNotice.isNotEmpty() }) {
-                    View {
-                        attr {
-                            marginTop(6f)
-                            padding(left = 10f, top = 6f, right = 10f, bottom = 6f)
-                            backgroundColor(0xFFE8F5E9)
-                            borderRadius(8f)
-                        }
-                        Text {
-                            attr {
-                                text(ctx.refreshNotice)
-                                fontSize(11f)
-                                color(0xFF2E7D32)
-                            }
-                        }
-                    }
-                }
-
-                View {
-                    attr {
-                        marginTop(6f)
-                        height(38f)
-                        backgroundColor(0xFF1976D2)
-                        borderRadius(19f)
-                        alignItems(FlexAlign.CENTER)
-                        justifyContent(FlexJustifyContent.CENTER)
-                    }
-                    event { click { ctx.drawerOverlay.hide() } }
-                    Text {
-                        attr {
-                            text("收起")
-                            fontSize(13f)
-                            color(0xFFFFFFFF)
-                            fontWeightBold()
+                            text("暂无历史对话\n点上方「＋ 新建对话」开始提问")
+                            fontSize(AppFont.BODY)
+                            color(AppColor.TEXT_MUTED)
+                            textAlignCenter()
                         }
                     }
                 }
@@ -2025,6 +1933,7 @@ internal fun ViewContainer<*, *>.drawer(ctx: ChatMainPage) {
         }
     }
 }
+
 
 internal fun ViewContainer<*, *>.drawerSessionItem(ctx: ChatMainPage, s: ChatSession) {
     View {
@@ -2032,7 +1941,7 @@ internal fun ViewContainer<*, *>.drawerSessionItem(ctx: ChatMainPage, s: ChatSes
             flexDirectionRow()
             alignItems(FlexAlign.CENTER)
             padding(left = 16f, top = 12f, right = 8f, bottom = 12f)
-            backgroundColor(if (ctx.activeSessionId == s.id) 0xFFE3F2FD else 0xFFFFFFFF)
+            backgroundColor(if (ctx.activeSessionId == s.id) AppColor.PRIMARY_BG else AppColor.SURFACE)
             marginTop(1f)
         }
         event {
@@ -2049,14 +1958,14 @@ internal fun ViewContainer<*, *>.drawerSessionItem(ctx: ChatMainPage, s: ChatSes
                     text(if (s.pinned) "置顶 · " + s.title else s.title)
                     fontSize(14f)
                     fontWeightBold()
-                    color(0xFF333333)
+                    color(AppColor.TEXT_INK)
                 }
             }
             Text {
                 attr {
                     text(if (ctx.activeSessionId == s.id) "当前会话 · 共 " + s.messages.size + " 条消息" else "共 " + s.messages.size + " 条消息")
                     fontSize(11f)
-                    color(0xFF999999)
+                    color(AppColor.TEXT_HINT)
                     marginTop(2f)
                 }
             }
@@ -2073,7 +1982,7 @@ internal fun ViewContainer<*, *>.drawerSessionItem(ctx: ChatMainPage, s: ChatSes
                 attr {
                     text("⋮")
                     fontSize(20f)
-                    color(0xFF999999)
+                    color(AppColor.TEXT_HINT)
                 }
             }
         }
@@ -2084,7 +1993,7 @@ internal fun ViewContainer<*, *>.renameDialog(ctx: ChatMainPage) {
     View {
         attr {
             absolutePositionAllZero()
-            backgroundColor(0x88000000)
+            backgroundColor(AppColor.SCRIM)
             alignItems(FlexAlign.CENTER)
             justifyContent(FlexJustifyContent.CENTER)
         }
@@ -2095,7 +2004,7 @@ internal fun ViewContainer<*, *>.renameDialog(ctx: ChatMainPage) {
                 overlayEnterExit(ctx.renameOverlay)
                 width(ctx.pagerData.pageViewWidth - 64f)
                 flexDirectionColumn()
-                backgroundColor(0xFFFFFFFF)
+                backgroundColor(AppColor.SURFACE)
                 borderRadius(12f)
                 padding(left = 20f, top = 20f, right = 20f, bottom = 20f)
             }
@@ -2105,7 +2014,7 @@ internal fun ViewContainer<*, *>.renameDialog(ctx: ChatMainPage) {
                     text("重命名会话")
                     fontSize(17f)
                     fontWeightBold()
-                    color(0xFF333333)
+                    color(AppColor.TEXT_INK)
                 }
             }
 
@@ -2117,11 +2026,11 @@ internal fun ViewContainer<*, *>.renameDialog(ctx: ChatMainPage) {
                     height(40f)
                     margin(top = 12f)
                     fontSize(14f)
-                    color(Color(0xFF333333))
+                    color(Color(AppColor.TEXT_INK))
                     editable(true)
                     autofocus(true)
                     text(ctx.renameInputText)
-                    backgroundColor(0xFFF5F5F5)
+                    backgroundColor(AppColor.SURFACE_SOFT)
                     borderRadius(8f)
                 }
                 event {
@@ -2145,7 +2054,7 @@ internal fun ViewContainer<*, *>.renameDialog(ctx: ChatMainPage) {
                     attr {
                         flex(1f)
                         height(40f)
-                        backgroundColor(0xFFF5F5F5)
+                        backgroundColor(AppColor.SURFACE_SOFT)
                         borderRadius(20f)
                         alignItems(FlexAlign.CENTER)
                         justifyContent(FlexJustifyContent.CENTER)
@@ -2155,7 +2064,7 @@ internal fun ViewContainer<*, *>.renameDialog(ctx: ChatMainPage) {
                         attr {
                             text("取消")
                             fontSize(14f)
-                            color(0xFF666666)
+                            color(AppColor.TEXT_GRAY)
                         }
                     }
                 }
@@ -2164,7 +2073,7 @@ internal fun ViewContainer<*, *>.renameDialog(ctx: ChatMainPage) {
                     attr {
                         flex(1f)
                         height(40f)
-                        backgroundColor(0xFF1976D2)
+                        backgroundColor(AppColor.PRIMARY_SOFT)
                         borderRadius(20f)
                         alignItems(FlexAlign.CENTER)
                         justifyContent(FlexJustifyContent.CENTER)
@@ -2176,7 +2085,7 @@ internal fun ViewContainer<*, *>.renameDialog(ctx: ChatMainPage) {
                             text("确定")
                             fontSize(14f)
                             fontWeightBold()
-                            color(0xFFFFFFFF)
+                            color(AppColor.ON_DARK)
                         }
                     }
                 }
@@ -2191,7 +2100,7 @@ internal fun ViewContainer<*, *>.exportDialog(ctx: ChatMainPage) {
     View {
         attr {
             absolutePositionAllZero()
-            backgroundColor(0x88000000)
+            backgroundColor(AppColor.SCRIM)
             alignItems(FlexAlign.CENTER)
             justifyContent(FlexJustifyContent.CENTER)
         }
@@ -2202,7 +2111,7 @@ internal fun ViewContainer<*, *>.exportDialog(ctx: ChatMainPage) {
                 overlayEnterExit(ctx.exportOverlay)
                 width(ctx.pagerData.pageViewWidth - 64f)
                 flexDirectionColumn()
-                backgroundColor(0xFFFFFFFF)
+                backgroundColor(AppColor.SURFACE)
                 borderRadius(12f)
                 padding(left = 20f, top = 20f, right = 20f, bottom = 20f)
             }
@@ -2212,14 +2121,14 @@ internal fun ViewContainer<*, *>.exportDialog(ctx: ChatMainPage) {
                     text("导出会话")
                     fontSize(17f)
                     fontWeightBold()
-                    color(0xFF333333)
+                    color(AppColor.TEXT_INK)
                 }
             }
             Text {
                 attr {
                     text("「" + title + "」· " + count + " 条消息")
                     fontSize(13f)
-                    color(0xFF999999)
+                    color(AppColor.TEXT_HINT)
                     marginTop(6f)
                 }
             }
@@ -2238,7 +2147,7 @@ internal fun ViewContainer<*, *>.exportDialog(ctx: ChatMainPage) {
                     attr {
                         flex(1f)
                         height(40f)
-                        backgroundColor(0xFFF5F5F5)
+                        backgroundColor(AppColor.SURFACE_SOFT)
                         borderRadius(20f)
                         alignItems(FlexAlign.CENTER)
                         justifyContent(FlexJustifyContent.CENTER)
@@ -2248,7 +2157,7 @@ internal fun ViewContainer<*, *>.exportDialog(ctx: ChatMainPage) {
                         attr {
                             text("取消")
                             fontSize(15f)
-                            color(0xFF666666)
+                            color(AppColor.TEXT_GRAY)
                         }
                     }
                 }
@@ -2261,7 +2170,7 @@ internal fun ViewContainer<*, *>.exportOption(ctx: ChatMainPage, label: String, 
     View {
         attr {
             marginTop(10f)
-            backgroundColor(0xFFF5F5F5)
+            backgroundColor(AppColor.SURFACE_SOFT)
             borderRadius(10f)
             padding(left = 14f, top = 10f, right = 14f, bottom = 10f)
         }
@@ -2271,146 +2180,15 @@ internal fun ViewContainer<*, *>.exportOption(ctx: ChatMainPage, label: String, 
                 text(label)
                 fontSize(15f)
                 fontWeightBold()
-                color(0xFF333333)
+                color(AppColor.TEXT_INK)
             }
         }
         Text {
             attr {
                 text(desc)
                 fontSize(12f)
-                color(0xFF999999)
+                color(AppColor.TEXT_HINT)
                 marginTop(2f)
-            }
-        }
-    }
-}
-
-internal fun ViewContainer<*, *>.statusDialog(ctx: ChatMainPage) {
-    View {
-        attr {
-            absolutePositionAllZero()
-            backgroundColor(0x99000000)
-            alignItems(FlexAlign.CENTER)
-            justifyContent(FlexJustifyContent.CENTER)
-        }
-        event { click { ctx.statusOverlay.hide() } }
-
-        View {
-            attr {
-                overlayEnterExit(ctx.statusOverlay)
-                width(ctx.pagerData.pageViewWidth - 64f)
-                flexDirectionColumn()
-                backgroundColor(0xFFFFFFFF)
-                borderRadius(12f)
-                padding(left = 20f, top = 20f, right = 20f, bottom = 20f)
-            }
-
-            Text {
-                attr {
-                    text("AI 服务连接检测")
-                    fontSize(17f)
-                    fontWeightBold()
-                    color(0xFF333333)
-                }
-            }
-
-            vfor({ ctx.aiStatusLines }) { line ->
-                if (line.isNotBlank()) {
-                    Text {
-                        attr {
-                            text(line)
-                            fontSize(13f)
-                            color(0xFF444444)
-                            marginTop(4f)
-                        }
-                    }
-                }
-            }
-
-            View {
-                attr {
-                    marginTop(16f)
-                    height(40f)
-                    backgroundColor(0xFF1976D2)
-                    borderRadius(20f)
-                    alignItems(FlexAlign.CENTER)
-                    justifyContent(FlexJustifyContent.CENTER)
-                }
-                event { click { ctx.statusOverlay.hide() } }
-                Text {
-                    attr {
-                        text("关闭")
-                        fontSize(14f)
-                        color(0xFFFFFFFF)
-                        fontWeightBold()
-                    }
-                }
-            }
-        }
-    }
-}
-
-internal fun ViewContainer<*, *>.devModeOption(
-    ctx: ChatMainPage,
-    label: String,
-    desc: String,
-    online: Boolean
-) {
-    vif({ ctx.devModeOnline == online }) {
-        devModeOptionView(ctx, label, desc, online, selected = true)
-    }
-    vif({ ctx.devModeOnline != online }) {
-        devModeOptionView(ctx, label, desc, online, selected = false)
-    }
-}
-
-internal fun ViewContainer<*, *>.devModeOptionView(
-    ctx: ChatMainPage,
-    label: String,
-    desc: String,
-    online: Boolean,
-    selected: Boolean
-) {
-    View {
-        attr {
-            flexDirectionRow()
-            alignItems(FlexAlign.CENTER)
-            marginTop(12f)
-            padding(left = 12f, top = 10f, right = 12f, bottom = 10f)
-            backgroundColor(if (selected) 0xFFE3F2FD else 0xFFF5F5F5)
-            borderRadius(8f)
-        }
-        event { click { ctx.selectMode(online) } }
-
-        View {
-            attr {
-                flex(1f)
-                flexDirectionColumn()
-            }
-            Text {
-                attr {
-                    text(label)
-                    fontSize(14f)
-                    fontWeightBold()
-                    color(0xFF333333)
-                }
-            }
-            Text {
-                attr {
-                    text(desc)
-                    fontSize(11f)
-                    color(0xFF999999)
-                    marginTop(2f)
-                }
-            }
-        }
-
-        Text {
-            attr {
-                text(if (selected) "已选" else "")
-                fontSize(12f)
-                color(0xFF1976D2)
-                marginLeft(8f)
             }
         }
     }
@@ -2455,7 +2233,7 @@ internal fun ViewContainer<*, *>.quoteBar(ctx: ChatMainPage) {
             alignItems(FlexAlign.CENTER)
             margin(top = 6f, left = 12f, right = 12f, bottom = 2f)
             padding(left = 10f, top = 6f, right = 6f, bottom = 6f)
-            backgroundColor(0xFFE3F2FD)
+            backgroundColor(AppColor.PRIMARY_BG)
             borderRadius(8f)
         }
         View {
@@ -2468,14 +2246,14 @@ internal fun ViewContainer<*, *>.quoteBar(ctx: ChatMainPage) {
                     text("引用消息")
                     fontSize(10f)
                     fontWeightBold()
-                    color(0xFF1976D2)
+                    color(AppColor.PRIMARY_SOFT)
                 }
             }
             Text {
                 attr {
                     text(if (ctx.quoteText.length > 120) ctx.quoteText.take(120) + "…" else ctx.quoteText)
                     fontSize(13f)
-                    color(0xFF444444)
+                    color(AppColor.TEXT_GRAY)
                     marginTop(2f)
                     lineHeight(18f)
                 }
@@ -2490,7 +2268,7 @@ internal fun ViewContainer<*, *>.quoteBar(ctx: ChatMainPage) {
                 attr {
                     text("✕")
                     fontSize(14f)
-                    color(0xFF666666)
+                    color(AppColor.TEXT_GRAY)
                 }
             }
         }
@@ -2510,7 +2288,7 @@ internal fun ViewContainer<*, *>.msgActionSheet(ctx: ChatMainPage) {
             attr {
                 absolutePosition(left = 0f, right = 0f, bottom = 0f)
                 flexDirectionColumn()
-                backgroundColor(0xFFFFFFFF)
+                backgroundColor(AppColor.SURFACE)
                 padding(bottom = 16f)
             }
             View {
@@ -2523,7 +2301,7 @@ internal fun ViewContainer<*, *>.msgActionSheet(ctx: ChatMainPage) {
                     attr {
                         text("消息操作")
                         fontSize(12f)
-                        color(0xFF999999)
+                        color(AppColor.TEXT_HINT)
                         textAlignCenter()
                     }
                 }
@@ -2531,7 +2309,7 @@ internal fun ViewContainer<*, *>.msgActionSheet(ctx: ChatMainPage) {
             View {
                 attr {
                     height(1f)
-                    backgroundColor(0xFFEDF0F4)
+                    backgroundColor(AppColor.SURFACE_SOFT)
                 }
             }
             msgActionItem(ctx, "复制", onClick = { ctx.copyMsg() })
@@ -2540,7 +2318,7 @@ internal fun ViewContainer<*, *>.msgActionSheet(ctx: ChatMainPage) {
             View {
                 attr {
                     height(1f)
-                    backgroundColor(0xFFEDF0F4)
+                    backgroundColor(AppColor.SURFACE_SOFT)
                     margin(top = 4f)
                 }
             }
@@ -2555,7 +2333,7 @@ internal fun ViewContainer<*, *>.msgActionSheet(ctx: ChatMainPage) {
                     attr {
                         text("取消")
                         fontSize(16f)
-                        color(0xFF333333)
+                        color(AppColor.TEXT_INK)
                     }
                 }
             }
@@ -2575,7 +2353,7 @@ internal fun ViewContainer<*, *>.msgActionItem(ctx: ChatMainPage, label: String,
             attr {
                 text(label)
                 fontSize(16f)
-                color(if (label == "删除") StockColors.UP else 0xFF1976D2)
+                color(if (label == "删除") StockColors.UP else AppColor.PRIMARY_SOFT)
             }
         }
     }
@@ -2598,3 +2376,6 @@ data class ChatSession(
     val updatedAt: Long,
     val pinned: Boolean = false
 )
+
+/** 空状态「最近对话」最多展示几条。 */
+private const val RECENT_PREVIEW_MAX = 3

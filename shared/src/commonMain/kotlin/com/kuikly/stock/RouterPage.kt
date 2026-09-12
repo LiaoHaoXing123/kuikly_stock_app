@@ -14,6 +14,7 @@ import com.tencent.kuikly.core.views.compose.Button
 import com.tencent.kuikly.core.reactive.handler.*
 import com.kuikly.stock.base.BasePager
 import com.kuikly.stock.base.bridgeModule
+import com.kuikly.stock.ui.theme.AppColor
 
 @Page("router", supportInLocal = true)
 internal class RouterPage : BasePager() {
@@ -25,7 +26,7 @@ internal class RouterPage : BasePager() {
         val ctx = this
         return {
             attr {
-                backgroundColor(Color.WHITE)
+                backgroundColor(AppColor.SURFACE)
             }
             RouterNavBar {
                 attr {
@@ -41,7 +42,7 @@ internal class RouterPage : BasePager() {
                 }
                 View {
                     attr {
-                        backgroundColor(Color.WHITE)
+                        backgroundColor(AppColor.SURFACE)
                         borderRadius(10f)
                         padding(10f)
                     }
@@ -82,7 +83,7 @@ internal class RouterPage : BasePager() {
                         View {
                             attr {
                                 absolutePosition(top = 1f, left = 1f, right = 1f, bottom = 1f)
-                                backgroundColor(Color.WHITE)
+                                backgroundColor(AppColor.SURFACE)
                                 borderRadius(5f)
                             }
                         }
@@ -246,7 +247,7 @@ internal class RouterNavigationBar : ComposeView<RouterNavigationBarAttr, Compos
             View {
                 attr {
                     paddingTop(ctx.pagerData.statusBarHeight)
-                    backgroundColor(Color.WHITE)
+                    backgroundColor(AppColor.SURFACE)
                 }
                 View {
                     attr {

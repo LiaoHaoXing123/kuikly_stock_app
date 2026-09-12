@@ -1,5 +1,6 @@
 package com.kuikly.stock.pages
 import com.kuikly.stock.data.StockColors
+import com.kuikly.stock.ui.theme.AppColor
 
 /**
  * 详情页与 K 线图统一联动动作
@@ -18,7 +19,7 @@ sealed interface KlineFocus {
     data class Point(
         val date: String,
         override val label: String,
-        override val colorValue: Long = 0xFF5B7FFF,
+        override val colorValue: Long = AppColor.ACCENT,
     ) : KlineFocus
 
     data class Price(
@@ -31,7 +32,7 @@ sealed interface KlineFocus {
 fun directionColorValue(direction: String?): Long = when (direction) {
     "多" -> StockColors.UP
     "空" -> StockColors.DOWN
-    else -> 0xFF8A9099
+    else -> AppColor.NEUTRAL
 }
 
 /**

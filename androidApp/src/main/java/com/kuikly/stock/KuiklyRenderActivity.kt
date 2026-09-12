@@ -51,8 +51,9 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val motion = navMotion()
         // API 34+ 必须在 onCreate 登记，才会作用于「这一次」打开和之后的关闭。
-        NavTransition.registerForApi34(this, navMotion())
+        NavTransition.registerForApi34(this, motion)
 
         setContentView(R.layout.activity_hr)
         setupImmersiveMode()
@@ -60,6 +61,8 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
         hrContainerView = findViewById(R.id.hr_container)
         loadingView = findViewById(R.id.hr_loading)
         errorView = findViewById(R.id.hr_error)
+        // 同级 Tab 切换的入场：窗口底色先把旧页盖住，内容再延迟淡入（见 NavTransition）。
+        NavTransition.applyTabContentFadeIn(motion, hrContainerView)
         kuiklyRenderViewDelegator.onAttach(hrContainerView, "", pageName, createPageData())
     }
 

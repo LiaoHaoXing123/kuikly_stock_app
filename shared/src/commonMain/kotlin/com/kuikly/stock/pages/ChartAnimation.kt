@@ -6,6 +6,7 @@
 
 package com.kuikly.stock.pages
 
+import com.kuikly.stock.ui.component.easeOutCubic
 import com.tencent.kuikly.core.coroutines.delay
 import com.tencent.kuikly.core.coroutines.launch
 import com.tencent.kuikly.core.pager.Pager
@@ -16,12 +17,6 @@ internal const val CHART_TWEEN_MS = 200
 
 /** 每帧间隔（毫秒）。Kuikly 的 delay 接收 Int 毫秒。 */
 private const val CHART_TWEEN_FRAME_MS = 16
-
-/** 缓出曲线：起步快、收尾稳，比线性更接近原生手感。 */
-private fun easeOutCubic(t: Float): Float {
-    val p = 1f - t
-    return 1f - p * p * p
-}
 
 /**
  * 把图表视口从 (fromStart, fromCount) 缓动到 (toStart, toCount)，逐帧回调。

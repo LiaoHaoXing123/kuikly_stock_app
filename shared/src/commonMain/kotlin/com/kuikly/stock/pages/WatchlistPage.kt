@@ -1,16 +1,14 @@
 package com.kuikly.stock.pages
 
 import com.kuikly.stock.base.BasePager
-import com.kuikly.stock.base.MountPulse
-import com.kuikly.stock.base.NumberRoll
-import com.kuikly.stock.base.Overlay
-import com.kuikly.stock.base.overlayEnterExit
-import com.kuikly.stock.base.PressState
-import com.kuikly.stock.base.pressFeedback
-import com.kuikly.stock.base.pressedScale
-import com.kuikly.stock.base.HapticStyle
-import com.kuikly.stock.base.hapticTick
-import com.kuikly.stock.base.skeletonBlock
+import com.kuikly.stock.ui.component.MountPulse
+import com.kuikly.stock.ui.component.NumberRoll
+import com.kuikly.stock.ui.component.Overlay
+import com.kuikly.stock.ui.component.overlayEnterExit
+import com.kuikly.stock.ui.component.PressState
+import com.kuikly.stock.ui.component.pressFeedback
+import com.kuikly.stock.ui.component.pressedScale
+import com.kuikly.stock.ui.component.skeletonBlock
 import com.kuikly.stock.data.StockColors
 
 import com.tencent.kuikly.core.annotations.Page
@@ -38,6 +36,22 @@ import com.kuikly.stock.data.describeAlertType
 import com.kuikly.stock.data.fmt2
 import com.kuikly.stock.data.fmtSignedPct
 import com.tencent.kuikly.core.coroutines.launch
+import com.kuikly.stock.ui.component.AppRoutes
+import com.kuikly.stock.ui.component.REFRESH_SPIN_STEP_MS
+import com.kuikly.stock.ui.component.appBottomNav
+import com.kuikly.stock.ui.component.pullRefreshLabel
+import com.kuikly.stock.ui.component.pullToRefresh
+import com.kuikly.stock.ui.component.refreshButton
+import com.kuikly.stock.ui.component.segmentedControl
+import com.kuikly.stock.ui.component.dialogActions
+import com.kuikly.stock.ui.component.dialogField
+import com.kuikly.stock.ui.component.statusFeedback
+import com.kuikly.stock.ui.component.openModule
+import com.kuikly.stock.ui.theme.AppColor
+import com.kuikly.stock.ui.theme.AppFont
+import com.kuikly.stock.ui.theme.AppRadius
+import com.kuikly.stock.ui.theme.AppSize
+import com.kuikly.stock.ui.theme.AppSpace
 
 @Page("watchlist")
 class WatchlistPage : BasePager() {
@@ -106,7 +120,7 @@ class WatchlistPage : BasePager() {
                 attr {
                     flex(1f)
                     flexDirectionColumn()
-                    backgroundColor(0xFFF5F5F5)
+                    backgroundColor(AppColor.SURFACE_SOFT)
                 }
                 watchlistNavBar(ctx)
                 statusFeedback({ ctx.saveMessage }, { ctx.saveMessage.contains("失败") })
@@ -193,7 +207,7 @@ class WatchlistPage : BasePager() {
         val color = when {
             pct > 0 -> StockColors.UP
             pct < 0 -> StockColors.DOWN
-            else -> 0xFF888888
+            else -> AppColor.TEXT_HINT_SOFT
         }
         val alerts = WatchStore.alertsOf(h.code).filter { it.enabled }
         val alertDesc = if (alerts.isNotEmpty()) "${alerts.size} 条 · " + alerts.joinToString(" / ") {
@@ -341,7 +355,7 @@ internal fun ViewContainer<*, *>.watchlistNavBar(ctx: WatchlistPage) {
         attr {
             flexDirectionRow()
             alignItems(FlexAlign.CENTER)
-            backgroundColor(0xFF1976D2)
+            backgroundColor(AppColor.PRIMARY_SOFT)
             paddingTop(ctx.pagerData.statusBarHeight)
             height(48f + ctx.pagerData.statusBarHeight)
         }
@@ -354,7 +368,7 @@ internal fun ViewContainer<*, *>.watchlistNavBar(ctx: WatchlistPage) {
                 attr {
                     text("< 返回")
                     fontSize(16f)
-                    color(0xFFFFFFFF)
+                    color(AppColor.ON_DARK)
                 }
             }
         }
@@ -363,7 +377,7 @@ internal fun ViewContainer<*, *>.watchlistNavBar(ctx: WatchlistPage) {
                 text("自选股")
                 fontSize(17f)
                 fontWeightBold()
-                color(0xFFFFFFFF)
+                color(AppColor.ON_DARK)
                 marginLeft(4f)
             }
         }
@@ -372,13 +386,13 @@ internal fun ViewContainer<*, *>.watchlistNavBar(ctx: WatchlistPage) {
                 attr {
                     text(ctx.rows.size.toString() + " 只")
                     fontSize(12f)
-                    color(0xFFB3D9FF)
+                    color(AppColor.ON_DARK_ACCENT_STRONG)
                     marginLeft(6f)
                 }
             }
         }
         View { attr { flex(1f) } }
-        refreshButton({ ctx.isLoading }, foreground = 0xFFFFFFFF) { ctx.reload(showFeedback = true) }
+        refreshButton({ ctx.isLoading }, foreground = AppColor.ON_DARK) { ctx.reload(showFeedback = true) }
     }
 }
 
@@ -387,7 +401,7 @@ internal fun ViewContainer<*, *>.watchSummary(ctx: WatchlistPage) {
         attr {
             margin(top = 8f, left = 12f, right = 12f, bottom = 4f)
             padding(top = 10f, left = 12f, bottom = 10f, right = 12f)
-            backgroundColor(0xFFFFFFFF)
+            backgroundColor(AppColor.SURFACE)
             borderRadius(10f)
         }
         Text {
@@ -395,14 +409,14 @@ internal fun ViewContainer<*, *>.watchSummary(ctx: WatchlistPage) {
                 text("持仓总览")
                 fontSize(13f)
                 fontWeightBold()
-                color(0xFF333333)
+                color(AppColor.TEXT_INK)
             }
         }
         Text {
             attr {
                 text(ctx.summaryRoll.display)
                 fontSize(12f)
-                color(0xFF555555)
+                color(AppColor.TEXT_GRAY)
                 marginTop(4f)
                 lineHeight(17f)
             }
@@ -418,9 +432,9 @@ internal fun ViewContainer<*, *>.watchSummary(ctx: WatchlistPage) {
                 accessibilityInfo(true, false)
             }
             event { click { ctx.openModule(AppRoutes.CALENDAR) } }
-            Text { attr { text("盈亏日历"); fontSize(12f); color(0xFF1976D2); fontWeightBold() } }
-            Text { attr { text("  ·  每日持仓快照，点开看贡献"); fontSize(11f); color(0xFF888888); flex(1f) } }
-            Text { attr { text("›"); fontSize(18f); color(0xFF9EA7B2) } }
+            Text { attr { text("盈亏日历"); fontSize(12f); color(AppColor.PRIMARY_SOFT); fontWeightBold() } }
+            Text { attr { text("  ·  每日持仓快照，点开看贡献"); fontSize(11f); color(AppColor.TEXT_HINT_SOFT); flex(1f) } }
+            Text { attr { text("›"); fontSize(18f); color(AppColor.TEXT_MUTED) } }
         }
     }
 }
@@ -454,7 +468,7 @@ private fun ViewContainer<*, *>.watchlistSkeletonRow(sweep: MountPulse) {
             flexDirectionColumn()
             margin(top = 5f, left = 12f, right = 12f, bottom = 0f)
             padding(top = 10f, left = 12f, bottom = 8f, right = 12f)
-            backgroundColor(0xFFFFFFFF)
+            backgroundColor(AppColor.SURFACE)
             borderRadius(10f)
         }
 
@@ -483,7 +497,7 @@ private fun ViewContainer<*, *>.watchlistSkeletonRow(sweep: MountPulse) {
         View {
             attr {
                 height(1f)
-                backgroundColor(0xFFF0F2F5)
+                backgroundColor(AppColor.BG_SOFT)
                 margin(top = 8f, bottom = 6f)
             }
         }
@@ -518,14 +532,14 @@ internal fun ViewContainer<*, *>.watchlistEmptyView(ctx: WatchlistPage) {
                 text("还没有自选股")
                 fontSize(16f)
                 fontWeightBold()
-                color(0xFF333333)
+                color(AppColor.TEXT_INK)
             }
         }
         Text {
             attr {
                 text("加入自选后可以设置持仓成本、盯盘提醒，\n并在行情明细里看到持仓盈亏。")
                 fontSize(13f)
-                color(0xFF999999)
+                color(AppColor.TEXT_HINT)
                 marginTop(6f)
                 textAlignCenter()
                 lineHeight(19f)
@@ -536,7 +550,7 @@ internal fun ViewContainer<*, *>.watchlistEmptyView(ctx: WatchlistPage) {
             attr {
                 marginTop(18f)
                 padding(top = 11f, left = 26f, bottom = 11f, right = 26f)
-                backgroundColor(0xFF1976D2)
+                backgroundColor(AppColor.PRIMARY_SOFT)
                 borderRadius(22f)
                 pressedScale(ctx.press, WATCH_EMPTY_CTA_TAG, normal = 1f, pressed = 0.97f)
                 accessibility("去行情页添加自选")
@@ -555,7 +569,7 @@ internal fun ViewContainer<*, *>.watchlistEmptyView(ctx: WatchlistPage) {
                     text("去行情添加自选")
                     fontSize(14f)
                     fontWeightBold()
-                    color(0xFFFFFFFF)
+                    color(AppColor.ON_DARK)
                 }
             }
         }
@@ -564,7 +578,7 @@ internal fun ViewContainer<*, *>.watchlistEmptyView(ctx: WatchlistPage) {
             attr {
                 text("在个股详情页标题栏点 ☆ 也可以加入")
                 fontSize(11f)
-                color(0xFFAAAAAA)
+                color(AppColor.TEXT_MUTED)
                 marginTop(10f)
             }
         }
@@ -573,6 +587,15 @@ internal fun ViewContainer<*, *>.watchlistEmptyView(ctx: WatchlistPage) {
 
 private const val WATCH_EMPTY_CTA_TAG = "watchlist_empty_cta"
 private const val WATCH_SAVE_TAG = "watchlist_dialog_save"
+private const val WATCH_CANCEL_TAG = "watchlist_dialog_cancel"
+
+/**
+ * 提醒类型的五个选项。
+ *
+ * 顺序即下标：`editAlertType` 用 -1 表示「不新增」，所以选中的下标是 `type + 1`。
+ * -1 是一个真实取值而不是「未选」，不要把它也塞进列表。
+ */
+private val ALERT_TYPE_OPTIONS = listOf("不新增", "价格≥", "价格≤", "涨幅≥", "跌幅≥")
 
 
 internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowData) {
@@ -581,7 +604,7 @@ internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowD
             flexDirectionColumn()
             margin(top = 5f, left = 12f, right = 12f, bottom = 0f)
             padding(top = 10f, left = 12f, bottom = 8f, right = 12f)
-            backgroundColor(0xFFFFFFFF)
+            backgroundColor(AppColor.SURFACE)
             borderRadius(10f)
         }
 
@@ -604,14 +627,14 @@ internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowD
                     attr {
                         text(row.name)
                         fontSize(15f)
-                        color(0xFF333333)
+                        color(AppColor.TEXT_INK)
                     }
                 }
                 Text {
                     attr {
                         text(row.code)
                         fontSize(11f)
-                        color(0xFF999999)
+                        color(AppColor.TEXT_HINT)
                         marginTop(1f)
                     }
                 }
@@ -644,7 +667,7 @@ internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowD
                     attr {
                         text("持仓 " + trimHoldNum(row.shares) + " 股 @ " + fmt2(row.cost))
                         fontSize(11f)
-                        color(0xFF888888)
+                        color(AppColor.TEXT_HINT_SOFT)
                         flex(1f)
                     }
                 }
@@ -653,7 +676,7 @@ internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowD
                         attr {
                             text("市值 " + row.marketValueText)
                             fontSize(11f)
-                            color(0xFF555555)
+                            color(AppColor.TEXT_GRAY)
                             marginRight(10f)
                         }
                     }
@@ -684,7 +707,7 @@ internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowD
                         attr {
                             text("提醒 " + row.alertDesc)
                             fontSize(11f)
-                            color(0xFFA56100)
+                            color(AppColor.WARNING_TEXT)
                         }
                     }
                 }
@@ -700,7 +723,7 @@ internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowD
                     attr {
                         text("仅关注 · 未设持仓")
                         fontSize(11f)
-                        color(0xFFBBBBBB)
+                        color(AppColor.DISABLED)
                         flex(1f)
                     }
                 }
@@ -709,7 +732,7 @@ internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowD
                         attr {
                             text("提醒 " + row.alertDesc)
                             fontSize(11f)
-                            color(0xFFA56100)
+                            color(AppColor.WARNING_TEXT)
                             marginRight(10f)
                         }
                     }
@@ -720,7 +743,7 @@ internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowD
         View {
             attr {
                 height(1f)
-                backgroundColor(0xFFF0F2F5)
+                backgroundColor(AppColor.BG_SOFT)
                 margin(top = 8f, bottom = 6f)
             }
         }
@@ -733,7 +756,7 @@ internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowD
                 attr {
                     minHeight(44f)
                     padding(top = 5f, left = 10f, bottom = 5f, right = 10f)
-                    backgroundColor(0xFFE3F2FD)
+                    backgroundColor(AppColor.PRIMARY_BG)
                     borderRadius(14f)
                     accessibility("设置${row.name}的持仓或提醒")
                     accessibilityRole(AccessibilityRole.BUTTON)
@@ -744,7 +767,7 @@ internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowD
                     attr {
                         text("✎ 设置持仓 / 提醒")
                         fontSize(12f)
-                        color(0xFF1976D2)
+                        color(AppColor.PRIMARY_SOFT)
                     }
                 }
             }
@@ -776,7 +799,7 @@ internal fun ViewContainer<*, *>.watchEditDialog(ctx: WatchlistPage) {
     View {
         attr {
             absolutePositionAllZero()
-            backgroundColor(0x88000000)
+            backgroundColor(AppColor.SCRIM)
             alignItems(FlexAlign.CENTER)
             justifyContent(FlexJustifyContent.CENTER)
             padding(left = 20f, right = 20f)
@@ -786,12 +809,11 @@ internal fun ViewContainer<*, *>.watchEditDialog(ctx: WatchlistPage) {
         View {
             attr {
                 overlayEnterExit(ctx.editOverlay)
-                // 之前这层只有入场动画、没有任何版式 → 内容直接铺在半透明遮罩上、顶到屏幕两边，
-                // 就是用户说的「错位」。补上白卡片：定宽居中、圆角、内边距。
+                // 定宽居中白卡片：内容不能直接铺在半透明遮罩上、顶到屏幕两边。
                 width((ctx.pagerData.pageViewWidth - 48f).coerceIn(280f, 360f))
-                backgroundColor(0xFFFFFFFF)
-                borderRadius(16f)
-                padding(20f)
+                backgroundColor(AppColor.SURFACE)
+                borderRadius(AppRadius.LG)
+                padding(AppSpace.AIRY)
             }
             // 消费点击，阻止冒泡到遮罩——否则点输入框/卡片空白处都会触发 dismiss，弹窗一点就关。
             event { click { } }
@@ -799,80 +821,64 @@ internal fun ViewContainer<*, *>.watchEditDialog(ctx: WatchlistPage) {
             Text {
                 attr {
                     text("自选设置 · " + ctx.editName + " (" + ctx.editCode + ")")
-                    fontSize(16f)
+                    fontSize(AppFont.TITLE)
                     fontWeightBold()
-                    color(0xFF333333)
+                    color(AppColor.TEXT_INK)
                 }
             }
+
+            dialogField(
+                label = "持仓股数",
+                value = { ctx.editSharesText },
+                placeholder = "留空或 0 表示仅关注",
+                onTextChange = { ctx.editSharesText = it },
+            )
+            dialogField(
+                label = "持仓成本价",
+                value = { ctx.editCostText },
+                placeholder = "每股成本，如 3.20",
+                onTextChange = { ctx.editCostText = it },
+            )
 
             Text {
                 attr {
-                    text("持仓股数")
-                    fontSize(12f)
-                    color(0xFF666666)
-                    marginTop(12f)
+                    text(ctx.editMessage)
+                    fontSize(AppFont.NOTE)
+                    color(AppColor.DANGER)
+                    marginTop(AppSpace.TIGHT)
                 }
             }
-            Input {
-                attr {
-                    height(36f)
-                    margin(top = 4f)
-                    fontSize(14f)
-                    color(Color(0xFF333333))
-                    editable(true)
-                    text(ctx.editSharesText)
-                    placeholder("留空或 0 表示仅关注")
-                    placeholderColor(Color(0xFFBBBBBB))
-                    backgroundColor(0xFFF5F5F5)
-                    borderRadius(8f)
-                }
-                event {
-                    textDidChange(isSyncEdit = true) { params -> ctx.editSharesText = params.text }
-                }
-            }
-
-            Text {
-                attr {
-                    text("持仓成本价")
-                    fontSize(12f)
-                    color(0xFF666666)
-                    marginTop(10f)
-                }
-            }
-            Input {
-                attr {
-                    height(36f)
-                    margin(top = 4f)
-                    fontSize(14f)
-                    color(Color(0xFF333333))
-                    editable(true)
-                    text(ctx.editCostText)
-                    placeholder("每股成本，如 3.20")
-                    placeholderColor(Color(0xFFBBBBBB))
-                    backgroundColor(0xFFF5F5F5)
-                    borderRadius(8f)
-                }
-                event {
-                    textDidChange(isSyncEdit = true) { params -> ctx.editCostText = params.text }
-                }
-            }
-
-            Text { attr { text(ctx.editMessage); fontSize(12f); color(0xFFD32F2F); marginTop(6f) } }
             Scroller {
-                attr { height((ctx.editRules.size * 44f).coerceAtMost(132f)); flexDirectionColumn(); scrollEnable(true) }
+                attr {
+                    height((ctx.editRules.size * AppSize.TOUCH_MIN).coerceAtMost(132f))
+                    flexDirectionColumn()
+                    scrollEnable(true)
+                }
                 vfor({ ctx.editRules }) { rule ->
                     View {
-                        attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginTop(6f) }
-                        Text { attr { text(describeAlertType(rule.type) + " " + rule.threshold.toString()); fontSize(12f); flex(1f) } }
-                        View {
-                            attr { padding(8f) }
-                            event { click { ctx.toggleRule(rule) } }
-                            Text { attr { text(if (rule.enabled) "停用" else "启用"); fontSize(12f); color(0xFF1976D2) } }
+                        attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginTop(AppSpace.TIGHT) }
+                        Text {
+                            attr {
+                                text(describeAlertType(rule.type) + " " + rule.threshold.toString())
+                                fontSize(AppFont.NOTE)
+                                flex(1f)
+                            }
                         }
                         View {
-                            attr { padding(8f) }
+                            attr { padding(AppSpace.TIGHT) }
+                            event { click { ctx.toggleRule(rule) } }
+                            Text {
+                                attr {
+                                    text(if (rule.enabled) "停用" else "启用")
+                                    fontSize(AppFont.NOTE)
+                                    color(AppColor.PRIMARY_SOFT)
+                                }
+                            }
+                        }
+                        View {
+                            attr { padding(AppSpace.TIGHT) }
                             event { click { ctx.deleteRule(rule) } }
-                            Text { attr { text("删除此规则"); fontSize(12f); color(0xFFD32F2F) } }
+                            Text { attr { text("删除此规则"); fontSize(AppFont.NOTE); color(AppColor.DANGER) } }
                         }
                     }
                 }
@@ -881,149 +887,46 @@ internal fun ViewContainer<*, *>.watchEditDialog(ctx: WatchlistPage) {
             Text {
                 attr {
                     text("新增提醒（数据刷新时检查，可能延迟）")
-                    fontSize(12f)
-                    color(0xFF666666)
-                    marginTop(10f)
+                    fontSize(AppFont.NOTE)
+                    color(AppColor.TEXT_GRAY)
+                    marginTop(AppSpace.GAP)
                 }
             }
-            View {
-                attr {
-                    flexDirectionRow()
-                    alignSelf(FlexAlign.FLEX_START)
-                    backgroundColor(0xFFF0F4F9)
-                    borderRadius(14f)
-                    padding(3f)
-                    marginTop(6f)
-                }
-                View {
-                    attr {
-                        val t = ctx.editAlertType
-                        animate(Animation.easeOut(0.2f), t)
-                        absolutePosition(top = 3f, left = 3f, bottom = 3f)
-                        width(56f)
-                        borderRadius(11f)
-                        backgroundColor(0xFF1976D2)
-                        transform(translate = Translate(percentageX = (t + 1).toFloat()))
-                    }
-                }
-                alertTab(ctx, -1, "不新增")
-                alertTab(ctx, 0, "价格≥")
-                alertTab(ctx, 1, "价格≤")
-                alertTab(ctx, 2, "涨幅≥")
-                alertTab(ctx, 3, "跌幅≥")
-            }
+            segmentedControl(
+                options = ALERT_TYPE_OPTIONS,
+                selectedIndex = { ctx.editAlertType + 1 },
+                itemWidth = 56f,
+                fontSize = AppFont.CAPTION,
+                marginTop = AppSpace.TIGHT,
+                selfAlign = FlexAlign.FLEX_START,
+                onSelect = { ctx.editAlertType = it - 1 },
+            )
 
             vif({ ctx.editAlertType >= 0 }) {
-                Text {
-                    attr {
-                        text(if (ctx.editAlertType == 2) "触发涨幅阈值（%）" else if (ctx.editAlertType == 3) "触发跌幅阈值（%）" else "触发价位")
-                        fontSize(12f)
-                        color(0xFF666666)
-                        marginTop(10f)
-                    }
-                }
-                Input {
-                    attr {
-                        height(36f)
-                        margin(top = 4f)
-                        fontSize(14f)
-                        color(Color(0xFF333333))
-                        editable(true)
-                        text(ctx.editThresholdText)
-                        placeholder(if (ctx.editAlertType == 2 || ctx.editAlertType == 3) "如 5 表示 5%" else "如 3.50")
-                        placeholderColor(Color(0xFFBBBBBB))
-                        backgroundColor(0xFFF5F5F5)
-                        borderRadius(8f)
-                    }
-                    event {
-                        textDidChange(isSyncEdit = true) { params -> ctx.editThresholdText = params.text }
-                    }
-                }
+                dialogField(
+                    label = if (ctx.editAlertType == 2) {
+                        "触发涨幅阈值（%）"
+                    } else if (ctx.editAlertType == 3) {
+                        "触发跌幅阈值（%）"
+                    } else {
+                        "触发价位"
+                    },
+                    value = { ctx.editThresholdText },
+                    placeholder = if (ctx.editAlertType == 2 || ctx.editAlertType == 3) "如 5 表示 5%" else "如 3.50",
+                    onTextChange = { ctx.editThresholdText = it },
+                )
             }
 
-            View {
-                attr {
-                    flexDirectionRow()
-                    marginTop(14f)
-                }
-                View {
-                    attr {
-                        flex(1f)
-                        height(44f)
-                        backgroundColor(0xFFF5F5F5)
-                        borderRadius(19f)
-                        alignItems(FlexAlign.CENTER)
-                        justifyContent(FlexJustifyContent.CENTER)
-                        accessibility("取消编辑")
-                        accessibilityRole(AccessibilityRole.BUTTON)
-                        accessibilityInfo(true, false)
-                    }
-                    event { click { ctx.dismissEdit() } }
-                    Text {
-                        attr {
-                            text("取消")
-                            fontSize(14f)
-                            color(0xFF666666)
-                        }
-                    }
-                }
-                View {
-                    attr {
-                        flex(1f)
-                        height(44f)
-                        backgroundColor(0xFF1976D2)
-                        borderRadius(19f)
-                        alignItems(FlexAlign.CENTER)
-                        justifyContent(FlexJustifyContent.CENTER)
-                        marginLeft(12f)
-                        pressedScale(ctx.press, WATCH_SAVE_TAG, normal = 1f, pressed = 0.97f)
-                        accessibility("保存持仓与提醒")
-                        accessibilityRole(AccessibilityRole.BUTTON)
-                        accessibilityInfo(true, false)
-                    }
-                    event {
-                        pressFeedback(ctx.press, WATCH_SAVE_TAG)
-                        click {
-                            ctx.press.releaseAll()
-                            ctx.saveEdit()
-                        }
-                    }
-                    Text {
-                        attr {
-                            text("保存")
-                            fontSize(14f)
-                            fontWeightBold()
-                            color(0xFFFFFFFF)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-internal fun ViewContainer<*, *>.watchAlertChip(ctx: WatchlistPage, type: Int, label: String) {
-    selectionChip(label, { ctx.editAlertType == type }) { ctx.editAlertType = type }
-}
-
-internal fun ViewContainer<*, *>.alertTab(ctx: WatchlistPage, type: Int, label: String) {
-    View {
-        attr {
-            width(56f)
-            height(28f)
-            allCenter()
-            accessibility(if (ctx.editAlertType == type) "$label，已选择" else label)
-            accessibilityRole(AccessibilityRole.BUTTON)
-            accessibilityInfo(ctx.editAlertType != type, false)
-        }
-        event { click { hapticTick(HapticStyle.Light); ctx.editAlertType = type } }
-        Text {
-            attr {
-                text(label)
-                fontSize(11f)
-                fontWeightBold()
-                color(if (ctx.editAlertType == type) 0xFFFFFFFF else 0xFF666666)
-            }
+            dialogActions(
+                confirmLabel = "保存",
+                confirmAccessibilityText = "保存持仓与提醒",
+                cancelAccessibilityText = "取消编辑",
+                press = ctx.press,
+                cancelTag = WATCH_CANCEL_TAG,
+                confirmTag = WATCH_SAVE_TAG,
+                onCancel = { ctx.dismissEdit() },
+                onConfirm = { ctx.saveEdit() },
+            )
         }
     }
 }

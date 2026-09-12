@@ -12,15 +12,18 @@ import com.tencent.kuikly.core.module.RouterModule
 import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
 import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.views.*
+import com.kuikly.stock.ui.component.AppRoutes
+import com.kuikly.stock.ui.component.openModule
+import com.kuikly.stock.ui.theme.AppColor
 
 internal fun ViewContainer<*, *>.sectorCard(ctx: StockDetailPage) {
     vif({ ctx.sectorSnapshot != null }) {
         View {
-            attr { margin(4f, 12f, 4f, 12f); padding(12f); backgroundColor(0xFFFFFFFF); borderRadius(10f) }
+            attr { margin(4f, 12f, 4f, 12f); padding(12f); backgroundColor(AppColor.SURFACE); borderRadius(10f) }
             View {
                 attr { flexDirectionRow(); alignItemsCenter(); minHeight(36f) }
                 event { click { ctx.sectorExpanded = !ctx.sectorExpanded } }
-                Text { attr { text("官方板块 · ${ctx.sectorSnapshot?.board?.boardName.orEmpty()}"); fontSize(13f); flex(1f); color(0xFF26384A) } }
+                Text { attr { text("官方板块 · ${ctx.sectorSnapshot?.board?.boardName.orEmpty()}"); fontSize(13f); flex(1f); color(AppColor.TEXT_DEEP) } }
                 Text {
                     attr {
                         text(ctx.sectorSnapshot?.board?.changePercent?.let { fmtSignedPct(it) } ?: "—")
@@ -28,7 +31,7 @@ internal fun ViewContainer<*, *>.sectorCard(ctx: StockDetailPage) {
                         color(if ((ctx.sectorSnapshot?.board?.changePercent ?: 0.0) >= 0) StockColors.UP else StockColors.DOWN)
                     }
                 }
-                Text { attr { text(if (ctx.sectorExpanded) " 收起 ∧" else " 排行 ›"); fontSize(12f); color(0xFF1976D2) } }
+                Text { attr { text(if (ctx.sectorExpanded) " 收起 ∧" else " 排行 ›"); fontSize(12f); color(AppColor.PRIMARY_SOFT) } }
             }
             Text {
                 attr {
@@ -39,14 +42,14 @@ internal fun ViewContainer<*, *>.sectorCard(ctx: StockDetailPage) {
                         b?.let { if (it.totalMv != null) append(" · 市值 ${fmtMvYi(it.totalMv)}") }
                         b?.let { append(" · 快照 ${it.fetchDate}") }
                     }.ifEmpty { "官方行业板块 · 当日快照" })
-                    fontSize(11f); lineHeight(18f); color(0xFF627083)
+                    fontSize(11f); lineHeight(18f); color(AppColor.TEXT_SUB_DEEP)
                 }
             }
             Text {
                 attr {
                     val s = ctx.sectorSnapshot
                     text("个股相对板块 ${s?.relative(ctx.stockCode)?.let { "${fmtSigned2(it)}个百分点" } ?: "—"} · 板块内排名 ${s?.rankOf(ctx.stockCode)?.let { "${it}/${s.current.size}" } ?: "—"}")
-                    fontSize(11f); lineHeight(18f); color(0xFF627083); marginTop(2f)
+                    fontSize(11f); lineHeight(18f); color(AppColor.TEXT_SUB_DEEP); marginTop(2f)
                 }
             }
             vif({ ctx.sectorExpanded }) {
@@ -59,7 +62,7 @@ internal fun ViewContainer<*, *>.sectorCard(ctx: StockDetailPage) {
                         })
                     }
                 }
-                Text { attr { text(if (ctx.sectorAscending) "涨幅从低到高 · 点击股票查看详情" else "涨幅从高到低 · 点击股票查看详情"); fontSize(10f); color(0xFF8A9099); marginTop(6f) } }
+                Text { attr { text(if (ctx.sectorAscending) "涨幅从低到高 · 点击股票查看详情" else "涨幅从高到低 · 点击股票查看详情"); fontSize(10f); color(AppColor.NEUTRAL); marginTop(6f) } }
                 Scroller {
                     attr { height(220f); flexDirectionColumn(); marginTop(4f) }
                     vfor({
@@ -67,10 +70,10 @@ internal fun ViewContainer<*, *>.sectorCard(ctx: StockDetailPage) {
                         ObservableList((if (ctx.sectorAscending) items else items.reversed()).toMutableList())
                     }) { member ->
                         View {
-                            attr { minHeight(42f); flexDirectionRow(); alignItemsCenter(); padding(6f); backgroundColor(if (member.code == ctx.stockCode) 0xFFE8F2FF else 0xFFFFFFFF) }
+                            attr { minHeight(42f); flexDirectionRow(); alignItemsCenter(); padding(6f); backgroundColor(if (member.code == ctx.stockCode) AppColor.PRIMARY_BG_LIGHT else AppColor.SURFACE) }
                             event { click { ctx.acquireModule<RouterModule>(RouterModule.MODULE_NAME).openPage("stock_detail", JSONObject().apply { put("code", member.code) }) } }
-                            Text { attr { text("${member.name ?: member.code}\n${member.code}"); fontSize(11f); lineHeight(16f); flex(1f); color(0xFF26384A) } }
-                            Text { attr { text(member.price?.let { fmt2(it) } ?: "—"); fontSize(12f); width(64f); color(0xFF627083) } }
+                            Text { attr { text("${member.name ?: member.code}\n${member.code}"); fontSize(11f); lineHeight(16f); flex(1f); color(AppColor.TEXT_DEEP) } }
+                            Text { attr { text(member.price?.let { fmt2(it) } ?: "—"); fontSize(12f); width(64f); color(AppColor.TEXT_SUB_DEEP) } }
                             Text { attr { text(member.changePercent?.let { fmtSignedPct(it) } ?: "—"); fontSize(12f); color(if ((member.changePercent ?: 0.0) >= 0) StockColors.UP else StockColors.DOWN) } }
                         }
                     }

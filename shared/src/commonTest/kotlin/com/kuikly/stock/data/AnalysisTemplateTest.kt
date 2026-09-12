@@ -1,6 +1,8 @@
 package com.kuikly.stock.data
 
-import com.kuikly.stock.pages.*
+import com.kuikly.stock.pages.RealtimeQuoteData
+import com.kuikly.stock.pages.StockDetailData
+import com.kuikly.stock.pages.StockInfoData
 import kotlin.test.*
 
 class AnalysisTemplateTest {

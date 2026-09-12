@@ -3,16 +3,17 @@
 
 package com.kuikly.stock.pages
 
-import com.kuikly.stock.base.AI_DOT_STEP_MS
+import com.kuikly.stock.ui.component.topToast
+import com.kuikly.stock.ui.component.AI_DOT_STEP_MS
 import com.kuikly.stock.base.BasePager
-import com.kuikly.stock.base.Overlay
-import com.kuikly.stock.base.overlayEnterExit
-import com.kuikly.stock.base.aiDotWaveDots
-import com.kuikly.stock.base.SKELETON_BG_ON_DARK
-import com.kuikly.stock.base.SKELETON_BG_STRONG
-import com.kuikly.stock.base.pressFeedback
-import com.kuikly.stock.base.pressedScale
-import com.kuikly.stock.base.skeletonBlock
+import com.kuikly.stock.ui.component.Overlay
+import com.kuikly.stock.ui.component.overlayEnterExit
+import com.kuikly.stock.ui.component.aiDotWaveDots
+import com.kuikly.stock.ui.component.SKELETON_BG_ON_DARK
+import com.kuikly.stock.ui.component.SKELETON_BG_STRONG
+import com.kuikly.stock.ui.component.pressFeedback
+import com.kuikly.stock.ui.component.pressedScale
+import com.kuikly.stock.ui.component.skeletonBlock
 
 import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
 import com.tencent.kuikly.core.annotations.Page
@@ -50,6 +51,7 @@ import com.kuikly.stock.data.fmt3
 import com.kuikly.stock.data.fmtSigned2
 import com.kuikly.stock.data.fmtSignedPct
 import kotlin.math.abs
+import com.kuikly.stock.ui.theme.AppColor
 
 internal fun ViewContainer<*, *>.analyzingView(ctx: StockDetailPage) {
     View {
@@ -57,7 +59,7 @@ internal fun ViewContainer<*, *>.analyzingView(ctx: StockDetailPage) {
             flexDirectionColumn()
             alignItems(FlexAlign.CENTER)
             padding(top = 20f, left = 16f, bottom = 20f, right = 16f)
-            backgroundColor(0xFFFFFFFF)
+            backgroundColor(AppColor.SURFACE)
             borderRadius(12f)
         }
 
@@ -65,7 +67,7 @@ internal fun ViewContainer<*, *>.analyzingView(ctx: StockDetailPage) {
             attr {
                 text("AI 正在分析中...")
                 fontSize(14f)
-                color(0xFF666666)
+                color(AppColor.TEXT_GRAY)
             }
         }
 
@@ -73,7 +75,7 @@ internal fun ViewContainer<*, *>.analyzingView(ctx: StockDetailPage) {
             attr {
                 text("正在结合K线、指标与盘口数据生成结构化研判")
                 fontSize(12f)
-                color(0xFF999999)
+                color(AppColor.TEXT_HINT)
                 marginTop(6f)
                 textAlignCenter()
             }
@@ -90,7 +92,7 @@ internal fun ViewContainer<*, *>.notAnalyzedView(ctx: StockDetailPage) {
             flexDirectionColumn()
             alignItems(FlexAlign.CENTER)
             padding(top = 20f, left = 16f, bottom = 20f, right = 16f)
-            backgroundColor(0xFFFFFFFF)
+            backgroundColor(AppColor.SURFACE)
             borderRadius(12f)
         }
 
@@ -98,7 +100,7 @@ internal fun ViewContainer<*, *>.notAnalyzedView(ctx: StockDetailPage) {
             attr {
                 text("尚未进行 AI 分析")
                 fontSize(14f)
-                color(0xFF666666)
+                color(AppColor.TEXT_GRAY)
             }
         }
 
@@ -106,7 +108,7 @@ internal fun ViewContainer<*, *>.notAnalyzedView(ctx: StockDetailPage) {
             attr {
                 text("AI 将结合K线走势、技术指标与盘口数据，生成带关键价位的结构化研判，并与K线联动")
                 fontSize(11f)
-                color(0xFF999999)
+                color(AppColor.TEXT_HINT)
                 marginTop(6f)
                 textAlignCenter()
                 lineHeight(16f)
@@ -117,7 +119,7 @@ internal fun ViewContainer<*, *>.notAnalyzedView(ctx: StockDetailPage) {
             attr {
                 marginTop(14f)
                 padding(top = 10f, left = 28f, bottom = 10f, right = 28f)
-                backgroundColor(0xFF1976D2)
+                backgroundColor(AppColor.PRIMARY_SOFT)
                 borderRadius(20f)
                 pressedScale(ctx.press, AI_START_TAG, normal = 1f, pressed = 0.97f)
                 accessibility("开始 AI 分析")
@@ -136,7 +138,7 @@ internal fun ViewContainer<*, *>.notAnalyzedView(ctx: StockDetailPage) {
                     text("开始 AI 分析")
                     fontSize(14f)
                     fontWeightBold()
-                    color(0xFFFFFFFF)
+                    color(AppColor.ON_DARK)
                 }
             }
         }
@@ -153,22 +155,22 @@ private const val AI_START_TAG = "detail_ai_start"
  */
 internal fun ViewContainer<*, *>.detailAlertConfirmDialog(ctx: StockDetailPage) {
     View {
-        attr { absolutePositionAllZero(); backgroundColor(0x88000000); allCenter() }
+        attr { absolutePositionAllZero(); backgroundColor(AppColor.SCRIM); allCenter() }
         View {
             attr {
                 overlayEnterExit(ctx.alertOverlay)
             }
-            Text { attr { text("确认创建价格提醒"); fontSize(18f); fontWeightBold(); color(0xFF172A43) } }
-            Text { attr { text("${ctx.pendingAlertName} · ${ctx.pendingAlertCode}"); fontSize(13f); color(0xFF697789); marginTop(9f) } }
-            View { attr { padding(14f); marginTop(12f); borderRadius(12f); backgroundColor(0xFFF4F7FB) }
-                Text { attr { text(if (ctx.pendingAlertType == 1) "价格跌至或低于" else "价格涨至或高于"); fontSize(11f); color(0xFF7A8797) } }
-                Text { attr { text("¥ ${fmt2(ctx.pendingAlertValue)}"); fontSize(23f); fontWeightBold(); color(0xFF173C64); marginTop(4f) } }
+            Text { attr { text("确认创建价格提醒"); fontSize(18f); fontWeightBold(); color(AppColor.TEXT_STRONG) } }
+            Text { attr { text("${ctx.pendingAlertName} · ${ctx.pendingAlertCode}"); fontSize(13f); color(AppColor.TEXT_SUB_DEEP); marginTop(9f) } }
+            View { attr { padding(14f); marginTop(12f); borderRadius(12f); backgroundColor(AppColor.BG) }
+                Text { attr { text(if (ctx.pendingAlertType == 1) "价格跌至或低于" else "价格涨至或高于"); fontSize(11f); color(AppColor.TEXT_SUB_DEEP) } }
+                Text { attr { text("¥ ${fmt2(ctx.pendingAlertValue)}"); fontSize(23f); fontWeightBold(); color(AppColor.TEXT_STRONG); marginTop(4f) } }
             }
-            Text { attr { text("提醒在行情数据刷新时检查，可能存在延迟。"); fontSize(11f); color(0xFF8A94A1); marginTop(10f) } }
+            Text { attr { text("提醒在行情数据刷新时检查，可能存在延迟。"); fontSize(11f); color(AppColor.TEXT_SUB); marginTop(10f) } }
             View { attr { flexDirectionRow(); marginTop(16f) }
-                View { attr { flex(1f); height(44f); allCenter(); borderRadius(12f); backgroundColor(0xFFF0F2F5); pressedScale(ctx.press, ALERT_CANCEL_TAG) }; event { pressFeedback(ctx.press, ALERT_CANCEL_TAG); click { ctx.press.releaseAll(); ctx.dismissAlertConfirm() } }; Text { attr { text("取消"); fontSize(13f); color(0xFF697586) } } }
+                View { attr { flex(1f); height(44f); allCenter(); borderRadius(12f); backgroundColor(AppColor.BG_SOFT); pressedScale(ctx.press, ALERT_CANCEL_TAG) }; event { pressFeedback(ctx.press, ALERT_CANCEL_TAG); click { ctx.press.releaseAll(); ctx.dismissAlertConfirm() } }; Text { attr { text("取消"); fontSize(13f); color(AppColor.TEXT_SUB_DEEP) } } }
                 View { attr { width(10f) } }
-                View { attr { flex(1f); height(44f); allCenter(); borderRadius(12f); backgroundColor(0xFF0E67D1); pressedScale(ctx.press, ALERT_OK_TAG, normal = 1f, pressed = 0.97f); accessibility("确认创建价格提醒"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }; event { pressFeedback(ctx.press, ALERT_OK_TAG); click { ctx.press.releaseAll(); ctx.confirmAlert() } }; Text { attr { text("确认创建"); fontSize(13f); fontWeightBold(); color(Color.WHITE) } } }
+                View { attr { flex(1f); height(44f); allCenter(); borderRadius(12f); backgroundColor(AppColor.PRIMARY); pressedScale(ctx.press, ALERT_OK_TAG, normal = 1f, pressed = 0.97f); accessibility("确认创建价格提醒"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }; event { pressFeedback(ctx.press, ALERT_OK_TAG); click { ctx.press.releaseAll(); ctx.confirmAlert() } }; Text { attr { text("确认创建"); fontSize(13f); fontWeightBold(); color(Color.WHITE) } } }
             }
         }
     }
@@ -178,29 +180,12 @@ private const val ALERT_CANCEL_TAG = "detail_alert_cancel"
 private const val ALERT_OK_TAG = "detail_alert_ok"
 
 internal fun ViewContainer<*, *>.detailAiToast(ctx: StockDetailPage) {
-    View {
-        attr {
-            absolutePosition(top = 70f, left = 0f, right = 0f)
-            alignItems(FlexAlign.CENTER)
-        }
-        event { click { ctx.aiErrorNotice = "" } }
-        View {
-            attr {
-                maxWidth(ctx.pagerData.pageViewWidth - 60f)
-                backgroundColor(0xE60E67D1)
-                borderRadius(10f)
-                padding(left = 14f, top = 8f, right = 14f, bottom = 8f)
-            }
-            Text {
-                attr {
-                    text(ctx.aiErrorNotice)
-                    fontSize(12f)
-                    color(0xFFFFFFFF)
-                    textAlignCenter()
-                }
-            }
-        }
-    }
+    topToast(
+        ctx = ctx,
+        text = { ctx.aiErrorNotice },
+        onDismiss = { ctx.aiErrorNotice = "" },
+        tint = AppColor.PRIMARY,
+    )
 }
 
 /**
@@ -219,7 +204,7 @@ internal fun ViewContainer<*, *>.stockDetailLoadingView(ctx: BasePager) {
         attr {
             flex(1f)
             flexDirectionColumn()
-            backgroundColor(0xFFF5F5F5)
+            backgroundColor(AppColor.SURFACE_SOFT)
         }
 
         // 1) 顶栏（与 detailNavigationBar 同高、同底色）
@@ -227,7 +212,7 @@ internal fun ViewContainer<*, *>.stockDetailLoadingView(ctx: BasePager) {
             attr {
                 flexDirectionRow()
                 alignItems(FlexAlign.CENTER)
-                backgroundColor(0xFF1976D2)
+                backgroundColor(AppColor.PRIMARY_SOFT)
                 paddingTop(ctx.pagerData.statusBarHeight)
                 height(48f + ctx.pagerData.statusBarHeight)
             }
@@ -247,7 +232,7 @@ internal fun ViewContainer<*, *>.stockDetailLoadingView(ctx: BasePager) {
                 flexDirectionColumn()
                 margin(4f, 12f, 4f, 12f)
                 padding(top = 12f, left = 16f, bottom = 12f, right = 16f)
-                backgroundColor(0xFFFFFFFF)
+                backgroundColor(AppColor.SURFACE)
                 borderRadius(10f)
             }
 
@@ -287,7 +272,7 @@ internal fun ViewContainer<*, *>.stockDetailLoadingView(ctx: BasePager) {
                 flexDirectionColumn()
                 margin(4f, 12f, 4f, 12f)
                 padding(top = 12f, left = 16f, bottom = 12f, right = 16f)
-                backgroundColor(0xFFFFFFFF)
+                backgroundColor(AppColor.SURFACE)
                 borderRadius(10f)
             }
             skeletonBlock(height = 15f, w = 64f, sweep = sweep)
@@ -319,7 +304,7 @@ internal fun ViewContainer<*, *>.errorView(ctx: StockDetailPage) {
                 text("暂时取不到这只股票的行情")
                 fontSize(16f)
                 fontWeightBold()
-                color(0xFF333333)
+                color(AppColor.TEXT_INK)
                 textAlignCenter()
             }
         }
@@ -328,7 +313,7 @@ internal fun ViewContainer<*, *>.errorView(ctx: StockDetailPage) {
             attr {
                 text("可能是网络不稳定或数据源暂未覆盖 ${ctx.stockCode}，稍后重试通常就能恢复。")
                 fontSize(13f)
-                color(0xFF888888)
+                color(AppColor.TEXT_HINT_SOFT)
                 marginTop(8f)
                 textAlignCenter()
                 lineHeight(19f)
@@ -340,7 +325,7 @@ internal fun ViewContainer<*, *>.errorView(ctx: StockDetailPage) {
                 attr {
                     text(ctx.loadErrorMessage)
                     fontSize(11f)
-                    color(0xFFAAAAAA)
+                    color(AppColor.TEXT_MUTED)
                     marginTop(10f)
                     textAlignCenter()
                     lines(3)
@@ -352,7 +337,7 @@ internal fun ViewContainer<*, *>.errorView(ctx: StockDetailPage) {
             attr {
                 marginTop(18f)
                 padding(top = 11f, left = 28f, bottom = 11f, right = 28f)
-                backgroundColor(0xFF1976D2)
+                backgroundColor(AppColor.PRIMARY_SOFT)
                 borderRadius(22f)
                 pressedScale(ctx.press, DETAIL_RETRY_TAG, normal = 1f, pressed = 0.97f)
                 accessibility("重试加载行情")
@@ -371,7 +356,7 @@ internal fun ViewContainer<*, *>.errorView(ctx: StockDetailPage) {
                     text("重试")
                     fontSize(14f)
                     fontWeightBold()
-                    color(0xFFFFFFFF)
+                    color(AppColor.ON_DARK)
                 }
             }
         }

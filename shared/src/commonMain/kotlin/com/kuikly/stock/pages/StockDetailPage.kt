@@ -3,10 +3,10 @@
 
 package com.kuikly.stock.pages
 
-import com.kuikly.stock.base.AI_DOT_STEP_MS
+import com.kuikly.stock.ui.component.AI_DOT_STEP_MS
 import com.kuikly.stock.base.BasePager
-import com.kuikly.stock.base.NumberRoll
-import com.kuikly.stock.base.Overlay
+import com.kuikly.stock.ui.component.NumberRoll
+import com.kuikly.stock.ui.component.Overlay
 import com.kuikly.stock.data.StockColors
 
 import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
@@ -27,10 +27,10 @@ import com.tencent.kuikly.core.reactive.handler.observableList
 import com.tencent.kuikly.core.views.*
 import com.tencent.kuikly.core.views.TextAlign
 import com.kuikly.stock.data.StockRepository
-import com.kuikly.stock.base.PressState
-import com.kuikly.stock.base.pressFeedback
-import com.kuikly.stock.base.pressedBg
-import com.kuikly.stock.base.skeletonBlock
+import com.kuikly.stock.ui.component.PressState
+import com.kuikly.stock.ui.component.pressFeedback
+import com.kuikly.stock.ui.component.pressedBg
+import com.kuikly.stock.ui.component.skeletonBlock
 import com.kuikly.stock.data.WatchStore
 import com.kuikly.stock.data.nowMillis
 import com.kuikly.stock.data.AIVerdict
@@ -47,6 +47,9 @@ import com.kuikly.stock.data.fmt3
 import com.kuikly.stock.data.fmtSigned2
 import com.kuikly.stock.data.fmtSignedPct
 import kotlin.math.abs
+import com.kuikly.stock.ui.component.AppRoutes
+import com.kuikly.stock.ui.component.openModule
+import com.kuikly.stock.ui.theme.AppColor
 
 @Page("stock_detail")
 class StockDetailPage : BasePager(), KlineInteractionHost {
@@ -212,7 +215,7 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
                 attr {
                     flex(1f)
                     flexDirectionColumn()
-                    backgroundColor(0xFFF5F5F5)
+                    backgroundColor(AppColor.SURFACE_SOFT)
                 }
 
                 vif({ ctx.isLoading }) {

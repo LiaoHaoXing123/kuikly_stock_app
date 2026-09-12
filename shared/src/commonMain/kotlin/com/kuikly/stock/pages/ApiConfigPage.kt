@@ -27,6 +27,10 @@ import com.tencent.kuikly.core.views.Scroller
 import com.tencent.kuikly.core.views.Text
 import com.tencent.kuikly.core.views.View
 import com.kuikly.stock.data.nowMillis
+import com.kuikly.stock.ui.component.AppRoutes
+import com.kuikly.stock.ui.component.pageTitleBar
+import com.kuikly.stock.ui.component.statusFeedback
+import com.kuikly.stock.ui.theme.AppColor
 
 internal data class AiProfileRow(
     val profile: AiProviderProfile,
@@ -209,7 +213,7 @@ class ApiConfigPage : BasePager() {
         val ctx = this
         return {
             View {
-                attr { flex(1f); flexDirectionColumn(); backgroundColor(0xFFF4F7FB) }
+                attr { flex(1f); flexDirectionColumn(); backgroundColor(AppColor.BG) }
                 pageTitleBar(ctx, "API 配置", "OpenAI Compatible · 密钥本机加密", { ctx.refreshing }) { ctx.refreshPage() }
                 Scroller {
                     attr { flex(1f); flexDirectionColumn(); scrollEnable(true); padding(16f) }
@@ -226,25 +230,25 @@ class ApiConfigPage : BasePager() {
 
 private fun ViewContainer<*, *>.apiSecurityNote() {
     View {
-        attr { padding(14f); borderRadius(14f); backgroundColor(0xFF0B2B50) }
+        attr { padding(14f); borderRadius(14f); backgroundColor(AppColor.INK_PANEL) }
         Text { attr { text("密钥不会进入项目文件"); fontSize(15f); fontWeightBold(); color(Color.WHITE) } }
-        Text { attr { text("填写 Base URL、模型列表和 API Key；密钥只保存在本机加密区。"); fontSize(12f); lineHeight(19f); color(0xFFB7D3EE); marginTop(6f) } }
+        Text { attr { text("填写 Base URL、模型列表和 API Key；密钥只保存在本机加密区。"); fontSize(12f); lineHeight(19f); color(AppColor.ON_DARK_SUB); marginTop(6f) } }
     }
 }
 
 private fun ViewContainer<*, *>.apiProfileCard(ctx: ApiConfigPage, row: AiProfileRow) {
     val profile = row.profile
     View {
-        attr { padding(15f); marginTop(11f); borderRadius(15f); backgroundColor(Color.WHITE) }
+        attr { padding(15f); marginTop(11f); borderRadius(15f); backgroundColor(AppColor.SURFACE) }
         View { attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
             View { attr { flex(1f) }
-                Text { attr { text(profile.name); fontSize(16f); fontWeightBold(); color(0xFF182C45) } }
-                Text { attr { text(if (row.active) "当前使用" else "未启用"); fontSize(10f); color(if (row.active) 0xFF0E67D1 else 0xFF8C96A4); marginTop(2f) } }
+                Text { attr { text(profile.name); fontSize(16f); fontWeightBold(); color(AppColor.TEXT_STRONG) } }
+                Text { attr { text(if (row.active) "当前使用" else "未启用"); fontSize(10f); color(if (row.active) AppColor.PRIMARY else AppColor.TEXT_SUB); marginTop(2f) } }
             }
-            Text { attr { text(row.maskedKey); fontSize(11f); color(if (row.maskedKey == "未配置") 0xFFD05B5B else 0xFF32815C) } }
+            Text { attr { text(row.maskedKey); fontSize(11f); color(if (row.maskedKey == "未配置") AppColor.DANGER_TEXT else AppColor.SUCCESS) } }
         }
-        Text { attr { text(profile.baseUrl); fontSize(11f); color(0xFF738092); marginTop(10f); lineHeight(16f) } }
-        Text { attr { text("模型  ${profile.model}  ·  工具调用 ${if (profile.toolsEnabled) "开启" else "关闭"}"); fontSize(11f); color(0xFF738092); marginTop(4f) } }
+        Text { attr { text(profile.baseUrl); fontSize(11f); color(AppColor.TEXT_SUB_DEEP); marginTop(10f); lineHeight(16f) } }
+        Text { attr { text("模型  ${profile.model}  ·  工具调用 ${if (profile.toolsEnabled) "开启" else "关闭"}"); fontSize(11f); color(AppColor.TEXT_SUB_DEEP); marginTop(4f) } }
         View { attr { flexDirectionRow(); marginTop(13f) }
             apiSmallButton(if (row.active) "已启用" else "启用", row.active) { ctx.activate(profile.id) }
             apiSmallButton("编辑", false) { ctx.edit(profile) }
@@ -254,15 +258,15 @@ private fun ViewContainer<*, *>.apiProfileCard(ctx: ApiConfigPage, row: AiProfil
                 } else "测试" },
                 disabled = { ctx.testingId.isNotEmpty() },
                 stateColor = { if (ctx.testedId == profile.id) {
-                    if (ctx.testPassed) 0xFF32815C else 0xFFC34C4C
+                    if (ctx.testPassed) AppColor.SUCCESS else AppColor.DANGER_TEXT
                 } else null },
             ) { ctx.test(profile) }
             apiSmallButton("删除", false, danger = true) { ctx.delete(profile) }
         }
         vif({ ctx.confirmDeleteId == profile.id }) {
             View {
-                attr { padding(10f); marginTop(10f); borderRadius(10f); backgroundColor(0xFFFFF3F3) }
-                Text { attr { text("确认删除 ${profile.name}？"); fontSize(12f); color(0xFF9D3A3A) } }
+                attr { padding(10f); marginTop(10f); borderRadius(10f); backgroundColor(AppColor.DANGER_BG) }
+                Text { attr { text("确认删除 ${profile.name}？"); fontSize(12f); color(AppColor.DANGER_TEXT) } }
                 View { attr { flexDirectionRow(); marginTop(8f) }
                     apiSmallButton("取消", false) { ctx.confirmDeleteId = "" }
                     apiSmallButton("确认删除", false, danger = true) { ctx.confirmDelete(profile) }
@@ -278,50 +282,50 @@ private fun ViewContainer<*, *>.apiSmallButton(label: String, disabled: Boolean,
 
 private fun ViewContainer<*, *>.apiSmallButton(label: () -> String, disabled: () -> Boolean, danger: Boolean = false, stateColor: () -> Long? = { null }, action: () -> Unit) {
     View {
-        attr { minWidth(54f); height(44f); padding(left = 8f, right = 8f); marginRight(7f); borderRadius(10f); allCenter(); backgroundColor(if (danger) 0xFFFFEEEE else if (disabled()) 0xFFF0F2F5 else 0xFFE8F2FF); accessibility(label()); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(!disabled(), false) }
+        attr { minWidth(54f); height(44f); padding(left = 8f, right = 8f); marginRight(7f); borderRadius(10f); allCenter(); backgroundColor(if (danger) AppColor.DANGER_BG else if (disabled()) AppColor.BG_SOFT else AppColor.PRIMARY_BG_LIGHT); accessibility(label()); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(!disabled(), false) }
         event { click { if (!disabled()) action() } }
-        Text { attr { text(label()); fontSize(11f); fontWeightBold(); color(stateColor() ?: if (danger) 0xFFC34C4C else if (disabled()) 0xFF929BA8 else 0xFF0E67D1) } }
+        Text { attr { text(label()); fontSize(11f); fontWeightBold(); color(stateColor() ?: if (danger) AppColor.DANGER_TEXT else if (disabled()) AppColor.TEXT_SUB else AppColor.PRIMARY) } }
     }
 }
 
 private fun ViewContainer<*, *>.apiEditor(ctx: ApiConfigPage) {
     View {
-        attr { padding(16f); marginTop(12f); borderRadius(16f); backgroundColor(Color.WHITE) }
+        attr { padding(16f); marginTop(12f); borderRadius(16f); backgroundColor(AppColor.SURFACE) }
         View { attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
-            Text { attr { text(if (ctx.editingId.startsWith("custom_")) "添加自定义服务" else "编辑：${ctx.editName}"); fontSize(18f); fontWeightBold(); color(0xFF142941); flex(1f) } }
+            Text { attr { text(if (ctx.editingId.startsWith("custom_")) "添加自定义服务" else "编辑：${ctx.editName}"); fontSize(18f); fontWeightBold(); color(AppColor.TEXT_STRONG); flex(1f) } }
             if (ctx.showEditor) {
-                View { attr { minWidth(44f); height(44f); allCenter(); accessibility("清空输入"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }; event { click { ctx.edit(null) } }; Text { attr { text("清空"); fontSize(12f); color(0xFF758193) } } }
+                View { attr { minWidth(44f); height(44f); allCenter(); accessibility("清空输入"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }; event { click { ctx.edit(null) } }; Text { attr { text("清空"); fontSize(12f); color(AppColor.TEXT_SUB_DEEP) } } }
             }
         }
         apiInput("名称", ctx.editName, "") { ctx.editName = it }
         apiInput("BASE URL", ctx.editBaseUrl, "") { ctx.editBaseUrl = it }
         apiInput("MODELS", ctx.editModels, "") { ctx.editModels = it }
-        Text { attr { text("API KEY"); fontSize(12f); color(0xFF536276); margin(top = 12f, bottom = 5f) } }
+        Text { attr { text("API KEY"); fontSize(12f); color(AppColor.TEXT_SUB_DEEP); margin(top = 12f, bottom = 5f) } }
         View {
-            attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); height(44f); borderRadius(10f); backgroundColor(0xFFF3F5F8) }
+            attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); height(44f); borderRadius(10f); backgroundColor(AppColor.SURFACE_ALT) }
             vif({ !ctx.keyVisible }) {
                 Input {
-                    attr { flex(1f); height(44f); fontSize(13f); color(Color(0xFF1B2D44)); keyboardTypePassword(); text(ctx.editKey); accessibility("API Key 密码输入框") }
+                    attr { flex(1f); height(44f); fontSize(13f); color(Color(AppColor.TEXT_STRONG)); keyboardTypePassword(); text(ctx.editKey); accessibility("API Key 密码输入框") }
                     event { textDidChange(isSyncEdit = true) { ctx.editKey = it.text } }
                 }
             }
             vif({ ctx.keyVisible }) {
                 Input {
-                    attr { flex(1f); height(44f); fontSize(13f); color(Color(0xFF1B2D44)); text(ctx.editKey); accessibility("API Key 明文输入框") }
+                    attr { flex(1f); height(44f); fontSize(13f); color(Color(AppColor.TEXT_STRONG)); text(ctx.editKey); accessibility("API Key 明文输入框") }
                     event { textDidChange(isSyncEdit = true) { ctx.editKey = it.text } }
                 }
             }
-            View { attr { size(44f, 44f); allCenter(); accessibility(if (ctx.keyVisible) "隐藏 API Key" else "显示 API Key"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }; event { click { ctx.keyVisible = !ctx.keyVisible } }; Text { attr { text(if (ctx.keyVisible) "隐" else "眼"); fontSize(12f); color(0xFF0E67D1); fontWeightBold() } } }
+            View { attr { size(44f, 44f); allCenter(); accessibility(if (ctx.keyVisible) "隐藏 API Key" else "显示 API Key"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }; event { click { ctx.keyVisible = !ctx.keyVisible } }; Text { attr { text(if (ctx.keyVisible) "隐" else "眼"); fontSize(12f); color(AppColor.PRIMARY); fontWeightBold() } } }
         }
         View {
             attr { minHeight(44f); flexDirectionRow(); alignItems(FlexAlign.CENTER); accessibility("工具调用，${if (ctx.editTools) "已开启" else "已关闭"}"); accessibilityRole(AccessibilityRole.CHECKBOX); accessibilityInfo(true, false) }
             event { click { ctx.editTools = !ctx.editTools } }
-            Text { attr { text("工具调用"); fontSize(13f); color(0xFF263A51); flex(1f) } }
-            Text { attr { text(if (ctx.editTools) "开启" else "关闭"); fontSize(12f); fontWeightBold(); color(if (ctx.editTools) 0xFF0E67D1 else 0xFF7F8998) } }
+            Text { attr { text("工具调用"); fontSize(13f); color(AppColor.TEXT_STRONG); flex(1f) } }
+            Text { attr { text(if (ctx.editTools) "开启" else "关闭"); fontSize(12f); fontWeightBold(); color(if (ctx.editTools) AppColor.PRIMARY else AppColor.TEXT_SUB) } }
         }
-        vif({ ctx.editorError.isNotEmpty() }) { Text { attr { text(ctx.editorError); fontSize(12f); color(0xFFD34C4C); marginTop(8f) } } }
+        vif({ ctx.editorError.isNotEmpty() }) { Text { attr { text(ctx.editorError); fontSize(12f); color(AppColor.DANGER_TEXT); marginTop(8f) } } }
         View {
-            attr { height(48f); allCenter(); borderRadius(14f); margin(top = 14f, bottom = 2f); backgroundColor(0xFF0E67D1); accessibility("保存 API 配置"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }
+            attr { height(48f); allCenter(); borderRadius(14f); margin(top = 14f, bottom = 2f); backgroundColor(AppColor.PRIMARY); accessibility("保存 API 配置"); accessibilityRole(AccessibilityRole.BUTTON); accessibilityInfo(true, false) }
             event { click { ctx.saveEditor() } }
             Text { attr { text(if (ctx.editingId.startsWith("custom_")) "保存配置" else "更新配置"); fontSize(14f); fontWeightBold(); color(Color.WHITE) } }
         }
@@ -329,9 +333,9 @@ private fun ViewContainer<*, *>.apiEditor(ctx: ApiConfigPage) {
 }
 
 private fun ViewContainer<*, *>.apiInput(label: String, value: String, placeholder: String, onChange: (String) -> Unit) {
-    Text { attr { text(label); fontSize(12f); color(0xFF536276); margin(top = 12f, bottom = 5f) } }
+    Text { attr { text(label); fontSize(12f); color(AppColor.TEXT_SUB_DEEP); margin(top = 12f, bottom = 5f) } }
     Input {
-        attr { height(44f); borderRadius(10f); backgroundColor(0xFFF3F5F8); fontSize(13f); color(Color(0xFF1B2D44)); placeholder(placeholder); text(value); accessibility("$label 输入框") }
+        attr { height(44f); borderRadius(10f); backgroundColor(AppColor.SURFACE_ALT); fontSize(13f); color(Color(AppColor.TEXT_STRONG)); placeholder(placeholder); text(value); accessibility("$label 输入框") }
         event { textDidChange(isSyncEdit = true) { onChange(it.text) } }
     }
 }

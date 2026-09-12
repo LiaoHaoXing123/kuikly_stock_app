@@ -29,6 +29,12 @@ import com.tencent.kuikly.core.reactive.handler.observableList
 import com.tencent.kuikly.core.views.*
 import com.tencent.kuikly.core.module.RouterModule
 import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
+import com.kuikly.stock.ui.component.AppRoutes
+import com.kuikly.stock.ui.component.pageTitleBar
+import com.kuikly.stock.ui.component.statusFeedback
+import com.kuikly.stock.ui.component.sectionHeader
+import com.kuikly.stock.ui.theme.AppFont
+import com.kuikly.stock.ui.theme.AppColor
 
 @Page(AppRoutes.RISK)
 class RiskCenterPage : BasePager() {
@@ -37,7 +43,7 @@ class RiskCenterPage : BasePager() {
     internal var refreshIsError by observable(false)
     internal var marketValue by observable("--")
     internal var pnl by observable("--")
-    internal var pnlColor by observable(0xFF627083L)
+    internal var pnlColor by observable(AppColor.TEXT_SUB_DEEP)
     internal var stockWeight by observable("--")
     internal var industryWeight by observable("--")
     internal var emptyState by observable(false)
@@ -109,7 +115,7 @@ class RiskCenterPage : BasePager() {
             unavailable = result.unavailableCount
             marketValue = if (result.pricedCount > 0) "¥ ${fmt2(result.marketValue)}" else "--"
             pnl = if (result.pricedCount > 0) signedMoney(result.pnl) + "  " + signedPercent(result.pnlRate) else "--"
-            pnlColor = if (result.pnl > 0.0) 0xFFD84343 else if (result.pnl < 0.0) 0xFF188B57 else 0xFF627083
+            pnlColor = if (result.pnl > 0.0) AppColor.UP else if (result.pnl < 0.0) AppColor.DOWN else AppColor.TEXT_SUB_DEEP
             stockWeight = if (result.pricedCount > 0) percent(result.maxStockWeight) else "--"
             industryWeight = if (result.pricedCount > 0) percent(result.maxIndustryWeight) else "--"
             lines.clear(); lines.addAll(result.lines)
@@ -216,7 +222,7 @@ class RiskCenterPage : BasePager() {
         val ctx = this
         return {
             View {
-                attr { flex(1f); flexDirectionColumn(); backgroundColor(0xFFF4F7FB) }
+                attr { flex(1f); flexDirectionColumn(); backgroundColor(AppColor.BG) }
                 pageTitleBar(ctx, "组合风险", "基于本地持仓与行情计算", { ctx.refreshing }) { ctx.refreshPage() }
                 statusFeedback({ ctx.refreshMessage }, { ctx.refreshIsError })
                 Scroller {
@@ -240,12 +246,12 @@ class RiskCenterPage : BasePager() {
                                 flexDirectionRow()
                                 marginTop(12f)
                                 padding(12f)
-                                backgroundColor(0xFFFFFFFF)
+                                backgroundColor(AppColor.SURFACE)
                                 borderRadius(12f)
                                 allCenter()
                             }
                             event { click { ctx.openAddDialog() } }
-                            Text { attr { text("＋ 添加持仓 / 调整仓位"); fontSize(13f); fontWeightBold(); color(0xFF0B2B50) } }
+                            Text { attr { text("＋ 添加持仓 / 调整仓位"); fontSize(13f); fontWeightBold(); color(AppColor.INK_PANEL) } }
                         }
                     }
                     velse {
@@ -254,7 +260,7 @@ class RiskCenterPage : BasePager() {
                                 flexDirectionRow()
                                 marginTop(12f)
                                 padding(12f)
-                                backgroundColor(0xFF0B2B50)
+                                backgroundColor(AppColor.INK_PANEL)
                                 borderRadius(12f)
                                 allCenter()
                             }
@@ -266,8 +272,8 @@ class RiskCenterPage : BasePager() {
                     vif({ ctx.alertMessages.isEmpty() }) { quietAlertState() }
                     vfor({ ctx.alertMessages }) { message ->
                         View {
-                            attr { padding(13f); marginBottom(8f); borderRadius(12f); backgroundColor(0xFFFFF3E8) }
-                            Text { attr { text(message); fontSize(13f); lineHeight(19f); color(0xFF8B4C12) } }
+                            attr { padding(13f); marginBottom(8f); borderRadius(12f); backgroundColor(AppColor.WARNING_BG) }
+                            Text { attr { text(message); fontSize(13f); lineHeight(19f); color(AppColor.WARNING_TEXT_DEEP) } }
                         }
                     }
                     View { attr { height(18f) } }
@@ -281,34 +287,34 @@ class RiskCenterPage : BasePager() {
 
 private fun ViewContainer<*, *>.riskOverview(ctx: RiskCenterPage) {
     View {
-        attr { padding(18f); borderRadius(18f); backgroundColor(0xFF0B2B50) }
+        attr { padding(18f); borderRadius(18f); backgroundColor(AppColor.INK_PANEL) }
         View {
             attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
             View {
                 attr { flex(1f) }
-                Text { attr { text("组合市值"); fontSize(12f); color(0xFF9EC8F5) } }
+                Text { attr { text("组合市值"); fontSize(12f); color(AppColor.ON_DARK_ACCENT) } }
                 Text { attr { text(ctx.marketValue); fontSize(27f); fontWeightBold(); color(Color.WHITE); marginTop(6f) } }
                 Text { attr { text("累计盈亏  ${ctx.pnl}"); fontSize(13f); color(ctx.pnlColor); marginTop(7f) } }
             }
             View {
                 attr {
                     padding(8f, 12f, 8f, 12f)
-                    backgroundColor(0xFF123A68)
+                    backgroundColor(AppColor.INK_PANEL_SOFT)
                     borderRadius(12f)
                 }
                 event { click { ctx.openAddDialog() } }
-                Text { attr { text("＋ 添加持仓"); fontSize(12f); fontWeightBold(); color(0xFF9EC8F5) } }
+                Text { attr { text("＋ 添加持仓"); fontSize(12f); fontWeightBold(); color(AppColor.ON_DARK_ACCENT) } }
             }
         }
         View { attr { flexDirectionRow(); marginTop(18f) } }
         View {
             attr { flex(1f) }
-            Text { attr { text("最高单股占比"); fontSize(11f); color(0xFF9EB2C7) } }
+            Text { attr { text("最高单股占比"); fontSize(11f); color(AppColor.ON_DARK_MUTED) } }
             Text { attr { text(ctx.stockWeight); fontSize(17f); fontWeightBold(); color(Color.WHITE); marginTop(4f) } }
         }
         View {
             attr { flex(1f) }
-            Text { attr { text("最高行业占比"); fontSize(11f); color(0xFF9EB2C7) } }
+            Text { attr { text("最高行业占比"); fontSize(11f); color(AppColor.ON_DARK_MUTED) } }
             Text { attr { text(ctx.industryWeight); fontSize(17f); fontWeightBold(); color(Color.WHITE); marginTop(4f) } }
         }
         vif({ ctx.unavailable > 0 }) {
@@ -319,7 +325,7 @@ private fun ViewContainer<*, *>.riskOverview(ctx: RiskCenterPage) {
             View {
                 attr {
                     padding(6f, 12f, 6f, 12f)
-                    backgroundColor(0xFF1A4A7A)
+                    backgroundColor(AppColor.INK_PANEL_ALT)
                     borderRadius(10f)
                     marginRight(8f)
                 }
@@ -328,7 +334,7 @@ private fun ViewContainer<*, *>.riskOverview(ctx: RiskCenterPage) {
                     attr {
                         text(if (ctx.showWhatIf) "收起压力测试" else "压力测试")
                         fontSize(11f)
-                        color(0xFF9EC8F5)
+                        color(AppColor.ON_DARK_ACCENT)
                         fontWeightBold()
                     }
                 }
@@ -336,34 +342,34 @@ private fun ViewContainer<*, *>.riskOverview(ctx: RiskCenterPage) {
             View {
                 attr {
                     padding(6f, 12f, 6f, 12f)
-                    backgroundColor(0xFF1A4A7A)
+                    backgroundColor(AppColor.INK_PANEL_ALT)
                     borderRadius(10f)
                 }
                 event { click { ctx.refreshPage() } }
-                Text { attr { text("重新计算"); fontSize(11f); color(0xFF9EC8F5) } }
+                Text { attr { text("重新计算"); fontSize(11f); color(AppColor.ON_DARK_ACCENT) } }
             }
         }
     }
 }
 
 private fun ViewContainer<*, *>.riskSectionTitle(title: String) {
-    Text { attr { text(title); fontSize(17f); fontWeightBold(); color(0xFF172A43); margin(top = 20f, bottom = 10f) } }
+    sectionHeader(title, size = AppFont.TITLE, marginTop = 20f)
 }
 
 private fun ViewContainer<*, *>.riskEmpty() {
     View {
-        attr { padding(24f); marginTop(14f); borderRadius(15f); backgroundColor(Color.WHITE); alignItems(FlexAlign.CENTER) }
-        Text { attr { text("还没有持仓数据"); fontSize(16f); fontWeightBold(); color(0xFF24364D) } }
-        Text { attr { text("点击“添加持仓”或在自选页设置持仓股数与成本，风险中心会实时计算集中度与回撤，并支持压力测试。"); fontSize(12f); lineHeight(19f); color(0xFF7F8998); marginTop(7f); textAlignCenter() } }
+        attr { padding(24f); marginTop(14f); borderRadius(15f); backgroundColor(AppColor.SURFACE); alignItems(FlexAlign.CENTER) }
+        Text { attr { text("还没有持仓数据"); fontSize(16f); fontWeightBold(); color(AppColor.TEXT_DEEP) } }
+        Text { attr { text("点击“添加持仓”或在自选页设置持仓股数与成本，风险中心会实时计算集中度与回撤，并支持压力测试。"); fontSize(12f); lineHeight(19f); color(AppColor.TEXT_SUB); marginTop(7f); textAlignCenter() } }
     }
 }
 
 private fun ViewContainer<*, *>.calmRiskState() {
-    View { attr { padding(14f); borderRadius(12f); backgroundColor(0xFFEAF8F0) }; Text { attr { text("暂未命中高集中度或高回撤规则，组合相对分散"); fontSize(13f); color(0xFF18794E) } } }
+    View { attr { padding(14f); borderRadius(12f); backgroundColor(AppColor.SUCCESS_BG) }; Text { attr { text("暂未命中高集中度或高回撤规则，组合相对分散"); fontSize(13f); color(AppColor.SUCCESS) } } }
 }
 
 private fun ViewContainer<*, *>.quietAlertState() {
-    View { attr { padding(14f); borderRadius(12f); backgroundColor(Color.WHITE) }; Text { attr { text("暂无触发中的价格提醒，去详情页或自选页设置提醒"); fontSize(13f); color(0xFF788494) } } }
+    View { attr { padding(14f); borderRadius(12f); backgroundColor(AppColor.SURFACE) }; Text { attr { text("暂无触发中的价格提醒，去详情页或自选页设置提醒"); fontSize(13f); color(AppColor.TEXT_SUB_DEEP) } } }
 }
 
 private fun ViewContainer<*, *>.riskMessage(ctx: RiskCenterPage, message: String, key: String) {
@@ -372,17 +378,17 @@ private fun ViewContainer<*, *>.riskMessage(ctx: RiskCenterPage, message: String
             padding(13f)
             marginBottom(8f)
             borderRadius(12f)
-            backgroundColor(0xFFFFF3E8)
+            backgroundColor(AppColor.WARNING_BG)
         }
         event { click { ctx.toggleRiskDetail(key) } }
         View {
             attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
-            Text { attr { text(message); fontSize(13f); lineHeight(19f); color(0xFF8B4C12); flex(1f) } }
-            Text { attr { text(if (ctx.expandedRiskKey == key) "⌃" else "⌄"); fontSize(14f); color(0xFF8B4C12); marginLeft(8f) } }
+            Text { attr { text(message); fontSize(13f); lineHeight(19f); color(AppColor.WARNING_TEXT_DEEP); flex(1f) } }
+            Text { attr { text(if (ctx.expandedRiskKey == key) "⌃" else "⌄"); fontSize(14f); color(AppColor.WARNING_TEXT_DEEP); marginLeft(8f) } }
         }
         vif({ ctx.expandedRiskKey == key }) {
             View {
-                attr { marginTop(8f); padding(10f); backgroundColor(0xFFFFFFFF); borderRadius(8f) }
+                attr { marginTop(8f); padding(10f); backgroundColor(AppColor.SURFACE); borderRadius(8f) }
                 Text {
                     attr {
                         text(
@@ -394,7 +400,7 @@ private fun ViewContainer<*, *>.riskMessage(ctx: RiskCenterPage, message: String
                             }
                         )
                         fontSize(11f)
-                        color(0xFF8B4C12)
+                        color(AppColor.WARNING_TEXT_DEEP)
                         lineHeight(16f)
                     }
                 }
@@ -405,32 +411,32 @@ private fun ViewContainer<*, *>.riskMessage(ctx: RiskCenterPage, message: String
 
 private fun ViewContainer<*, *>.holdingRiskRow(ctx: RiskCenterPage, line: HoldingRiskLine) {
     View {
-        attr { padding(14f); marginBottom(9f); borderRadius(14f); backgroundColor(Color.WHITE) }
+        attr { padding(14f); marginBottom(9f); borderRadius(14f); backgroundColor(AppColor.SURFACE) }
         View { attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
             View {
                 attr { flex(1f) }
                 event { click { ctx.openDetail(line.code) } }
-                Text { attr { text(line.name); fontSize(15f); fontWeightBold(); color(0xFF1C3048) } }
-                Text { attr { text("${line.code} · ${line.industry} · ${trimHoldNum(line.shares)}股"); fontSize(11f); color(0xFF8993A1); marginTop(2f) } }
+                Text { attr { text(line.name); fontSize(15f); fontWeightBold(); color(AppColor.TEXT) } }
+                Text { attr { text("${line.code} · ${line.industry} · ${trimHoldNum(line.shares)}股"); fontSize(11f); color(AppColor.TEXT_SUB); marginTop(2f) } }
             }
             View {
                 attr { flexDirectionColumn(); alignItems(FlexAlign.FLEX_END) }
-                Text { attr { text(percent(line.weight)); fontSize(15f); fontWeightBold(); color(if (line.weight >= 0.5) 0xFFD35454 else 0xFF315C87) } }
-                Text { attr { text("占比"); fontSize(10f); color(0xFF8993A1) } }
+                Text { attr { text(percent(line.weight)); fontSize(15f); fontWeightBold(); color(if (line.weight >= 0.5) AppColor.DANGER_TEXT else AppColor.PRIMARY_TEXT) } }
+                Text { attr { text("占比"); fontSize(10f); color(AppColor.TEXT_SUB) } }
             }
         }
-        View { attr { height(1f); backgroundColor(0xFFF0F2F5); margin(top = 10f, bottom = 10f) } }
+        View { attr { height(1f); backgroundColor(AppColor.BG_SOFT); margin(top = 10f, bottom = 10f) } }
         View {
             attr { flexDirectionRow() }
             View {
                 attr { flex(1f) }
-                Text { attr { text("市值 ¥${fmt2(line.marketValue)}"); fontSize(12f); color(0xFF1C3048); fontWeightBold() } }
-                Text { attr { text("成本 ¥${fmt2(line.costValue)}"); fontSize(11f); color(0xFF8993A1); marginTop(2f) } }
+                Text { attr { text("市值 ¥${fmt2(line.marketValue)}"); fontSize(12f); color(AppColor.TEXT); fontWeightBold() } }
+                Text { attr { text("成本 ¥${fmt2(line.costValue)}"); fontSize(11f); color(AppColor.TEXT_SUB); marginTop(2f) } }
             }
             View {
                 attr { flex(1f); alignItems(FlexAlign.FLEX_END) }
-                Text { attr { text("${signedMoney(line.pnl)} (${signedPercent(line.pnlRate)})"); fontSize(12f); color(if (line.pnl >= 0) 0xFFD84343 else 0xFF188B57); fontWeightBold() } }
-                Text { attr { text("盈亏"); fontSize(11f); color(0xFF8993A1); marginTop(2f) } }
+                Text { attr { text("${signedMoney(line.pnl)} (${signedPercent(line.pnlRate)})"); fontSize(12f); color(if (line.pnl >= 0) AppColor.UP else AppColor.DOWN); fontWeightBold() } }
+                Text { attr { text("盈亏"); fontSize(11f); color(AppColor.TEXT_SUB); marginTop(2f) } }
             }
         }
         View {
@@ -438,32 +444,32 @@ private fun ViewContainer<*, *>.holdingRiskRow(ctx: RiskCenterPage, line: Holdin
             View {
                 attr {
                     padding(6f, 12f, 6f, 12f)
-                    backgroundColor(0xFFF0F2F5)
+                    backgroundColor(AppColor.BG_SOFT)
                     borderRadius(10f)
                     marginRight(8f)
                 }
                 event { click { ctx.openEditDialog(line) } }
-                Text { attr { text("✎ 调整"); fontSize(11f); color(0xFF315C87) } }
+                Text { attr { text("✎ 调整"); fontSize(11f); color(AppColor.PRIMARY_TEXT) } }
             }
             View {
                 attr {
                     padding(6f, 12f, 6f, 12f)
-                    backgroundColor(0xFFFFF0F0)
+                    backgroundColor(AppColor.DANGER_BG)
                     borderRadius(10f)
                     marginRight(8f)
                 }
                 event { click { ctx.removeHolding(line.code) } }
-                Text { attr { text("清仓留自选"); fontSize(11f); color(0xFFD32F2F) } }
+                Text { attr { text("清仓留自选"); fontSize(11f); color(AppColor.DANGER) } }
             }
             View { attr { flex(1f) } }
             View {
                 attr {
                     padding(6f, 12f, 6f, 12f)
-                    backgroundColor(0xFFE3F2FD)
+                    backgroundColor(AppColor.PRIMARY_BG)
                     borderRadius(10f)
                 }
                 event { click { ctx.openDetail(line.code) } }
-                Text { attr { text("详情 ›"); fontSize(11f); color(0xFF1976D2); fontWeightBold() } }
+                Text { attr { text("详情 ›"); fontSize(11f); color(AppColor.PRIMARY_SOFT); fontWeightBold() } }
             }
         }
     }
@@ -474,47 +480,47 @@ private fun ViewContainer<*, *>.riskWhatIfCard(ctx: RiskCenterPage) {
         attr {
             padding(16f)
             borderRadius(14f)
-            backgroundColor(Color.WHITE)
+            backgroundColor(AppColor.SURFACE)
             marginTop(12f)
         }
-        Text { attr { text("压力测试 · 模拟市场下跌"); fontSize(14f); fontWeightBold(); color(0xFF172A43) } }
+        Text { attr { text("压力测试 · 模拟市场下跌"); fontSize(14f); fontWeightBold(); color(AppColor.TEXT_STRONG) } }
         View {
             attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginTop(12f) }
             View {
                 attr {
                     width(32f)
                     height(32f)
-                    backgroundColor(0xFFF0F2F5)
+                    backgroundColor(AppColor.BG_SOFT)
                     borderRadius(8f)
                     allCenter()
                     marginRight(8f)
                 }
                 event { click { ctx.changeSimulate(-1.0) } }
-                Text { attr { text("－"); fontSize(16f); color(0xFF315C87) } }
+                Text { attr { text("－"); fontSize(16f); color(AppColor.PRIMARY_TEXT) } }
             }
             View {
                 attr { flex(1f); alignItems(FlexAlign.CENTER) }
-                Text { attr { text("${fmt2(ctx.simulateDropPercent)}%"); fontSize(20f); fontWeightBold(); color(0xFF0B2B50) } }
-                Text { attr { text("模拟跌幅"); fontSize(11f); color(0xFF8993A1); marginTop(2f) } }
+                Text { attr { text("${fmt2(ctx.simulateDropPercent)}%"); fontSize(20f); fontWeightBold(); color(AppColor.INK_PANEL) } }
+                Text { attr { text("模拟跌幅"); fontSize(11f); color(AppColor.TEXT_SUB); marginTop(2f) } }
             }
             View {
                 attr {
                     width(32f)
                     height(32f)
-                    backgroundColor(0xFFF0F2F5)
+                    backgroundColor(AppColor.BG_SOFT)
                     borderRadius(8f)
                     allCenter()
                     marginLeft(8f)
                 }
                 event { click { ctx.changeSimulate(1.0) } }
-                Text { attr { text("＋"); fontSize(16f); color(0xFF315C87) } }
+                Text { attr { text("＋"); fontSize(16f); color(AppColor.PRIMARY_TEXT) } }
             }
         }
         Text {
             attr {
                 text(ctx.simulateResultText)
                 fontSize(12f)
-                color(0xFF5A6B82)
+                color(AppColor.TEXT_SUB_DEEP)
                 marginTop(12f)
                 lineHeight(18f)
             }
@@ -530,7 +536,7 @@ private fun ViewContainer<*, *>.riskWhatIfCard(ctx: RiskCenterPage) {
             attr {
                 text("拖动上方按钮调整跌幅，实时查看组合回撤。压力测试帮助你提前规划止损与仓位。")
                 fontSize(10f)
-                color(0xFF999999)
+                color(AppColor.TEXT_HINT)
                 marginTop(8f)
                 lineHeight(14f)
             }
@@ -542,7 +548,7 @@ private fun ViewContainer<*, *>.riskQuickChip(ctx: RiskCenterPage, value: Double
     View {
         attr {
             padding(6f, 10f, 6f, 10f)
-            backgroundColor(if (ctx.simulateDropPercent == value) 0xFF0B2B50 else 0xFFF0F2F5)
+            backgroundColor(if (ctx.simulateDropPercent == value) AppColor.INK_PANEL else AppColor.BG_SOFT)
             borderRadius(10f)
             marginRight(6f)
         }
@@ -556,7 +562,7 @@ private fun ViewContainer<*, *>.riskQuickChip(ctx: RiskCenterPage, value: Double
             attr {
                 text(label)
                 fontSize(11f)
-                color(if (ctx.simulateDropPercent == value) 0xFFFFFFFF else 0xFF5A6B82)
+                color(if (ctx.simulateDropPercent == value) AppColor.ON_DARK else AppColor.TEXT_SUB_DEEP)
                 fontWeightBold()
             }
         }
@@ -565,23 +571,23 @@ private fun ViewContainer<*, *>.riskQuickChip(ctx: RiskCenterPage, value: Double
 
 private fun ViewContainer<*, *>.riskAddDialog(ctx: RiskCenterPage) {
     View {
-        attr { absolutePositionAllZero(); backgroundColor(0x88000000); allCenter() }
+        attr { absolutePositionAllZero(); backgroundColor(AppColor.SCRIM); allCenter() }
         View {
-            attr { width(ctx.pagerData.pageViewWidth - 40f); padding(18f); borderRadius(16f); backgroundColor(Color.WHITE) }
-            Text { attr { text("添加持仓"); fontSize(18f); fontWeightBold(); color(0xFF172A43) } }
-            Text { attr { text("输入6位代码，持仓与成本将实时计入风险"); fontSize(12f); color(0xFF7F8998); marginTop(6f) } }
+            attr { width(ctx.pagerData.pageViewWidth - 40f); padding(18f); borderRadius(16f); backgroundColor(AppColor.SURFACE) }
+            Text { attr { text("添加持仓"); fontSize(18f); fontWeightBold(); color(AppColor.TEXT_STRONG) } }
+            Text { attr { text("输入6位代码，持仓与成本将实时计入风险"); fontSize(12f); color(AppColor.TEXT_SUB); marginTop(6f) } }
 
-            Text { attr { text("股票代码"); fontSize(12f); color(0xFF666666); marginTop(14f) } }
+            Text { attr { text("股票代码"); fontSize(12f); color(AppColor.TEXT_GRAY); marginTop(14f) } }
             Input {
                 attr {
                     height(40f)
                     marginTop(4f)
                     fontSize(14f)
-                    color(Color(0xFF333333))
+                    color(Color(AppColor.TEXT_INK))
                     editable(true)
                     text(ctx.addCodeText)
                     placeholder("例如 600519")
-                    backgroundColor(0xFFF5F5F5)
+                    backgroundColor(AppColor.SURFACE_SOFT)
                     borderRadius(8f)
                 }
                 event { textDidChange(isSyncEdit = true) { ctx.addCodeText = it.text } }
@@ -591,17 +597,17 @@ private fun ViewContainer<*, *>.riskAddDialog(ctx: RiskCenterPage) {
                 attr { flexDirectionRow(); marginTop(12f) }
                 View {
                     attr { flex(1f); marginRight(6f) }
-                    Text { attr { text("持仓股数"); fontSize(12f); color(0xFF666666) } }
+                    Text { attr { text("持仓股数"); fontSize(12f); color(AppColor.TEXT_GRAY) } }
                     Input {
                         attr {
                             height(40f)
                             marginTop(4f)
                             fontSize(14f)
-                            color(Color(0xFF333333))
+                            color(Color(AppColor.TEXT_INK))
                             editable(true)
                             text(ctx.addSharesText)
                             placeholder("100")
-                            backgroundColor(0xFFF5F5F5)
+                            backgroundColor(AppColor.SURFACE_SOFT)
                             borderRadius(8f)
                         }
                         event { textDidChange(isSyncEdit = true) { ctx.addSharesText = it.text } }
@@ -609,17 +615,17 @@ private fun ViewContainer<*, *>.riskAddDialog(ctx: RiskCenterPage) {
                 }
                 View {
                     attr { flex(1f); marginLeft(6f) }
-                    Text { attr { text("成本价"); fontSize(12f); color(0xFF666666) } }
+                    Text { attr { text("成本价"); fontSize(12f); color(AppColor.TEXT_GRAY) } }
                     Input {
                         attr {
                             height(40f)
                             marginTop(4f)
                             fontSize(14f)
-                            color(Color(0xFF333333))
+                            color(Color(AppColor.TEXT_INK))
                             editable(true)
                             text(ctx.addCostText)
                             placeholder("买入价")
-                            backgroundColor(0xFFF5F5F5)
+                            backgroundColor(AppColor.SURFACE_SOFT)
                             borderRadius(8f)
                         }
                         event { textDidChange(isSyncEdit = true) { ctx.addCostText = it.text } }
@@ -628,19 +634,19 @@ private fun ViewContainer<*, *>.riskAddDialog(ctx: RiskCenterPage) {
             }
 
             vif({ ctx.addMessage.isNotEmpty() }) {
-                Text { attr { text(ctx.addMessage); fontSize(12f); color(0xFFD32F2F); marginTop(8f) } }
+                Text { attr { text(ctx.addMessage); fontSize(12f); color(AppColor.DANGER); marginTop(8f) } }
             }
 
             View {
                 attr { flexDirectionRow(); marginTop(16f) }
                 View {
-                    attr { flex(1f); height(44f); allCenter(); borderRadius(12f); backgroundColor(0xFFF0F2F5) }
+                    attr { flex(1f); height(44f); allCenter(); borderRadius(12f); backgroundColor(AppColor.BG_SOFT) }
                     event { click { ctx.showAddDialog = false } }
-                    Text { attr { text("取消"); fontSize(13f); color(0xFF697586) } }
+                    Text { attr { text("取消"); fontSize(13f); color(AppColor.TEXT_SUB_DEEP) } }
                 }
                 View { attr { width(10f) } }
                 View {
-                    attr { flex(1f); height(44f); allCenter(); borderRadius(12f); backgroundColor(0xFF0B2B50) }
+                    attr { flex(1f); height(44f); allCenter(); borderRadius(12f); backgroundColor(AppColor.INK_PANEL) }
                     event { click { ctx.confirmAdd() } }
                     Text { attr { text("确认添加"); fontSize(13f); fontWeightBold(); color(Color.WHITE) } }
                 }
@@ -651,26 +657,26 @@ private fun ViewContainer<*, *>.riskAddDialog(ctx: RiskCenterPage) {
 
 private fun ViewContainer<*, *>.riskEditDialog(ctx: RiskCenterPage) {
     View {
-        attr { absolutePositionAllZero(); backgroundColor(0x88000000); allCenter() }
+        attr { absolutePositionAllZero(); backgroundColor(AppColor.SCRIM); allCenter() }
         View {
-            attr { width(ctx.pagerData.pageViewWidth - 40f); padding(18f); borderRadius(16f); backgroundColor(Color.WHITE) }
-            Text { attr { text("调整持仓 · ${ctx.editName}"); fontSize(18f); fontWeightBold(); color(0xFF172A43) } }
-            Text { attr { text(ctx.editCode); fontSize(12f); color(0xFF7F8998); marginTop(4f) } }
+            attr { width(ctx.pagerData.pageViewWidth - 40f); padding(18f); borderRadius(16f); backgroundColor(AppColor.SURFACE) }
+            Text { attr { text("调整持仓 · ${ctx.editName}"); fontSize(18f); fontWeightBold(); color(AppColor.TEXT_STRONG) } }
+            Text { attr { text(ctx.editCode); fontSize(12f); color(AppColor.TEXT_SUB); marginTop(4f) } }
 
             View {
                 attr { flexDirectionRow(); marginTop(14f) }
                 View {
                     attr { flex(1f); marginRight(6f) }
-                    Text { attr { text("持仓股数"); fontSize(12f); color(0xFF666666) } }
+                    Text { attr { text("持仓股数"); fontSize(12f); color(AppColor.TEXT_GRAY) } }
                     Input {
                         attr {
                             height(40f)
                             marginTop(4f)
                             fontSize(14f)
-                            color(Color(0xFF333333))
+                            color(Color(AppColor.TEXT_INK))
                             editable(true)
                             text(ctx.editSharesText)
-                            backgroundColor(0xFFF5F5F5)
+                            backgroundColor(AppColor.SURFACE_SOFT)
                             borderRadius(8f)
                         }
                         event { textDidChange(isSyncEdit = true) { ctx.editSharesText = it.text } }
@@ -678,16 +684,16 @@ private fun ViewContainer<*, *>.riskEditDialog(ctx: RiskCenterPage) {
                 }
                 View {
                     attr { flex(1f); marginLeft(6f) }
-                    Text { attr { text("成本价"); fontSize(12f); color(0xFF666666) } }
+                    Text { attr { text("成本价"); fontSize(12f); color(AppColor.TEXT_GRAY) } }
                     Input {
                         attr {
                             height(40f)
                             marginTop(4f)
                             fontSize(14f)
-                            color(Color(0xFF333333))
+                            color(Color(AppColor.TEXT_INK))
                             editable(true)
                             text(ctx.editCostText)
-                            backgroundColor(0xFFF5F5F5)
+                            backgroundColor(AppColor.SURFACE_SOFT)
                             borderRadius(8f)
                         }
                         event { textDidChange(isSyncEdit = true) { ctx.editCostText = it.text } }
@@ -695,19 +701,19 @@ private fun ViewContainer<*, *>.riskEditDialog(ctx: RiskCenterPage) {
                 }
             }
 
-            Text { attr { text(ctx.editMessage); fontSize(12f); color(0xFFD32F2F); marginTop(8f) } }
-            Text { attr { text("股数填0将清空持仓，保留自选和提醒"); fontSize(11f); color(0xFF999999); marginTop(8f) } }
+            Text { attr { text(ctx.editMessage); fontSize(12f); color(AppColor.DANGER); marginTop(8f) } }
+            Text { attr { text("股数填0将清空持仓，保留自选和提醒"); fontSize(11f); color(AppColor.TEXT_HINT); marginTop(8f) } }
 
             View {
                 attr { flexDirectionRow(); marginTop(16f) }
                 View {
-                    attr { flex(1f); height(44f); allCenter(); borderRadius(12f); backgroundColor(0xFFF0F2F5) }
+                    attr { flex(1f); height(44f); allCenter(); borderRadius(12f); backgroundColor(AppColor.BG_SOFT) }
                     event { click { ctx.showEditDialog = false } }
-                    Text { attr { text("取消"); fontSize(13f); color(0xFF697586) } }
+                    Text { attr { text("取消"); fontSize(13f); color(AppColor.TEXT_SUB_DEEP) } }
                 }
                 View { attr { width(10f) } }
                 View {
-                    attr { flex(1f); height(44f); allCenter(); borderRadius(12f); backgroundColor(0xFF0B2B50) }
+                    attr { flex(1f); height(44f); allCenter(); borderRadius(12f); backgroundColor(AppColor.INK_PANEL) }
                     event { click { ctx.confirmEdit() } }
                     Text { attr { text("保存"); fontSize(13f); fontWeightBold(); color(Color.WHITE) } }
                 }

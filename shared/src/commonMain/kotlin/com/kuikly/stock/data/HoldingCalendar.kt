@@ -95,8 +95,8 @@ internal fun classifyLimit(changePercent: Double, cap: Double): String {
     }
 }
 
-internal fun heatColor(pnl: Double, maxAbs: Double): Long {
-    if (maxAbs <= 0.0 || pnl == 0.0 || !pnl.isFinite()) return 0xFFE8ECF1
+internal fun heatColor(pnl: Double, maxAbs: Double, emptyColor: Long): Long {
+    if (maxAbs <= 0.0 || pnl == 0.0 || !pnl.isFinite()) return emptyColor
     val t = (abs(pnl) / maxAbs).coerceIn(0.0, 1.0)
     val alpha = when {
         t < 0.25 -> 0x48
@@ -454,6 +454,10 @@ internal fun monthCells(
     byDate: Map<String, CalendarDaySnapshot>,
     maxAbs: Double,
     extraEventsByDate: Map<String, List<CalendarEventMark>> = emptyMap(),
+    /** 本月无数据格底色（浅色板 / 深色板由页面按主题传入）。 */
+    emptyColor: Long = 0xFFF7F8FA,
+    /** 非本月占位格底色。 */
+    outMonthColor: Long = 0xFFF2F4F7,
 ): List<List<CalendarCellVm>> {
     val first = CivilDate(year, month, 1)
     val start = first.mondayOfWeek()
@@ -474,7 +478,7 @@ internal fun monthCells(
                 inMonth = d.month == month,
                 pnl = snap?.dayPnl,
                 pnlText = if (snap != null) arrowPnl(snap.dayPnl) else "",
-                color = if (snap != null) heatColor(snap.dayPnl, maxAbs) else if (d.month == month) 0xFFF7F8FA else 0xFFF2F4F7,
+                color = if (snap != null) heatColor(snap.dayPnl, maxAbs, emptyColor) else if (d.month == month) emptyColor else outMonthColor,
                 vsHs300 = vs,
                 events = (snap?.events.orEmpty() + extraEventsByDate[d.iso].orEmpty()).distinctBy { it.kind + it.code + it.label },
                 snapshot = snap,
@@ -488,7 +492,7 @@ internal fun monthCells(
 
 internal data class HeatCellVm(val date: String, val color: Long, val hasData: Boolean)
 
-internal fun heatStrip(days: List<CalendarDaySnapshot>, maxAbs: Double): List<HeatCellVm> {
+internal fun heatStrip(days: List<CalendarDaySnapshot>, maxAbs: Double, emptyColor: Long = 0xFFEEF1F4): List<HeatCellVm> {
     if (days.isEmpty()) return emptyList()
     val first = CivilDate.parse(days.first().date) ?: return emptyList()
     val last = CivilDate.parse(days.last().date) ?: return emptyList()
@@ -502,7 +506,7 @@ internal fun heatStrip(days: List<CalendarDaySnapshot>, maxAbs: Double): List<He
         out.add(
             HeatCellVm(
                 date = d.iso,
-                color = if (snap != null) heatColor(snap.dayPnl, maxAbs) else 0xFFEEF1F4,
+                color = if (snap != null) heatColor(snap.dayPnl, maxAbs, emptyColor) else emptyColor,
                 hasData = snap != null,
             )
         )

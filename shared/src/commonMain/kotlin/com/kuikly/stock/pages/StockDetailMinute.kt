@@ -4,7 +4,7 @@
 package com.kuikly.stock.pages
 
 import com.kuikly.stock.data.StockColors
-import com.kuikly.stock.base.skeletonBlock
+import com.kuikly.stock.ui.component.skeletonBlock
 
 import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
 import com.tencent.kuikly.core.annotations.Page
@@ -41,6 +41,7 @@ import com.kuikly.stock.data.fmt3
 import com.kuikly.stock.data.fmtSigned2
 import com.kuikly.stock.data.fmtSignedPct
 import kotlin.math.abs
+import com.kuikly.stock.ui.theme.AppColor
 
 internal fun ViewContainer<*, *>.minuteCard(ctx: StockDetailPage) {
     vfor({ ObservableList(mutableListOf(Triple(ctx.minuteData, ctx.minuteLoading, ctx.minuteError))) }) { (data, loading, error) ->
@@ -55,7 +56,7 @@ internal fun ViewContainer<*, *>.minuteCardContent(ctx: StockDetailPage, data: L
             flexDirectionColumn()
             margin(4f, 12f, 4f, 12f)
             padding(top = 12f, left = 12f, bottom = 10f, right = 12f)
-            backgroundColor(0xFFFFFFFF)
+            backgroundColor(AppColor.SURFACE)
             borderRadius(10f)
         }
 
@@ -64,13 +65,13 @@ internal fun ViewContainer<*, *>.minuteCardContent(ctx: StockDetailPage, data: L
             Text {
                 attr {
                     text(if (data == null) "分时" else "分时（${data.size}分钟）")
-                    fontSize(15f); fontWeightBold(); color(0xFF333333); flex(1f)
+                    fontSize(15f); fontWeightBold(); color(AppColor.TEXT_INK); flex(1f)
                 }
             }
             Text {
                 attr {
                     text(ctx.minuteInfoText.ifEmpty { "点击图表查看" })
-                    fontSize(10f); color(0xFF999999); flex(1f); textAlignRight()
+                    fontSize(10f); color(AppColor.TEXT_HINT); flex(1f); textAlignRight()
                 }
             }
         }
@@ -82,18 +83,18 @@ internal fun ViewContainer<*, *>.minuteCardContent(ctx: StockDetailPage, data: L
         }
         velseif({ error.isNotEmpty() || data.isNullOrEmpty() }) {
             View {
-                attr { padding(16f); backgroundColor(0xFFF5F5F5); borderRadius(8f); alignItems(FlexAlign.CENTER) }
-                Text { attr { text(if (error.isNotEmpty()) "分时加载失败：$error" else "该股暂无分时数据"); fontSize(13f); color(0xFF666666); fontWeightBold() } }
+                attr { padding(16f); backgroundColor(AppColor.SURFACE_SOFT); borderRadius(8f); alignItems(FlexAlign.CENTER) }
+                Text { attr { text(if (error.isNotEmpty()) "分时加载失败：$error" else "该股暂无分时数据"); fontSize(13f); color(AppColor.TEXT_GRAY); fontWeightBold() } }
                 Text {
                     attr {
                         text("数据源暂未提供分时，可重试或查看日K行情")
-                        fontSize(11f); color(0xFF999999); marginTop(6f); textAlignCenter(); lineHeight(16f)
+                        fontSize(11f); color(AppColor.TEXT_HINT); marginTop(6f); textAlignCenter(); lineHeight(16f)
                     }
                 }
                 View {
-                    attr { marginTop(10f); padding(6f, 12f, 6f, 12f); backgroundColor(0xFFE3F2FD); borderRadius(10f) }
+                    attr { marginTop(10f); padding(6f, 12f, 6f, 12f); backgroundColor(AppColor.PRIMARY_BG); borderRadius(10f) }
                     event { click { ctx.scrollToChart() } }
-                    Text { attr { text("查看K线联动"); fontSize(11f); color(0xFF1976D2) } }
+                    Text { attr { text("查看K线联动"); fontSize(11f); color(AppColor.PRIMARY_SOFT) } }
                 }
             }
         }
@@ -104,7 +105,7 @@ internal fun ViewContainer<*, *>.minuteCardContent(ctx: StockDetailPage, data: L
                 View {
                     attr {
                         flexDirectionRow()
-                        backgroundColor(0xFFF0F4F9)
+                        backgroundColor(AppColor.TRACK)
                         borderRadius(14f)
                         padding(3f)
                         marginRight(8f)
@@ -113,7 +114,7 @@ internal fun ViewContainer<*, *>.minuteCardContent(ctx: StockDetailPage, data: L
                         attr {
                             padding(left = 14f, top = 6f, right = 14f, bottom = 6f)
                             borderRadius(11f)
-                            backgroundColor(if (ctx.minuteShowAvg) 0xFF1976D2 else 0x00000000)
+                            backgroundColor(if (ctx.minuteShowAvg) AppColor.PRIMARY_SOFT else 0x00000000)
                         }
                         event { click { ctx.toggleMinuteAvg() } }
                         Text {
@@ -121,7 +122,7 @@ internal fun ViewContainer<*, *>.minuteCardContent(ctx: StockDetailPage, data: L
                                 text("均线")
                                 fontSize(11f)
                                 fontWeightBold()
-                                color(if (ctx.minuteShowAvg) 0xFFFFFFFF else 0xFF666666)
+                                color(if (ctx.minuteShowAvg) AppColor.ON_DARK else AppColor.TEXT_GRAY)
                             }
                         }
                     }
@@ -129,7 +130,7 @@ internal fun ViewContainer<*, *>.minuteCardContent(ctx: StockDetailPage, data: L
                         attr {
                             padding(left = 14f, top = 6f, right = 14f, bottom = 6f)
                             borderRadius(11f)
-                            backgroundColor(if (ctx.minuteShowVolume) 0xFF1976D2 else 0x00000000)
+                            backgroundColor(if (ctx.minuteShowVolume) AppColor.PRIMARY_SOFT else 0x00000000)
                         }
                         event { click { ctx.toggleMinuteVolume() } }
                         Text {
@@ -137,7 +138,7 @@ internal fun ViewContainer<*, *>.minuteCardContent(ctx: StockDetailPage, data: L
                                 text("成交量")
                                 fontSize(11f)
                                 fontWeightBold()
-                                color(if (ctx.minuteShowVolume) 0xFFFFFFFF else 0xFF666666)
+                                color(if (ctx.minuteShowVolume) AppColor.ON_DARK else AppColor.TEXT_GRAY)
                             }
                         }
                     }
@@ -145,14 +146,14 @@ internal fun ViewContainer<*, *>.minuteCardContent(ctx: StockDetailPage, data: L
                 View { attr { flex(1f) } }
                 vif({ ctx.selectedMinuteIndex >= 0 }) {
                     View {
-                        attr { padding(4f, 8f, 4f, 8f); backgroundColor(0xFFF0F2F5); borderRadius(8f) }
+                        attr { padding(4f, 8f, 4f, 8f); backgroundColor(AppColor.BG_SOFT); borderRadius(8f) }
                         event { click { ctx.clearMinuteSelection() } }
                         Text {
                             attr {
                                 // 区分「跟手查看」与「已锁定」，让分时的手势语义与 K 线一致
                                 text(if (ctx.minuteLocked) "已锁定 · 清除" else "跟手查看中")
                                 fontSize(10f)
-                                color(0xFF666666)
+                                color(AppColor.TEXT_GRAY)
                             }
                         }
                     }
@@ -178,7 +179,7 @@ internal fun ViewContainer<*, *>.minuteCardContent(ctx: StockDetailPage, data: L
                                 marginRight(6f)
                                 marginBottom(4f)
                                 padding(2f, 6f, 2f, 6f)
-                                backgroundColor(0xFFF7F9FC)
+                                backgroundColor(AppColor.SURFACE_TINT)
                                 borderRadius(8f)
                             }
                             event { click { ctx.highlightAIPrice(lvl.price, lvl.label) } }
@@ -201,7 +202,7 @@ internal fun ViewContainer<*, *>.minuteCardContent(ctx: StockDetailPage, data: L
                 attr {
                     text("横拖查看分时价位 · 竖拖滚动页面 · 虚线为 AI 关键价位")
                     fontSize(10f)
-                    color(0xFFBBBBBB)
+                    color(AppColor.DISABLED)
                     marginTop(6f)
                 }
             }
@@ -245,7 +246,7 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
         attr {
             height(if (ctx.minuteShowVolume) 260f else 200f)
             marginTop(4f)
-            backgroundColor(0xFFFFFFFF)
+            backgroundColor(AppColor.SURFACE)
         }
     }) { context, width, height ->
         val aiLevels = parseAIPriceLevels(ctx.aiAnalysis)
@@ -280,7 +281,7 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
         fun px(i: Int): Float = if (n <= 1) 0f else (width * i / (n - 1).toFloat())
 
         // 网格
-        context.strokeStyle(Color(0xFFF0F2F5))
+        context.strokeStyle(Color(AppColor.BG_SOFT))
         context.lineWidth(1f)
         for (i in 0..3) {
             val gy = padT + chartH * i / 3f
@@ -292,7 +293,7 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
         // 垂直分割（上午/下午）
         if (n > 120) {
             val midX = width * 0.5f
-            context.strokeStyle(Color(0xFFEEEEEE))
+            context.strokeStyle(Color(AppColor.DIVIDER_SOFT))
             context.beginPath()
             context.moveTo(midX, padT)
             context.lineTo(midX, volTop)
@@ -318,7 +319,7 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
                 context.fill()
             }
             // 昨收虚线（灰）+ 右侧标签
-            context.strokeStyle(Color(0xFF999999))
+            context.strokeStyle(Color(AppColor.TEXT_HINT))
             context.lineWidth(1f)
             var bx = 0f
             while (bx < width) {
@@ -328,7 +329,7 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
                 context.stroke()
                 bx += 9f
             }
-            context.fillStyle(Color(0xFF999999))
+            context.fillStyle(Color(AppColor.TEXT_HINT))
             context.font(8f)
             context.textAlign(TextAlign.RIGHT)
             context.fillText("昨收 ${fmt2(preClose)}", width - 2f, baseY - 2f)
@@ -358,7 +359,7 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
         // 高亮价位
         if (ctx.highlightedPrice > 0 && ctx.highlightedPrice in minP..maxP) {
             val y = py(ctx.highlightedPrice)
-            context.strokeStyle(Color(0xFFFF9800))
+            context.strokeStyle(Color(AppColor.WARNING))
             context.lineWidth(1.5f)
             context.beginPath()
             context.moveTo(0f, y)
@@ -367,7 +368,7 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
         }
 
         // 分时价格线
-        context.strokeStyle(Color(0xFF1976D2))
+        context.strokeStyle(Color(AppColor.PRIMARY_SOFT))
         context.lineWidth(1.5f)
         context.beginPath()
         data.forEachIndexed { i, p ->
@@ -379,7 +380,7 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
 
         // 均线
         if (ctx.minuteShowAvg && avgs.isNotEmpty()) {
-            context.strokeStyle(Color(0xFFFF9800))
+            context.strokeStyle(Color(AppColor.WARNING))
             context.lineWidth(1f)
             context.beginPath()
             var started = false
@@ -419,7 +420,7 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
         }
 
         // 价格标签
-        context.fillStyle(Color(0xFF999999))
+        context.fillStyle(Color(AppColor.TEXT_HINT))
         context.font(9f)
         context.textAlign(TextAlign.LEFT)
         context.fillText(fmt2(maxP), 2f, padT + 8f)
@@ -429,7 +430,7 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
 
         // 时间标签
         context.font(9f)
-        context.fillStyle(Color(0xFF999999))
+        context.fillStyle(Color(AppColor.TEXT_HINT))
         context.textAlign(TextAlign.LEFT)
         context.fillText(data.first().time, 2f, dateY)
         context.textAlign(TextAlign.CENTER)
@@ -443,7 +444,7 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
             val p = data[sel]
             val cx = px(sel)
             val cy = py(p.price)
-            context.strokeStyle(Color(0xFF333333))
+            context.strokeStyle(Color(AppColor.TEXT_INK))
             context.lineWidth(0.8f)
             var vy = padT
             while (vy < volTop) {
@@ -462,7 +463,7 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
                 hx += 7f
             }
             // 点
-            context.fillStyle(Color(0xFF1976D2))
+            context.fillStyle(Color(AppColor.PRIMARY_SOFT))
             context.beginPath()
             context.moveTo(cx - 3f, cy)
             context.lineTo(cx + 3f, cy)
@@ -479,7 +480,7 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
             context.lineTo(0f, tooltipH)
             context.closePath()
             context.fill()
-            context.fillStyle(Color(0xFFFFFFFF))
+            context.fillStyle(Color(AppColor.ON_DARK))
             context.font(9f)
             context.textAlign(TextAlign.LEFT)
             context.fillText(
@@ -506,11 +507,11 @@ internal fun ViewContainer<*, *>.minuteSummary(ctx: StockDetailPage, data: List<
 
     View {
         attr { flexDirectionColumn(); marginTop(8f) }
-        View { attr { height(1f); backgroundColor(0xFFEEEEEE); marginBottom(6f) } }
+        View { attr { height(1f); backgroundColor(AppColor.DIVIDER_SOFT); marginBottom(6f) } }
         View {
             attr { flexDirectionRow(); flexWrapWrap() }
-            Text { attr { text("今开 ${fmt2(first.price)}"); fontSize(11f); color(0xFF666666) } }
-            Text { attr { text("最新 ${fmt2(latest.price)}"); fontSize(11f); fontWeightBold(); color(0xFF333333); marginLeft(10f) } }
+            Text { attr { text("今开 ${fmt2(first.price)}"); fontSize(11f); color(AppColor.TEXT_GRAY) } }
+            Text { attr { text("最新 ${fmt2(latest.price)}"); fontSize(11f); fontWeightBold(); color(AppColor.TEXT_INK); marginLeft(10f) } }
             Text {
                 attr {
                     text("${fmtSigned2(change)} ${fmtSignedPct(pct)}")
@@ -522,8 +523,8 @@ internal fun ViewContainer<*, *>.minuteSummary(ctx: StockDetailPage, data: List<
         }
         View {
             attr { flexDirectionRow(); marginTop(4f) }
-            Text { attr { text("最高 ${fmt2(hi)}  最低 ${fmt2(lo)}"); fontSize(11f); color(0xFF666666) } }
-            Text { attr { text("振幅 ${fmt2((hi - lo) / preClose * 100.0)}%"); fontSize(11f); color(0xFF999999); marginLeft(10f) } }
+            Text { attr { text("最高 ${fmt2(hi)}  最低 ${fmt2(lo)}"); fontSize(11f); color(AppColor.TEXT_GRAY) } }
+            Text { attr { text("振幅 ${fmt2((hi - lo) / preClose * 100.0)}%"); fontSize(11f); color(AppColor.TEXT_HINT); marginLeft(10f) } }
         }
     }
 }

@@ -46,13 +46,17 @@ struct Index {
 
   pageTransition() {
     if (this.navFade) {
-      // 同级模块：新页淡入、旧页保持不透明，避免中段透出桌面。
-      // 210ms + FastOutSlowIn 对齐 Android kr_module_fade_in。
-      PageTransitionEnter({ type: RouteType.Push, duration: 210, curve: Curve.FastOutSlowIn })
+      // 同级模块：三段式淡入淡出 —— 出场 90ms → 间隙 30ms → 入场 210ms。
+      // 规格与 Android kr_module_fade_out/in.xml、iOS KRRouterHandler 对齐（common 侧 AppMotion）。
+      // 不能用「新页淡入、旧页保持不透明」的老做法：两页叠着淡在中段会同时看到两份内容，
+      // 版式相近而文案不同，观感就是错位。入口的 delay = 90 + 30，间隙由窗口底色兜住。
+      PageTransitionEnter({ type: RouteType.Push, duration: 210, delay: 120, curve: Curve.FastOutSlowIn })
         .opacity(0)
-      PageTransitionExit({ type: RouteType.Push, duration: 210, curve: Curve.FastOutSlowIn })
-      PageTransitionEnter({ type: RouteType.Pop, duration: 210, curve: Curve.FastOutSlowIn })
-      PageTransitionExit({ type: RouteType.Pop, duration: 210, curve: Curve.FastOutSlowIn })
+      PageTransitionExit({ type: RouteType.Push, duration: 90, curve: Curve.FastOutSlowIn })
+        .opacity(0)
+      PageTransitionEnter({ type: RouteType.Pop, duration: 210, delay: 120, curve: Curve.FastOutSlowIn })
+        .opacity(0)
+      PageTransitionExit({ type: RouteType.Pop, duration: 90, curve: Curve.FastOutSlowIn })
         .opacity(0)
     } else {
       // 层级下钻：iOS push/pop 镜像。进入从右滑入、返回从右滑出。

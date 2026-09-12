@@ -44,8 +44,11 @@ import com.kuikly.stock.data.fmtSignedPct
 import com.kuikly.stock.base.BasePager
 import com.kuikly.stock.base.HapticStyle
 import com.kuikly.stock.base.hapticTick
-import com.kuikly.stock.base.skeletonBlock
+import com.kuikly.stock.ui.component.skeletonBlock
+import com.kuikly.stock.ui.component.segmentedControl
 import kotlin.math.abs
+import com.kuikly.stock.ui.theme.AppColor
+import com.kuikly.stock.ui.component.chartControlButton
 
 internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
     val originalKline = ctx.stockDetail?.kline
@@ -55,7 +58,7 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
             flexDirectionColumn()
             margin(4f, 12f, 4f, 12f)
             padding(top = 10f, left = 12f, bottom = 10f, right = 12f)
-            backgroundColor(0xFFFFFFFF)
+            backgroundColor(AppColor.SURFACE)
             borderRadius(10f)
         }
 
@@ -67,7 +70,7 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                     text("K线走势")
                     fontSize(15f)
                     fontWeightBold()
-                    color(0xFF333333)
+                    color(AppColor.TEXT_INK)
                     flex(1f)
                 }
             }
@@ -75,7 +78,7 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                 attr {
                     text(ctx.getAggregatedKline().getOrNull(ctx.selectedKlineIndex)?.tradeDate ?: "${ctx.getAggregatedKline().size}根 · ${ctx.klineVisibleCount}显示")
                     fontSize(10f)
-                    color(0xFF999999)
+                    color(AppColor.TEXT_HINT)
                     flex(1f)
                     textAlignRight()
                 }
@@ -90,7 +93,7 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
             View {
                 attr {
                     padding(4f, 8f, 4f, 8f)
-                    backgroundColor(if (ctx.klineShowMA) 0xFFE3F2FD else 0xFFF5F5F5)
+                    backgroundColor(if (ctx.klineShowMA) AppColor.PRIMARY_BG else AppColor.SURFACE_SOFT)
                     borderRadius(10f)
                     marginRight(6f)
                 }
@@ -99,7 +102,7 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                     attr {
                         text("MA")
                         fontSize(11f)
-                        color(if (ctx.klineShowMA) 0xFF1976D2 else 0xFF999999)
+                        color(if (ctx.klineShowMA) AppColor.PRIMARY_SOFT else AppColor.TEXT_HINT)
                         fontWeightBold()
                     }
                 }
@@ -107,11 +110,11 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
             View {
                 attr {
                     padding(4f, 8f, 4f, 8f)
-                    backgroundColor(0xFFF5F5F5)
+                    backgroundColor(AppColor.SURFACE_SOFT)
                     borderRadius(10f)
                 }
                 event { click { ctx.resetView() } }
-                Text { attr { text("重置"); fontSize(11f); color(0xFF666666) } }
+                Text { attr { text("重置"); fontSize(11f); color(AppColor.TEXT_GRAY) } }
             }
         }
 
@@ -122,28 +125,28 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
             // 缩放平移控制
             View {
                 attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginBottom(6f) }
-                klineControlBtn(ctx, "◀◀", { ctx.panLeft() })
-                klineControlBtn(ctx, "－", { ctx.zoomIn() })
+                chartControlButton("◀◀", { ctx.panLeft() })
+                chartControlButton("－", { ctx.zoomIn() })
                 Text {
                     attr {
                         text("${ctx.klineVisibleCount}根")
                         fontSize(11f)
-                        color(0xFF666666)
+                        color(AppColor.TEXT_GRAY)
                         marginLeft(6f)
                         marginRight(6f)
                         width(40f)
                         textAlignCenter()
                     }
                 }
-                klineControlBtn(ctx, "＋", { ctx.zoomOut() })
-                klineControlBtn(ctx, "▶▶", { ctx.panRight() })
+                chartControlButton("＋", { ctx.zoomOut() })
+                chartControlButton("▶▶", { ctx.panRight() })
                 View { attr { flex(1f) } }
                 vif({ ctx.highlightedPrice > 0 }) {
                     View {
                         attr {
                             flexDirectionRow()
                             alignItems(FlexAlign.CENTER)
-                            backgroundColor(0xFFFFF3E8)
+                            backgroundColor(AppColor.WARNING_BG)
                             borderRadius(8f)
                             padding(3f, 8f, 3f, 8f)
                             marginBottom(8f)
@@ -152,14 +155,14 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                             attr {
                                 text("${ctx.highlightedPriceLabel} ¥${fmt2(ctx.highlightedPrice)}")
                                 fontSize(11f)
-                                color(0xFFA56100)
+                                color(AppColor.WARNING_TEXT)
                                 flex(1f)
                             }
                         }
                         View {
-                            attr { marginLeft(6f); padding(2f, 6f, 2f, 6f); backgroundColor(0xFFFFFFFF); borderRadius(6f) }
+                            attr { marginLeft(6f); padding(2f, 6f, 2f, 6f); backgroundColor(AppColor.SURFACE); borderRadius(6f) }
                             event { click { ctx.clearHighlight() } }
-                            Text { attr { text("✕"); fontSize(10f); color(0xFF999999) } }
+                            Text { attr { text("✕"); fontSize(10f); color(AppColor.TEXT_HINT) } }
                         }
                     }
                 }
@@ -167,24 +170,24 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
             // 副图指标选择器（关 / MACD / KDJ / RSI，默认关；开启时主画布向下增高）
             View {
                 attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginBottom(6f) }
-                Text { attr { text("副图"); fontSize(11f); color(0xFF999999); marginRight(8f) } }
+                Text { attr { text("副图"); fontSize(11f); color(AppColor.TEXT_HINT); marginRight(8f) } }
                 subIndicatorChip(ctx, "none", "关")
                 subIndicatorChip(ctx, "macd", "MACD")
                 subIndicatorChip(ctx, "kdj", "KDJ")
                 subIndicatorChip(ctx, "rsi", "RSI")
                 View { attr { flex(1f) } }
                 View {
-                    attr { padding(6f); borderRadius(8f); backgroundColor(if (ctx.klineShowTrend) 0xFFE3F2FD else 0xFFF5F7FA) }
+                    attr { padding(6f); borderRadius(8f); backgroundColor(if (ctx.klineShowTrend) AppColor.PRIMARY_BG else AppColor.SURFACE_ALT) }
                     event { click { ctx.toggleTrend() } }
-                    Text { attr { text(if (ctx.klineShowTrend) "趋势 开" else "趋势 关"); fontSize(11f); color(if (ctx.klineShowTrend) 0xFF1976D2 else 0xFF627083) } }
+                    Text { attr { text(if (ctx.klineShowTrend) "趋势 开" else "趋势 关"); fontSize(11f); color(if (ctx.klineShowTrend) AppColor.PRIMARY_SOFT else AppColor.TEXT_SUB_DEEP) } }
                 }
                 View {
-                    attr { marginLeft(6f); padding(6f); borderRadius(8f); backgroundColor(0xFFF5F7FA) }
+                    attr { marginLeft(6f); padding(6f); borderRadius(8f); backgroundColor(AppColor.SURFACE_ALT) }
                     event { click { ctx.toggleVolume() } }
-                    Text { attr { text(if (ctx.klineShowVolume) "量 开" else "量 关"); fontSize(11f); color(0xFF627083) } }
+                    Text { attr { text(if (ctx.klineShowVolume) "量 开" else "量 关"); fontSize(11f); color(AppColor.TEXT_SUB_DEEP) } }
                 }
             }
-            Text { attr { text("横拖平移 · 点选锁定 · 长按拖选区间 · 双指缩放 · 点击图表/✕ 退出"); fontSize(10f); lineHeight(16f); color(0xFF8A9099); marginBottom(6f) } }
+            Text { attr { text("横拖平移 · 点选锁定 · 长按拖选区间 · 双指缩放 · 点击图表/✕ 退出"); fontSize(10f); lineHeight(16f); color(AppColor.NEUTRAL); marginBottom(6f) } }
 
             View {
                 attr { flexDirectionColumn() }
@@ -195,19 +198,19 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                     View {
                         attr {
                             flexDirectionRow(); alignItems(FlexAlign.CENTER)
-                            backgroundColor(0xFFF0F3F8); borderRadius(8f)
+                            backgroundColor(AppColor.SURFACE_ALT); borderRadius(8f)
                             padding(4f, 8f, 4f, 8f); marginBottom(6f)
                         }
                         Text {
                             attr {
                                 text(if (ctx.rangeStats != null) "已框选区间 · 查看统计" else "已锁定单根 K 线")
-                                fontSize(11f); color(0xFF627083); flex(1f)
+                                fontSize(11f); color(AppColor.TEXT_SUB_DEEP); flex(1f)
                             }
                         }
                         View {
-                            attr { padding(2f, 10f, 2f, 10f); backgroundColor(0xFFFFFFFF); borderRadius(6f) }
+                            attr { padding(2f, 10f, 2f, 10f); backgroundColor(AppColor.SURFACE); borderRadius(6f) }
                             event { click { ctx.clearInteraction() } }
-                            Text { attr { text("✕ 退出"); fontSize(11f); color(0xFF1976D2) } }
+                            Text { attr { text("✕ 退出"); fontSize(11f); color(AppColor.PRIMARY_SOFT) } }
                         }
                     }
                 }
@@ -224,7 +227,7 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                 Text {
                     attr {
                         text(fundEvidence(ctx.stockDetail?.fundFlow.orEmpty(), ctx.getAggregatedKline().getOrNull(ctx.selectedKlineIndex)?.tradeDate.orEmpty()))
-                        fontSize(11f); lineHeight(18f); color(0xFF627083); marginTop(8f)
+                        fontSize(11f); lineHeight(18f); color(AppColor.TEXT_SUB_DEEP); marginTop(8f)
                     }
                 }
             }
@@ -244,10 +247,10 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                                 padding(3f, 8f, 3f, 8f)
                                 backgroundColor(
                                     when (lvl.type) {
-                                        "support" -> 0xFFEAF7EF
-                                        "resistance" -> 0xFFFFF0F0
-                                        "target" -> 0xFFE8F2FF
-                                        else -> 0xFFFFF3E8
+                                        "support" -> AppColor.SUCCESS_BG
+                                        "resistance" -> AppColor.DANGER_BG
+                                        "target" -> AppColor.INFO_BG
+                                        else -> AppColor.WARNING_BG
                                     }
                                 )
                                 borderRadius(10f)
@@ -279,7 +282,7 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                 attr {
                     text("提示：点击/长按K线查看详情 · 缩放平移查看历史 · 点击下方AI价位联动标注")
                     fontSize(10f)
-                    color(0xFFBBBBBB)
+                    color(AppColor.DISABLED)
                     marginTop(6f)
                 }
             }
@@ -290,79 +293,32 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
     }
 }
 
-/** 周期单格宽度（dp）。指示器宽度与它一致，百分比位移才能正好跨一格。 */
+/** 周期单格宽度（dp）。滑块宽度与它一致，百分比位移才能正好跨一格。 */
 private const val KLINE_PERIOD_TAB_W = 46f
 
-/** 日 / 周 / 月 的固定顺序，下标即滑块位移量。 */
-private val KLINE_PERIODS = listOf(
-    Triple("D", "日K", 0f),
-    Triple("W", "周K", 1f),
-    Triple("M", "月K", 2f),
-)
-
-private val KLINE_PERIOD_ANIMATION = Animation.easeOut(0.2f)
+/** 日 / 周 / 月 的键与文案；下标即滑块位移量。 */
+private val KLINE_PERIODS = listOf("D" to "日K", "W" to "周K", "M" to "月K")
 
 /**
  * K 线周期切换。
  *
- * 原来三个 chip 各自硬切底色，切周期时很难一眼看出「选中的那个跑哪去了」；
- * 换成滑块之后位移本身就是答案。位移用百分比（相对滑块自身宽度）而不是 dp，
- * 原因见行情页 modeTabBar 的注释。
+ * 三个选项各自硬切底色时，切周期很难一眼看出「选中的那个跑哪去了」；
+ * 滑块平移之后位移本身就是答案。结构见 [segmentedControl]。
  */
 internal fun ViewContainer<*, *>.klinePeriodBar(ctx: StockDetailPage) {
-    View {
-        attr {
-            flexDirectionRow()
-            backgroundColor(0xFFF0F4F9)
-            borderRadius(14f)
-            padding(3f)
-        }
-
-        View {
-            attr {
-                // 先读 observable 再声明动画（顺序不能反，见 Interaction.kt）
-                val period = ctx.klinePeriod
-                animate(KLINE_PERIOD_ANIMATION, period)
-                absolutePosition(top = 3f, left = 3f, bottom = 3f)
-                width(KLINE_PERIOD_TAB_W)
-                borderRadius(11f)
-                backgroundColor(0xFF1976D2)
-                transform(translate = Translate(percentageX = klinePeriodOffset(period)))
-            }
-        }
-
-        KLINE_PERIODS.forEach { (key, label, _) ->
-            View {
-                attr {
-                    width(KLINE_PERIOD_TAB_W)
-                    height(28f)
-                    allCenter()
-                    accessibility(if (ctx.klinePeriod == key) "$label，已选择" else label)
-                    accessibilityRole(AccessibilityRole.BUTTON)
-                    accessibilityInfo(ctx.klinePeriod != key, false)
-                }
-                event { click { hapticTick(HapticStyle.Light); ctx.switchKlinePeriod(key) } }
-                Text {
-                    attr {
-                        text(label)
-                        fontSize(12f)
-                        fontWeightBold()
-                        color(if (ctx.klinePeriod == key) 0xFFFFFFFF else 0xFF666666)
-                    }
-                }
-            }
-        }
-    }
+    segmentedControl(
+        options = KLINE_PERIODS.map { it.second },
+        selectedIndex = { KLINE_PERIODS.indexOfFirst { it.first == ctx.klinePeriod } },
+        itemWidth = KLINE_PERIOD_TAB_W,
+        onSelect = { ctx.switchKlinePeriod(KLINE_PERIODS[it].first) },
+    )
 }
-
-private fun klinePeriodOffset(period: String): Float =
-    KLINE_PERIODS.firstOrNull { it.first == period }?.third ?: 0f
 
 internal fun ViewContainer<*, *>.subIndicatorChip(ctx: StockDetailPage, key: String, label: String) {
     View {
         attr {
             padding(3f, 10f, 3f, 10f)
-            backgroundColor(if (ctx.klineSubIndicator == key) 0xFF5B7FFF else 0xFFF5F5F5)
+            backgroundColor(if (ctx.klineSubIndicator == key) AppColor.ACCENT else AppColor.SURFACE_SOFT)
             borderRadius(12f)
             marginRight(6f)
         }
@@ -372,30 +328,7 @@ internal fun ViewContainer<*, *>.subIndicatorChip(ctx: StockDetailPage, key: Str
                 text(label)
                 fontSize(11f)
                 fontWeightBold()
-                color(if (ctx.klineSubIndicator == key) 0xFFFFFFFF else 0xFF888888)
-            }
-        }
-    }
-}
-
-internal fun ViewContainer<*, *>.klineControlBtn(ctx: StockDetailPage, label: String, action: () -> Unit) {
-    View {
-        attr {
-            width(32f)
-            height(28f)
-            backgroundColor(0xFFF5F5F5)
-            borderRadius(8f)
-            alignItems(FlexAlign.CENTER)
-            justifyContent(FlexJustifyContent.CENTER)
-            marginRight(4f)
-        }
-        event { click { hapticTick(HapticStyle.Light); action() } }
-        Text {
-            attr {
-                text(label)
-                fontSize(12f)
-                color(0xFF666666)
-                textAlignCenter()
+                color(if (ctx.klineSubIndicator == key) AppColor.ON_DARK else AppColor.TEXT_HINT_SOFT)
             }
         }
     }
@@ -452,7 +385,7 @@ internal fun ViewContainer<*, *>.klineErrorView(ctx: StockDetailPage) {
             attr {
                 text("K线数据获取失败或暂无数据")
                 fontSize(13f)
-                color(0xFF999999)
+                color(AppColor.TEXT_HINT)
                 textAlignCenter()
             }
         }
@@ -460,7 +393,7 @@ internal fun ViewContainer<*, *>.klineErrorView(ctx: StockDetailPage) {
             attr {
                 marginTop(12f)
                 padding(top = 8f, left = 20f, bottom = 8f, right = 20f)
-                backgroundColor(0xFFE3F2FD)
+                backgroundColor(AppColor.PRIMARY_BG)
                 borderRadius(16f)
             }
             event {
@@ -471,7 +404,7 @@ internal fun ViewContainer<*, *>.klineErrorView(ctx: StockDetailPage) {
                     text("重试")
                     fontSize(13f)
                     fontWeightBold()
-                    color(0xFF1976D2)
+                    color(AppColor.PRIMARY_SOFT)
                 }
             }
         }
@@ -483,7 +416,7 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
         attr {
             height((if (ctx.klineShowVolume) 380f else 300f) + (if (ctx.klineSubIndicator != "none") 86f else 0f))
             marginTop(2f)
-            backgroundColor(0xFFFFFFFF)
+            backgroundColor(AppColor.SURFACE)
         }
     }) { context, width, height ->
         val aggregated = ctx.getAggregatedKline()
@@ -528,7 +461,7 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
         val cw = (step * 0.55f).coerceAtLeast(2f).coerceAtMost(14f)
 
         // 背景网格
-        context.strokeStyle(Color(0xFFF0F2F5))
+        context.strokeStyle(Color(AppColor.BG_SOFT))
         context.lineWidth(1f)
         for (i in 0..4) {
             val gy = padT + chartH * i / 4f
@@ -538,7 +471,7 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
             context.stroke()
         }
         // 垂直网格
-        context.strokeStyle(Color(0xFFFAFAFA))
+        context.strokeStyle(Color(AppColor.SURFACE_ALT))
         for (i in 0..nVisible step (nVisible / 5).coerceAtLeast(1)) {
             val cx = step * i + step / 2f
             context.beginPath()
@@ -573,13 +506,13 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
         // 高亮价位
         if (ctx.highlightedPrice > 0 && ctx.highlightedPrice in minP..maxP) {
             val y = py(ctx.highlightedPrice)
-            context.strokeStyle(Color(0xFFFF9800))
+            context.strokeStyle(Color(AppColor.WARNING))
             context.lineWidth(2f)
             context.beginPath()
             context.moveTo(0f, y)
             context.lineTo(width, y)
             context.stroke()
-            context.fillStyle(Color(0xFFFF9800))
+            context.fillStyle(Color(AppColor.WARNING))
             context.font(10f)
             context.textAlign(TextAlign.LEFT)
             context.fillText("★ ${ctx.highlightedPriceLabel} ${fmt2(ctx.highlightedPrice)}", 4f, y - 4f)
@@ -643,8 +576,8 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                 }
                 context.stroke()
             }
-            drawMALine(ma5Points, Color(0xFF1976D2))
-            drawMALine(ma10Points, Color(0xFFFF9800))
+            drawMALine(ma5Points, Color(AppColor.PRIMARY_SOFT))
+            drawMALine(ma10Points, Color(AppColor.WARNING))
             drawMALine(ma20Points, Color(0xFF7B1FA2))
         }
 
@@ -669,7 +602,7 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
         // 成交量
         if (ctx.klineShowVolume && volH > 0) {
             val maxVol = visible.maxOf { it.volume }.toFloat().coerceAtLeast(1f)
-            context.strokeStyle(Color(0xFFE0E0E0))
+            context.strokeStyle(Color(AppColor.DIVIDER))
             context.lineWidth(1f)
             context.beginPath()
             context.moveTo(0f, volTop - 5f)
@@ -689,7 +622,7 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                 context.closePath()
                 context.fill()
             }
-            context.fillStyle(Color(0xFF999999))
+            context.fillStyle(Color(AppColor.TEXT_HINT))
             context.font(9f)
             context.textAlign(TextAlign.RIGHT)
             context.fillText("成交量", width - 2f, volTop - 8f)
@@ -699,7 +632,7 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
         if (subOn) {
             val subH = subBottom - subTop
             // 与量图/主图的分隔线
-            context.strokeStyle(Color(0xFFE0E0E0))
+            context.strokeStyle(Color(AppColor.DIVIDER))
             context.lineWidth(1f)
             context.beginPath()
             context.moveTo(0f, subTop - 5f)
@@ -732,7 +665,7 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                 fun syToY(v: Double): Float = subTop + subH * ((hi - v) / (hi - lo)).toFloat()
                 val zeroY = syToY(0.0)
                 // 零轴
-                context.strokeStyle(Color(0xFFCCCCCC))
+                context.strokeStyle(Color(AppColor.DIVIDER))
                 context.lineWidth(1f)
                 context.beginPath(); context.moveTo(0f, zeroY); context.lineTo(width, zeroY); context.stroke()
                 // MACD 柱（≥0 红 / <0 绿）
@@ -759,9 +692,9 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                     }
                     context.stroke()
                 }
-                drawSubLine(difV, 0xFF1976D2)  // DIF 蓝
-                drawSubLine(deaV, 0xFFFF9800)  // DEA 橙
-                context.fillStyle(Color(0xFF888888)); context.font(9f); context.textAlign(TextAlign.LEFT)
+                drawSubLine(difV, AppColor.PRIMARY_SOFT)  // DIF 蓝
+                drawSubLine(deaV, AppColor.WARNING)  // DEA 橙
+                context.fillStyle(Color(AppColor.TEXT_HINT_SOFT)); context.font(9f); context.textAlign(TextAlign.LEFT)
                 val si = subActiveLocal.coerceIn(0, nVisible - 1)
                 context.fillText("MACD(12,26,9)  DIF ${fmt2(difV[si])}  DEA ${fmt2(deaV[si])}  M ${fmt2(histV[si])}", 4f, subTop + 9f)
             } else if (ctx.klineSubIndicator == "rsi") {
@@ -780,7 +713,7 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                 val hi = 100.0
                 fun syToY(v: Double): Float = subTop + subH * ((hi - v) / (hi - lo)).toFloat()
                 // 30 / 70 超买超卖参考虚线
-                context.strokeStyle(Color(0xFFEEEEEE)); context.lineWidth(1f)
+                context.strokeStyle(Color(AppColor.DIVIDER_SOFT)); context.lineWidth(1f)
                 for (ref in listOf(30.0, 70.0)) {
                     val ry = syToY(ref)
                     var rx = 0f
@@ -798,10 +731,10 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                     }
                     context.stroke()
                 }
-                drawSubLine(r6, 0xFF1976D2)   // RSI6 蓝
-                drawSubLine(r12, 0xFFFF9800)  // RSI12 橙
+                drawSubLine(r6, AppColor.PRIMARY_SOFT)   // RSI6 蓝
+                drawSubLine(r12, AppColor.WARNING)  // RSI12 橙
                 drawSubLine(r24, 0xFF7B1FA2)  // RSI24 紫
-                context.fillStyle(Color(0xFF888888)); context.font(9f); context.textAlign(TextAlign.LEFT)
+                context.fillStyle(Color(AppColor.TEXT_HINT_SOFT)); context.font(9f); context.textAlign(TextAlign.LEFT)
                 val si = subActiveLocal.coerceIn(0, nVisible - 1)
                 context.fillText("RSI(6,12,24)  RSI6 ${fmt2(r6[si])}  RSI12 ${fmt2(r12[si])}  RSI24 ${fmt2(r24[si])}", 4f, subTop + 9f)
             } else {
@@ -824,7 +757,7 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                 if (hi <= lo) hi = lo + 1.0
                 fun syToY(v: Double): Float = subTop + subH * ((hi - v) / (hi - lo)).toFloat()
                 // 20 / 80 参考虚线
-                context.strokeStyle(Color(0xFFEEEEEE)); context.lineWidth(1f)
+                context.strokeStyle(Color(AppColor.DIVIDER_SOFT)); context.lineWidth(1f)
                 for (ref in listOf(20.0, 80.0)) {
                     val ry = syToY(ref)
                     var rx = 0f
@@ -842,17 +775,17 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                     }
                     context.stroke()
                 }
-                drawSubLine(kV, 0xFF1976D2)  // K 蓝
-                drawSubLine(dV, 0xFFFF9800)  // D 橙
+                drawSubLine(kV, AppColor.PRIMARY_SOFT)  // K 蓝
+                drawSubLine(dV, AppColor.WARNING)  // D 橙
                 drawSubLine(jV, 0xFF7B1FA2)  // J 紫
-                context.fillStyle(Color(0xFF888888)); context.font(9f); context.textAlign(TextAlign.LEFT)
+                context.fillStyle(Color(AppColor.TEXT_HINT_SOFT)); context.font(9f); context.textAlign(TextAlign.LEFT)
                 val si = subActiveLocal.coerceIn(0, nVisible - 1)
                 context.fillText("KDJ(9,3,3)  K ${fmt2(kV[si])}  D ${fmt2(dV[si])}  J ${fmt2(jV[si])}", 4f, subTop + 9f)
             }
         }
 
         // 价格标签
-        context.fillStyle(Color(0xFF999999))
+        context.fillStyle(Color(AppColor.TEXT_HINT))
         context.font(10f)
         context.textAlign(TextAlign.LEFT)
         context.fillText(fmt2(maxP), 4f, padT + 9f)
@@ -885,7 +818,7 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
             val k = visible.getOrNull(localIdx)
 
             // 竖直线（虚线）— 副图开启时贯穿主图 + 量图 + 副图
-            context.strokeStyle(Color(0xFF666666))
+            context.strokeStyle(Color(AppColor.TEXT_GRAY))
             context.lineWidth(1f)
             val vLineBottom = if (subOn) subBottom else volTop
             var vx = padT
@@ -916,7 +849,7 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                 k?.close ?: 0.0
             }
             val priceTagW = 52f
-            context.fillStyle(Color(0xFF1976D2))
+            context.fillStyle(Color(AppColor.PRIMARY_SOFT))
             context.beginPath()
             context.moveTo(width - priceTagW, hy - 9f)
             context.lineTo(width, hy - 9f)
@@ -933,7 +866,7 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
             if (k != null) {
                 val dateTagW = 62f
                 val dateTagX = (cx - dateTagW / 2f).coerceIn(0f, width - dateTagW)
-                context.fillStyle(Color(0xFF1976D2))
+                context.fillStyle(Color(AppColor.PRIMARY_SOFT))
                 context.beginPath()
                 context.moveTo(dateTagX, dateY - 12f)
                 context.lineTo(dateTagX + dateTagW, dateY - 12f)
@@ -949,7 +882,7 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
 
             // 选中 K线框
             if (k != null && (interaction is InteractionState.Locked || interaction is InteractionState.Hover)) {
-                context.strokeStyle(Color(0xFF1976D2))
+                context.strokeStyle(Color(AppColor.PRIMARY_SOFT))
                 context.lineWidth(1.5f)
                 context.beginPath()
                 context.moveTo(cx - cw / 2f - 2f, py(k.high) - 2f)
@@ -1039,7 +972,7 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                 context.font(9f)
                 context.textAlign(TextAlign.LEFT)
                 context.fillText("区间统计: ${stats.summary}", 4f, statsY + 12f)
-                context.fillStyle(Color(0xFFB0BEC5))
+                context.fillStyle(Color(AppColor.TEXT_SUB))
                 context.fillText("${stats.startDate} ~ ${stats.endDate}", 4f, statsY + 24f)
             }
         }
@@ -1050,8 +983,8 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
             context.textAlign(TextAlign.LEFT)
             var lx = 4f
             listOf(
-                Triple("MA5", Color(0xFF1976D2), ma5Points.lastOrNull()?.second),
-                Triple("MA10", Color(0xFFFF9800), ma10Points.lastOrNull()?.second),
+                Triple("MA5", Color(AppColor.PRIMARY_SOFT), ma5Points.lastOrNull()?.second),
+                Triple("MA10", Color(AppColor.WARNING), ma10Points.lastOrNull()?.second),
                 Triple("MA20", Color(0xFF7B1FA2), ma20Points.lastOrNull()?.second)
             ).forEach { (label, color, _) ->
                 context.fillStyle(color)
@@ -1147,7 +1080,7 @@ internal fun ViewContainer<*, *>.klineSummary(ctx: StockDetailPage, visible: Lis
         View {
             attr {
                 height(1f)
-                backgroundColor(0xFFEEEEEE)
+                backgroundColor(AppColor.DIVIDER_SOFT)
                 marginBottom(8f)
             }
         }
@@ -1162,7 +1095,7 @@ internal fun ViewContainer<*, *>.klineSummary(ctx: StockDetailPage, visible: Lis
                 attr {
                     text("最新: ${latest.tradeDate}")
                     fontSize(11f)
-                    color(0xFF666666)
+                    color(AppColor.TEXT_GRAY)
                 }
             }
 
@@ -1171,7 +1104,7 @@ internal fun ViewContainer<*, *>.klineSummary(ctx: StockDetailPage, visible: Lis
                     text("收盘: ${fmt2(latest.close)}")
                     fontSize(11f)
                     fontWeightBold()
-                    color(0xFF333333)
+                    color(AppColor.TEXT_INK)
                     marginLeft(10f)
                 }
             }
@@ -1180,7 +1113,7 @@ internal fun ViewContainer<*, *>.klineSummary(ctx: StockDetailPage, visible: Lis
                 attr {
                     text("量: ${latest.volume.toInt()}手")
                     fontSize(11f)
-                    color(0xFF666666)
+                    color(AppColor.TEXT_GRAY)
                     marginLeft(10f)
                 }
             }
@@ -1190,7 +1123,7 @@ internal fun ViewContainer<*, *>.klineSummary(ctx: StockDetailPage, visible: Lis
                     attr {
                         text("已选 ${ctx.getAggregatedKline().getOrNull(ctx.selectedKlineIndex)?.tradeDate ?: ""}")
                         fontSize(11f)
-                        color(0xFF1976D2)
+                        color(AppColor.PRIMARY_SOFT)
                         marginLeft(10f)
                     }
                 }

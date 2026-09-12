@@ -7,6 +7,7 @@ import com.tencent.kuikly.core.views.*
 import kotlin.math.abs
 import com.kuikly.stock.data.fmt1
 import com.kuikly.stock.data.fmt2
+import com.kuikly.stock.ui.theme.AppColor
 
 /** Shared Canvas renderer; at most 120 points, no platform chart dependencies. */
 internal fun ViewContainer<*, *>.chartCard(card: Map<String, Any?>) {
@@ -15,12 +16,12 @@ internal fun ViewContainer<*, *>.chartCard(card: Map<String, Any?>) {
     val bars = card["chart_type"] == "bar"
     val unit = card["unit"] as? String ?: ""
     View {
-        attr { marginTop(10f); padding(12f); borderRadius(12f); backgroundColor(0xFFF1F6FD) }
-        Text { attr { text(title); fontSize(14f); fontWeightBold(); color(0xFF203A5B) } }
+        attr { marginTop(10f); padding(12f); borderRadius(12f); backgroundColor(AppColor.PRIMARY_BG_LIGHT) }
+        Text { attr { text(title); fontSize(14f); fontWeightBold(); color(AppColor.TEXT_STRONG) } }
         if (points.size < 2) {
-            Text { attr { text("图表数据不足，请刷新行情后重试"); fontSize(12f); color(0xFF7F8998); marginTop(8f) } }
+            Text { attr { text("图表数据不足，请刷新行情后重试"); fontSize(12f); color(AppColor.TEXT_SUB); marginTop(8f) } }
         } else {
-            Text { attr { text("${points.first().label} — ${points.last().label} · ${points.size} 个交易日"); fontSize(10f); color(0xFF738399); marginTop(4f) } }
+            Text { attr { text("${points.first().label} — ${points.last().label} · ${points.size} 个交易日"); fontSize(10f); color(AppColor.TEXT_SUB_DEEP); marginTop(4f) } }
             Canvas({ attr { height(190f); marginTop(8f); accessibility("$title，最新 ${chartNumber(points.last().value)}$unit") } }) { context, width, height ->
                 if (width <= 55f || height <= 40f) return@Canvas
                 val left = 46f
@@ -38,12 +39,12 @@ internal fun ViewContainer<*, *>.chartCard(card: Map<String, Any?>) {
                 for (i in 0..3) {
                     val value = min + range * i / 3
                     val py = y(value)
-                    context.strokeStyle(Color(0xFFDAE4F0)); context.lineWidth(0.5f)
+                    context.strokeStyle(Color(AppColor.DIVIDER)); context.lineWidth(0.5f)
                     context.beginPath(); context.moveTo(left, py); context.lineTo(right, py); context.stroke()
-                    context.fillStyle(Color(0xFF708198)); context.textAlign(TextAlign.RIGHT)
+                    context.fillStyle(Color(AppColor.TEXT_SUB)); context.textAlign(TextAlign.RIGHT)
                     context.fillText(chartNumber(value), left - 4f, py + 3f)
                 }
-                context.strokeStyle(Color(0xFF1976D2)); context.fillStyle(Color(0xFF1976D2)); context.lineWidth(2f)
+                context.strokeStyle(Color(AppColor.PRIMARY_SOFT)); context.fillStyle(Color(AppColor.PRIMARY_SOFT)); context.lineWidth(2f)
                 if (bars) {
                     val half = ((right - left) / points.size * 0.32f).coerceAtLeast(0.5f)
                     points.forEachIndexed { i, point ->
@@ -57,13 +58,13 @@ internal fun ViewContainer<*, *>.chartCard(card: Map<String, Any?>) {
                     points.forEachIndexed { i, point -> if (i == 0) context.moveTo(x(i), y(point.value)) else context.lineTo(x(i), y(point.value)) }
                     context.stroke()
                 }
-                context.fillStyle(Color(0xFF708198)); context.textAlign(TextAlign.LEFT)
+                context.fillStyle(Color(AppColor.TEXT_SUB)); context.textAlign(TextAlign.LEFT)
                 context.fillText(points.first().label.takeLast(5), left, height - 5f)
                 context.textAlign(TextAlign.RIGHT)
                 context.fillText(points.last().label.takeLast(5), right, height - 5f)
             }
-            Text { attr { text("最新 ${chartNumber(points.last().value)}$unit · ${card["source"] ?: "行情数据"}"); fontSize(11f); color(0xFF315A86); marginTop(3f) } }
-            Text { attr { text("历史行情仅供研究参考，不构成投资建议"); fontSize(10f); color(0xFF8591A0); marginTop(4f) } }
+            Text { attr { text("最新 ${chartNumber(points.last().value)}$unit · ${card["source"] ?: "行情数据"}"); fontSize(11f); color(AppColor.TEXT_SUB_DEEP); marginTop(3f) } }
+            Text { attr { text("历史行情仅供研究参考，不构成投资建议"); fontSize(10f); color(AppColor.TEXT_SUB); marginTop(4f) } }
         }
     }
 }

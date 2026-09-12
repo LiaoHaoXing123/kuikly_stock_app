@@ -41,6 +41,7 @@ import com.kuikly.stock.data.fmt3
 import com.kuikly.stock.data.fmtSigned2
 import com.kuikly.stock.data.fmtSignedPct
 import kotlin.math.abs
+import com.kuikly.stock.ui.theme.AppColor
 
 internal data class AIPriceLevel(
     val label: String,
@@ -70,15 +71,15 @@ internal fun parseAIPriceLevels(analysis: AIAnalysisData?): List<AIPriceLevel> {
                 }
             }
         }
-        addLevel("support_price", "支撑位", 0xFF2E9E5B, "support")
-        addLevel("support_value", "支撑位", 0xFF2E9E5B, "support")
-        addLevel("resistance_price", "压力位", 0xFFD64545, "resistance")
-        addLevel("resistance_value", "压力位", 0xFFD64545, "resistance")
-        addLevel("target_price", "目标价", 0xFF0E67D1, "target")
-        addLevel("stop_loss", "止损价", 0xFFA56100, "stopLoss")
+        addLevel("support_price", "支撑位", AppColor.DOWN_ALT, "support")
+        addLevel("support_value", "支撑位", AppColor.DOWN_ALT, "support")
+        addLevel("resistance_price", "压力位", AppColor.UP_ALT, "resistance")
+        addLevel("resistance_value", "压力位", AppColor.UP_ALT, "resistance")
+        addLevel("target_price", "目标价", AppColor.PRIMARY, "target")
+        addLevel("stop_loss", "止损价", AppColor.WARNING_TEXT, "stopLoss")
         // 有些模板用下划线不同
-        addLevel("target", "目标价", 0xFF0E67D1, "target")
-        addLevel("stop", "止损价", 0xFFA56100, "stopLoss")
+        addLevel("target", "目标价", AppColor.PRIMARY, "target")
+        addLevel("stop", "止损价", AppColor.WARNING_TEXT, "stopLoss")
     }
     return levels.sortedBy { it.price }
 }
@@ -101,7 +102,7 @@ internal fun ViewContainer<*, *>.aiBiasChip(ctx: StockDetailPage) {
                 border(Border(0.8f, BorderStyle.SOLID, Color((v.colorValue and 0x00FFFFFF) or 0x44000000)))
             } else {
                 backgroundColor(0x0A000000)
-                border(Border(0.8f, BorderStyle.DASHED, Color(0xFFC2C7D0)))
+                border(Border(0.8f, BorderStyle.DASHED, Color(AppColor.DIVIDER)))
             }
         }
         event {
@@ -121,7 +122,7 @@ internal fun ViewContainer<*, *>.aiBiasChip(ctx: StockDetailPage) {
                 )
                 fontSize(10f)
                 fontWeightBold()
-                color(ctx.effectiveVerdict?.colorValue ?: 0xFF6B7280)
+                color(ctx.effectiveVerdict?.colorValue ?: AppColor.TEXT_SUB_DEEP)
             }
         }
     }
@@ -163,8 +164,8 @@ internal fun ViewContainer<*, *>.aiVerdictBar(ctx: StockDetailPage, compact: Boo
         View {
             attr { height(34f); flexDirectionRow(); alignItemsCenter() }
             when {
-                loading -> Text { attr { text("AI 正在研判…"); fontSize(11f); color(Color(0xFF8A9099)) } }
-                v == null -> Text { attr { text("⟡ 点击生成 AI 观点"); fontSize(11f); color(Color(0xFF5B7FFF)); fontWeightBold() } }
+                loading -> Text { attr { text("AI 正在研判…"); fontSize(11f); color(Color(AppColor.NEUTRAL)) } }
+                v == null -> Text { attr { text("⟡ 点击生成 AI 观点"); fontSize(11f); color(Color(AppColor.ACCENT)); fontWeightBold() } }
                 else -> {
                     View {
                         attr {
@@ -178,22 +179,22 @@ internal fun ViewContainer<*, *>.aiVerdictBar(ctx: StockDetailPage, compact: Boo
                         Text { attr { text("AI ${v.bias}"); fontSize(10f); color(Color.WHITE); fontWeightBold() } }
                     }
                     if (v.confidence == "低" || data?.degraded == true) {
-                        Text { attr { text("参考"); fontSize(9f); color(Color(0xFF8A9099)); marginLeft(4f) } }
+                        Text { attr { text("参考"); fontSize(9f); color(Color(AppColor.NEUTRAL)); marginLeft(4f) } }
                     }
                     Text {
                         attr {
                             text(v.oneLiner)
                             fontSize(11f)
-                            color(Color(0xFF2A2E36))
+                            color(Color(AppColor.TEXT_STRONG))
                             marginLeft(6f)
                             flex(1f)
                             lines(1)
                         }
                     }
                     if (!compact) {
-                        Text { attr { text(if (expanded) "▲" else "▼"); fontSize(9f); color(Color(0xFF8A9099)) } }
+                        Text { attr { text(if (expanded) "▲" else "▼"); fontSize(9f); color(Color(AppColor.NEUTRAL)) } }
                     } else {
-                        Text { attr { text("详情 ›"); fontSize(10f); color(Color(0xFF5B7FFF)) } }
+                        Text { attr { text("详情 ›"); fontSize(10f); color(Color(AppColor.ACCENT)) } }
                     }
                 }
             }
@@ -207,7 +208,7 @@ internal fun ViewContainer<*, *>.aiVerdictBar(ctx: StockDetailPage, compact: Boo
                     text(analysisDateLabel(data.dataDate, latest))
                     fontSize(10f)
                     lineHeight(16f)
-                    color(0xFF727B89)
+                    color(AppColor.TEXT_SUB_DEEP)
                     marginBottom(6f)
                 }
             }
@@ -222,17 +223,17 @@ internal fun ViewContainer<*, *>.aiVerdictBar(ctx: StockDetailPage, compact: Boo
                     pricePill("压力", p, StockColors.UP) { ctx.focusKline(KlineFocus.Price(p, "AI压力", StockColors.UP)) }
                 }
                 v.targetValue?.let { p ->
-                    pricePill("目标", p, 0xFFE68A45) { ctx.focusKline(KlineFocus.Price(p, "AI目标", 0xFFE68A45)) }
+                    pricePill("目标", p, AppColor.WARNING) { ctx.focusKline(KlineFocus.Price(p, "AI目标", AppColor.WARNING)) }
                 }
                 v.stopLossValue?.let { p ->
-                    pricePill("止损", p, 0xFF8A9099) { ctx.focusKline(KlineFocus.Price(p, "AI止损", 0xFF8A9099)) }
+                    pricePill("止损", p, AppColor.FLAT) { ctx.focusKline(KlineFocus.Price(p, "AI止损", AppColor.FLAT)) }
                 }
             }
             View {
                 attr { flexDirectionRow(); alignItemsCenter(); height(26f) }
-                Text { attr { text("${v.horizon} · 置信${v.confidence}"); fontSize(10f); color(Color(0xFF8A9099)); flex(1f) } }
+                Text { attr { text("${v.horizon} · 置信${v.confidence}"); fontSize(10f); color(Color(AppColor.NEUTRAL)); flex(1f) } }
                 Text {
-                    attr { text("查看完整分析 ›"); fontSize(10f); color(Color(0xFF5B7FFF)) }
+                    attr { text("查看完整分析 ›"); fontSize(10f); color(Color(AppColor.ACCENT)) }
                     event { click { ctx.jumpToAiSection() } }
                 }
             }
@@ -284,16 +285,16 @@ internal fun ViewContainer<*, *>.signalCardV2(ctx: StockDetailPage, card: Map<St
 
     View {
         attr {
-            backgroundColor(Color.WHITE)
+            backgroundColor(AppColor.SURFACE)
             borderRadius(8f)
             padding(12f)
             marginBottom(10f)
-            if (pulsing) border(Border(1.5f, BorderStyle.SOLID, Color(0xFF5B7FFF)))
+            if (pulsing) border(Border(1.5f, BorderStyle.SOLID, Color(AppColor.ACCENT)))
         }
         View {
             attr { flexDirectionRow(); alignItemsCenter(); marginBottom(6f) }
-            Text { attr { text(title); fontSize(14f); fontWeightBold(); color(Color(0xFF2A2E36)); flex(1f) } }
-            Text { attr { text("点击信号定位K线"); fontSize(10f); color(Color(0xFF8A9099)) } }
+            Text { attr { text(title); fontSize(14f); fontWeightBold(); color(Color(AppColor.TEXT_STRONG)); flex(1f) } }
+            Text { attr { text("点击信号定位K线"); fontSize(10f); color(Color(AppColor.NEUTRAL)) } }
         }
 
         signals.forEach { s ->
@@ -334,11 +335,11 @@ internal fun ViewContainer<*, *>.signalCardV2(ctx: StockDetailPage, card: Map<St
                         fontSize(12f)
                         marginLeft(8f)
                         flex(1f)
-                        color(if (clickable) Color(0xFF2A2E36) else Color(0xFF6B7280))
+                        color(if (clickable) Color(AppColor.TEXT_STRONG) else Color(AppColor.TEXT_SUB_DEEP))
                     }
                 }
                 if (clickable) {
-                    Text { attr { text(if (inView) "● 在图中" else "定位 ›"); fontSize(10f); color(Color(0xFF5B7FFF)) } }
+                    Text { attr { text(if (inView) "● 在图中" else "定位 ›"); fontSize(10f); color(Color(AppColor.ACCENT)) } }
                 }
             }
         }
@@ -376,7 +377,7 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
                     text("AI 智能解读")
                     fontSize(15f)
                     fontWeightBold()
-                    color(0xFF333333)
+                    color(AppColor.TEXT_INK)
                     flex(1f)
                 }
             }
@@ -386,7 +387,7 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
                     attr {
                         text("${ctx.aiAnalysis!!.cards.size}张卡片")
                         fontSize(11f)
-                        color(0xFF999999)
+                        color(AppColor.TEXT_HINT)
                         marginRight(8f)
                     }
                 }
@@ -396,7 +397,7 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
                 View {
                     attr {
                         padding(top = 4f, left = 10f, bottom = 4f, right = 10f)
-                        backgroundColor(0xFF1976D2)
+                        backgroundColor(AppColor.PRIMARY_SOFT)
                         borderRadius(12f)
                     }
                     event {
@@ -408,7 +409,7 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
                         attr {
                             text(if (ctx.aiAnalysis == null) "开始分析" else "刷新")
                             fontSize(11f)
-                            color(0xFFFFFFFF)
+                            color(AppColor.ON_DARK)
                             fontWeightBold()
                         }
                     }
@@ -447,7 +448,7 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
                         flexDirectionColumn()
                         marginTop(10f)
                         padding(10f, 12f, 10f, 12f)
-                        backgroundColor(0xFFF1F7FF)
+                        backgroundColor(AppColor.PRIMARY_BG_LIGHT)
                         borderRadius(10f)
                     }
                     Text {
@@ -455,14 +456,14 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
                             text("联动交互说明")
                             fontSize(12f)
                             fontWeightBold()
-                            color(0xFF1976D2)
+                            color(AppColor.PRIMARY_SOFT)
                         }
                     }
                     Text {
                         attr {
                             text("· 点击AI价位卡片 → K线标注虚线\n· 点击K线 → 查看与AI价位的距离\n· 设提醒 → 写入自选盯盘，行情刷新时触发\n· 周K/月K → 聚合查看中长期趋势")
                             fontSize(11f)
-                            color(0xFF666666)
+                            color(AppColor.TEXT_GRAY)
                             marginTop(4f)
                             lineHeight(16f)
                         }
@@ -493,10 +494,10 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                 attr {
                     flexDirectionColumn()
                     marginTop(8f)
-                    backgroundColor(0xFFFFFFFF)
+                    backgroundColor(AppColor.SURFACE)
                     borderRadius(12f)
                     padding(12f, 14f, 12f, 14f)
-                    border(Border(1f, BorderStyle.SOLID, Color(0xFFE3F2FD)))
+                    border(Border(1f, BorderStyle.SOLID, Color(AppColor.PRIMARY_BG)))
                 }
                 View {
                     attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
@@ -504,7 +505,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                         attr {
                             width(4f)
                             height(16f)
-                            backgroundColor(0xFF1976D2)
+                            backgroundColor(AppColor.PRIMARY_SOFT)
                             borderRadius(2f)
                             marginRight(8f)
                         }
@@ -514,14 +515,14 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                             text(title)
                             fontSize(14f)
                             fontWeightBold()
-                            color(0xFF1976D2)
+                            color(AppColor.PRIMARY_SOFT)
                             flex(1f)
                         }
                     }
                     View {
                         attr {
                             padding(3f, 8f, 3f, 8f)
-                            backgroundColor(0xFFE3F2FD)
+                            backgroundColor(AppColor.PRIMARY_BG)
                             borderRadius(10f)
                         }
                         event { click { ctx.toggleAISection(key) } }
@@ -529,7 +530,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                             attr {
                                 text(if (ctx.isAIExpanded(key)) "收起" else "展开")
                                 fontSize(11f)
-                                color(0xFF1976D2)
+                                color(AppColor.PRIMARY_SOFT)
                             }
                         }
                     }
@@ -538,7 +539,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                     attr {
                         text(content)
                         fontSize(13f)
-                        color(0xFF333333)
+                        color(AppColor.TEXT_INK)
                         marginTop(8f)
                         lineHeight(19f)
                     }
@@ -550,14 +551,14 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                             attr {
                                 marginTop(8f)
                                 padding(8f, 10f, 8f, 10f)
-                                backgroundColor(0xFFF5F5F5)
+                                backgroundColor(AppColor.SURFACE_SOFT)
                                 borderRadius(8f)
                             }
                             Text {
                                 attr {
                                     text("倾向：$bias")
                                     fontSize(12f)
-                                    color(0xFF666666)
+                                    color(AppColor.TEXT_GRAY)
                                 }
                             }
                         }
@@ -580,10 +581,10 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                 attr {
                     flexDirectionColumn()
                     marginTop(8f)
-                    backgroundColor(0xFFFFFFFF)
+                    backgroundColor(AppColor.SURFACE)
                     borderRadius(12f)
                     padding(12f, 14f, 12f, 14f)
-                    border(Border(1.2f, BorderStyle.SOLID, Color(if (ctx.highlightCardType == "level_card") 0xFF5B7FFF else 0xFF1976D2)))
+                    border(Border(1.2f, BorderStyle.SOLID, Color(if (ctx.highlightCardType == "level_card") AppColor.ACCENT else AppColor.PRIMARY_SOFT)))
                 }
                 View {
                     attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
@@ -592,14 +593,14 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                             text("$title")
                             fontSize(14f)
                             fontWeightBold()
-                            color(0xFF1976D2)
+                            color(AppColor.PRIMARY_SOFT)
                             flex(1f)
                         }
                     }
                     View {
                         attr {
                             padding(4f, 10f, 4f, 10f)
-                            backgroundColor(0xFF1976D2)
+                            backgroundColor(AppColor.PRIMARY_SOFT)
                             borderRadius(12f)
                         }
                         event { click { ctx.toggleAISection(key) } }
@@ -607,7 +608,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                             attr {
                                 text(if (ctx.isAIExpanded(key)) "收起详情" else "展开价位")
                                 fontSize(11f)
-                                color(0xFFFFFFFF)
+                                color(AppColor.ON_DARK)
                                 fontWeightBold()
                             }
                         }
@@ -617,7 +618,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                     attr {
                         text(suggestion)
                         fontSize(13f)
-                        color(0xFF333333)
+                        color(AppColor.TEXT_INK)
                         marginTop(8f)
                         lineHeight(19f)
                     }
@@ -626,10 +627,10 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                 // 价位网格
                 View {
                     attr { flexDirectionColumn(); marginTop(10f) }
-                    if (resistance != null) priceLevelRow(ctx, "压力位", resistance, currentPrice, 0xFFD64545, 0)
-                    if (support != null) priceLevelRow(ctx, "支撑位", support, currentPrice, 0xFF2E9E5B, 1)
-                    if (targetPrice != null) priceLevelRow(ctx, "目标价", targetPrice, currentPrice, 0xFF0E67D1, 0)
-                    if (stopLoss != null) priceLevelRow(ctx, "止损价", stopLoss, currentPrice, 0xFFA56100, 1)
+                    if (resistance != null) priceLevelRow(ctx, "压力位", resistance, currentPrice, AppColor.UP_ALT, 0)
+                    if (support != null) priceLevelRow(ctx, "支撑位", support, currentPrice, AppColor.DOWN_ALT, 1)
+                    if (targetPrice != null) priceLevelRow(ctx, "目标价", targetPrice, currentPrice, AppColor.PRIMARY, 0)
+                    if (stopLoss != null) priceLevelRow(ctx, "止损价", stopLoss, currentPrice, AppColor.WARNING_TEXT, 1)
                 }
 
                 vif({ ctx.isAIExpanded(key) }) {
@@ -637,14 +638,14 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                         attr {
                             marginTop(10f)
                             padding(10f)
-                            backgroundColor(0xFFF5F5F5)
+                            backgroundColor(AppColor.SURFACE_SOFT)
                             borderRadius(8f)
                         }
                         Text {
                             attr {
                                 text("操作说明：点击价位可在K线标注虚线，设提醒后可在自选页查看触发状态。价格为AI基于历史数据推算，仅供参考。")
                                 fontSize(11f)
-                                color(0xFF888888)
+                                color(AppColor.TEXT_HINT_SOFT)
                                 lineHeight(16f)
                             }
                         }
@@ -665,21 +666,21 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
             val dataDate = card["data_date"] as? String ?: ""
             val currentPrice = ctx.stockDetail?.realtime?.price ?: 0.0
             val actionBg = when (action) {
-                "买入" -> 0xFF2E9E5B
-                "卖出" -> 0xFFD64545
-                "持有" -> 0xFF1976D2
-                else -> 0xFFF0F2F5
+                "买入" -> AppColor.DOWN_ALT
+                "卖出" -> AppColor.UP_ALT
+                "持有" -> AppColor.PRIMARY_SOFT
+                else -> AppColor.BG_SOFT
             }
-            val actionFg = if (action == "观望") 0xFF697586 else 0xFFFFFFFF
+            val actionFg = if (action == "观望") AppColor.TEXT_SUB_DEEP else AppColor.ON_DARK
 
             View {
                 attr {
                     flexDirectionColumn()
                     marginTop(8f)
-                    backgroundColor(0xFFFFFFFF)
+                    backgroundColor(AppColor.SURFACE)
                     borderRadius(12f)
                     padding(12f, 14f, 12f, 14f)
-                    border(Border(1.2f, BorderStyle.SOLID, Color(if (ctx.highlightCardType == "level_card") 0xFF5B7FFF else 0xFFE3F2FD)))
+                    border(Border(1.2f, BorderStyle.SOLID, Color(if (ctx.highlightCardType == "level_card") AppColor.ACCENT else AppColor.PRIMARY_BG)))
                 }
                 View {
                     attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
@@ -687,7 +688,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                         attr {
                             width(4f)
                             height(16f)
-                            backgroundColor(0xFF1976D2)
+                            backgroundColor(AppColor.PRIMARY_SOFT)
                             borderRadius(2f)
                             marginRight(8f)
                         }
@@ -697,7 +698,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                             text(title)
                             fontSize(14f)
                             fontWeightBold()
-                            color(0xFF1976D2)
+                            color(AppColor.PRIMARY_SOFT)
                             flex(1f)
                         }
                     }
@@ -720,10 +721,10 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
 
                 View {
                     attr { flexDirectionColumn(); marginTop(10f) }
-                    if (resistance != null) priceLevelRow(ctx, "压力位", resistance, currentPrice, 0xFFD64545, 0)
-                    if (support != null) priceLevelRow(ctx, "支撑位", support, currentPrice, 0xFF2E9E5B, 1)
-                    if (target != null) priceLevelRow(ctx, "目标价", target, currentPrice, 0xFF0E67D1, 0)
-                    if (stopLoss != null) priceLevelRow(ctx, "止损价", stopLoss, currentPrice, 0xFFA56100, 1)
+                    if (resistance != null) priceLevelRow(ctx, "压力位", resistance, currentPrice, AppColor.UP_ALT, 0)
+                    if (support != null) priceLevelRow(ctx, "支撑位", support, currentPrice, AppColor.DOWN_ALT, 1)
+                    if (target != null) priceLevelRow(ctx, "目标价", target, currentPrice, AppColor.PRIMARY, 0)
+                    if (stopLoss != null) priceLevelRow(ctx, "止损价", stopLoss, currentPrice, AppColor.WARNING_TEXT, 1)
                 }
 
                 if (dataDate.isNotEmpty()) {
@@ -731,7 +732,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                         attr {
                             text("价位基于 $dataDate 收盘数据推算，点击可标注K线或设提醒")
                             fontSize(10f)
-                            color(0xFF999999)
+                            color(AppColor.TEXT_HINT)
                             marginTop(8f)
                         }
                     }
@@ -746,7 +747,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                 attr {
                     flexDirectionColumn()
                     marginTop(8f)
-                    backgroundColor(0xFFFFEBEE)
+                    backgroundColor(AppColor.DANGER_BG)
                     borderRadius(12f)
                     padding(12f, 14f, 12f, 14f)
                 }
@@ -757,7 +758,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                             text("$title")
                             fontSize(14f)
                             fontWeightBold()
-                            color(0xFFD32F2F)
+                            color(AppColor.DANGER)
                             flex(1f)
                         }
                     }
@@ -765,14 +766,14 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                         View {
                             attr {
                                 padding(3f, 8f, 3f, 8f)
-                                backgroundColor(0xFFD32F2F)
+                                backgroundColor(AppColor.DANGER)
                                 borderRadius(10f)
                             }
                             Text {
                                 attr {
                                     text(riskLevel)
                                     fontSize(11f)
-                                    color(0xFFFFFFFF)
+                                    color(AppColor.ON_DARK)
                                     fontWeightBold()
                                 }
                             }
@@ -784,7 +785,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                         attr {
                             text(content)
                             fontSize(12f)
-                            color(0xFF5D4037)
+                            color(AppColor.TEXT_WARM)
                             marginTop(6f)
                             lineHeight(17f)
                         }
@@ -793,8 +794,8 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                 risks.forEach { r ->
                     View {
                         attr { flexDirectionRow(); marginTop(6f) }
-                        Text { attr { text("•"); fontSize(12f); color(0xFFD32F2F); width(12f) } }
-                        Text { attr { text(r); fontSize(12f); color(0xFF5D4037); flex(1f); lineHeight(17f) } }
+                        Text { attr { text("•"); fontSize(12f); color(AppColor.DANGER); width(12f) } }
+                        Text { attr { text(r); fontSize(12f); color(AppColor.TEXT_WARM); flex(1f); lineHeight(17f) } }
                     }
                 }
             }
@@ -805,7 +806,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                 attr {
                     flexDirectionColumn()
                     marginTop(8f)
-                    backgroundColor(0xFFF3E5F5)
+                    backgroundColor(AppColor.VIOLET_BG)
                     borderRadius(12f)
                     padding(12f, 14f, 12f, 14f)
                 }
@@ -814,14 +815,14 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                         text("$title")
                         fontSize(14f)
                         fontWeightBold()
-                        color(0xFF7B1FA2)
+                        color(AppColor.VIOLET)
                     }
                 }
                 Text {
                     attr {
                         text(summary)
                         fontSize(13f)
-                        color(0xFF4A148C)
+                        color(AppColor.VIOLET_DEEP)
                         marginTop(6f)
                         lineHeight(19f)
                     }
@@ -844,17 +845,17 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                     attr {
                         flexDirectionColumn()
                         marginTop(8f)
-                        backgroundColor(0xFFFFFFFF)
+                        backgroundColor(AppColor.SURFACE)
                         borderRadius(10f)
                         padding(12f)
                     }
-                    Text { attr { text(title); fontSize(13f); fontWeightBold(); color(0xFF333333) } }
+                    Text { attr { text(title); fontSize(13f); fontWeightBold(); color(AppColor.TEXT_INK) } }
                     if (readableText != null) {
                         Text {
                             attr {
                                 text(readableText)
                                 fontSize(12f)
-                                color(0xFF666666)
+                                color(AppColor.TEXT_GRAY)
                                 marginTop(4f)
                                 lineHeight(18f)
                             }
@@ -863,8 +864,8 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                     extraFields.forEach { (label, value) ->
                         View {
                             attr { flexDirectionRow(); marginTop(4f) }
-                            Text { attr { text(label); fontSize(12f); color(0xFF888888); width(72f) } }
-                            Text { attr { text(value); fontSize(12f); color(0xFF333333); flex(1f); lineHeight(18f) } }
+                            Text { attr { text(label); fontSize(12f); color(AppColor.TEXT_HINT_SOFT); width(72f) } }
+                            Text { attr { text(value); fontSize(12f); color(AppColor.TEXT_INK); flex(1f); lineHeight(18f) } }
                         }
                     }
                 }
@@ -937,7 +938,7 @@ internal fun ViewContainer<*, *>.priceLevelRow(
             alignItems(FlexAlign.CENTER)
             marginTop(6f)
             padding(8f, 10f, 8f, 10f)
-            backgroundColor(0xFFF7F9FC)
+            backgroundColor(AppColor.SURFACE_TINT)
             borderRadius(8f)
         }
         View {
@@ -953,7 +954,7 @@ internal fun ViewContainer<*, *>.priceLevelRow(
             attr {
                 text(label)
                 fontSize(12f)
-                color(0xFF666666)
+                color(AppColor.TEXT_GRAY)
                 width(52f)
             }
         }
@@ -979,12 +980,12 @@ internal fun ViewContainer<*, *>.priceLevelRow(
         View {
             attr {
                 padding(4f, 8f, 4f, 8f)
-                backgroundColor(0xFFE8F2FF)
+                backgroundColor(AppColor.INFO_BG)
                 borderRadius(10f)
                 marginRight(4f)
             }
             event { click { ctx.highlightAIPrice(price, label) } }
-            Text { attr { text("标注"); fontSize(10f); color(0xFF1976D2); fontWeightBold() } }
+            Text { attr { text("标注"); fontSize(10f); color(AppColor.PRIMARY_SOFT); fontWeightBold() } }
         }
         View {
             attr {
@@ -993,7 +994,7 @@ internal fun ViewContainer<*, *>.priceLevelRow(
                 borderRadius(10f)
             }
             event { click { ctx.prepareAlertFromDetail(alertType, price) } }
-            Text { attr { text("设提醒"); fontSize(10f); color(0xFFFFFFFF); fontWeightBold() } }
+            Text { attr { text("设提醒"); fontSize(10f); color(AppColor.ON_DARK); fontWeightBold() } }
         }
     }
 }

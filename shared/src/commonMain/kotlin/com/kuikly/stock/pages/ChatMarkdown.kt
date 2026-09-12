@@ -8,6 +8,7 @@ import com.tencent.kuiklybase.config.MarkdownDimens
 import com.tencent.kuiklybase.config.MarkdownPadding
 import com.tencent.kuiklybase.config.MarkdownTypography
 import com.tencent.kuiklybase.config.TextStyleConfig
+import com.kuikly.stock.ui.theme.AppColor
 
 /**
  * 聊天消息 Markdown 渲染配置（KuiklyMarkdown 组件）。
@@ -21,15 +22,15 @@ import com.tencent.kuiklybase.config.TextStyleConfig
  */
 internal val chatMarkdownConfig = MarkdownConfig(
     colors = MarkdownColors(
-        text = 0xFF333333,
-        codeBackground = 0xFFF5F5F5,
-        inlineCodeBackground = 0xFFF0F0F0,
-        dividerColor = 0xFFE0E0E0,
-        tableBackground = 0xFFF8F8F8,
-        blockQuoteBar = 0xFF7B8CFA,
-        blockQuoteBackground = 0xFFF4F5FA,
-        linkColor = 0xFF1A73E8,
-        codeText = 0xFF333333,
+        text = AppColor.TEXT_INK,
+        codeBackground = AppColor.SURFACE_SOFT,
+        inlineCodeBackground = AppColor.SURFACE_SOFT,
+        dividerColor = AppColor.DIVIDER,
+        tableBackground = AppColor.SURFACE_ALT,
+        blockQuoteBar = AppColor.ACCENT,
+        blockQuoteBackground = AppColor.SURFACE_ALT,
+        linkColor = AppColor.PRIMARY,
+        codeText = AppColor.TEXT_INK,
     ),
     typography = MarkdownTypography(
         text = TextStyleConfig(fontSize = 15f, lineHeight = 23f),
@@ -41,7 +42,7 @@ internal val chatMarkdownConfig = MarkdownConfig(
         h4 = TextStyleConfig(fontSize = 15f, fontWeight = FontWeight.Bold),
         h5 = TextStyleConfig(fontSize = 14f, fontWeight = FontWeight.Bold),
         h6 = TextStyleConfig(fontSize = 14f, fontWeight = FontWeight.Bold),
-        quote = TextStyleConfig(fontSize = 14f, fontStyle = FontStyle.Italic, color = 0xFF65758B),
+        quote = TextStyleConfig(fontSize = 14f, fontStyle = FontStyle.Italic, color = AppColor.TEXT_SUB_DEEP),
         paragraph = TextStyleConfig(fontSize = 15f, lineHeight = 23f),
         ordered = TextStyleConfig(fontSize = 15f, lineHeight = 23f),
         bullet = TextStyleConfig(fontSize = 15f, lineHeight = 23f),

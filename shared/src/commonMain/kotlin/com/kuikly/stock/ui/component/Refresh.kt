@@ -7,12 +7,18 @@
 //   - RefreshView.scrollerView  = parent?.parent as? ScrollerView   → 必须是 Scroller 的**直接子视图**
 //   - FooterRefreshView.scrollerView = 沿 parent 向上找 ScrollerView → 放哪层都能找到
 // 两者都靠 Scroller 的滚动回调驱动，因此只能在 Scroller / List / WaterfallList 内使用。
+//
+// 接入一个页面的最小改动（三步）：
+//   1. 页面持有状态：`pullState`、`refreshing`、`pullRefreshRef`，并让页面继承 BasePager
+//      （`refreshSpin` 由 BasePager 提供）；
+//   2. Scroller 的**第一个**子视图位置调 `pullToRefresh(...)`；
+//   3. 取数结束（含失败、早退）调 `pullRefreshRef?.view?.endRefresh()`。
 
-package com.kuikly.stock.pages
+package com.kuikly.stock.ui.component
 
 import com.kuikly.stock.base.HapticStyle
-import com.kuikly.stock.base.StepPulse
 import com.kuikly.stock.base.hapticTick
+import com.kuikly.stock.ui.theme.AppColor
 import com.tencent.kuikly.core.base.Animation
 import com.tencent.kuikly.core.base.Rotate
 import com.tencent.kuikly.core.base.ViewContainer
@@ -98,7 +104,7 @@ internal fun ScrollerView<*, *>.pullToRefresh(
                 attr {
                     text(label())
                     fontSize(12f)
-                    color(0xFF8792A1)
+                    color(AppColor.TEXT_SUB)
                 }
             }
         } else {
@@ -112,7 +118,7 @@ internal fun ScrollerView<*, *>.pullToRefresh(
                         val active = spinning()
                         text("↓")
                         fontSize(14f)
-                        color(if (active) 0xFF1976D2 else 0xFF8792A1)
+                        color(if (active) AppColor.PRIMARY_SOFT else AppColor.TEXT_SUB)
                         marginRight(5f)
                         // 静止时指回正下方，旋转中按步取模
                         val angle = if (active) (step % REFRESH_SPIN_STEPS) * (360f / REFRESH_SPIN_STEPS) else 0f
@@ -123,7 +129,7 @@ internal fun ScrollerView<*, *>.pullToRefresh(
                     attr {
                         text(label())
                         fontSize(12f)
-                        color(0xFF8792A1)
+                        color(AppColor.TEXT_SUB)
                     }
                 }
             }
@@ -161,7 +167,7 @@ internal fun ViewContainer<*, *>.autoLoadFooter(
             attr {
                 text(label())
                 fontSize(12f)
-                color(0xFF9AA4B2)
+                color(AppColor.TEXT_MUTED)
             }
         }
     }

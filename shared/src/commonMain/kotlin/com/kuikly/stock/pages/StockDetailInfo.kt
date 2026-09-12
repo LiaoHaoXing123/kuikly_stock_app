@@ -5,11 +5,11 @@
 package com.kuikly.stock.pages
 
 import com.kuikly.stock.data.StockColors
-import com.kuikly.stock.base.PRESS_BG_DARK
-import com.kuikly.stock.base.PRESS_BG_NONE
-import com.kuikly.stock.base.pressFeedback
-import com.kuikly.stock.base.pressedBg
-import com.kuikly.stock.base.pressedScale
+import com.kuikly.stock.ui.component.PRESS_BG_DARK
+import com.kuikly.stock.ui.component.PRESS_BG_NONE
+import com.kuikly.stock.ui.component.pressFeedback
+import com.kuikly.stock.ui.component.pressedBg
+import com.kuikly.stock.ui.component.pressedScale
 
 import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
 import com.tencent.kuikly.core.annotations.Page
@@ -47,6 +47,8 @@ import com.kuikly.stock.data.fmt3
 import com.kuikly.stock.data.fmtSigned2
 import com.kuikly.stock.data.fmtSignedPct
 import kotlin.math.abs
+import com.kuikly.stock.ui.theme.AppColor
+import com.kuikly.stock.ui.component.quoteItem
 
 internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
     val name = ctx.stockDetail?.info?.name ?: "未知"
@@ -56,7 +58,7 @@ internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
         attr {
             flexDirectionRow()
             alignItems(FlexAlign.CENTER)
-            backgroundColor(0xFF1976D2)
+            backgroundColor(AppColor.PRIMARY_SOFT)
             paddingTop(ctx.pagerData.statusBarHeight)
             height(48f + ctx.pagerData.statusBarHeight)
         }
@@ -78,7 +80,7 @@ internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
                 attr {
                     text("< 返回")
                     fontSize(16f)
-                    color(0xFFFFFFFF)
+                    color(AppColor.ON_DARK)
                 }
             }
         }
@@ -88,7 +90,7 @@ internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
                 text(name)
                 fontSize(16f)
                 fontWeightBold()
-                color(0xFFFFFFFF)
+                color(AppColor.ON_DARK)
                 marginLeft(8f)
             }
         }
@@ -97,7 +99,7 @@ internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
             attr {
                 text("($code)")
                 fontSize(12f)
-                color(0xFFB3D9FF)
+                color(AppColor.ON_DARK_ACCENT_STRONG)
                 marginLeft(4f)
             }
         }
@@ -127,7 +129,7 @@ internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
                     text(if (ctx.refreshing) "…" else "↻")
                     fontSize(17f)
                     fontWeightBold()
-                    color(if (ctx.refreshing) 0xFFB3D9FF else 0xFFFFFFFF)
+                    color(if (ctx.refreshing) AppColor.ON_DARK_ACCENT_STRONG else AppColor.ON_DARK)
                 }
             }
         }
@@ -149,7 +151,7 @@ internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
                 attr {
                     text(if (ctx.watched) "★" else "☆")
                     fontSize(22f)
-                    color(0xFFFFFFFF)
+                    color(AppColor.ON_DARK)
                 }
             }
         }
@@ -176,7 +178,7 @@ internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
                 attr {
                     text(if (ctx.isAnalyzing) "分析中…" else "AI分析")
                     fontSize(13f)
-                    color(0xFFFFFFFF)
+                    color(AppColor.ON_DARK)
                 }
             }
         }
@@ -197,7 +199,7 @@ internal fun ViewContainer<*, *>.infoCard(ctx: StockDetailPage) {
             flexDirectionColumn()
             margin(8f, 12f, 4f, 12f)
             padding(top = 12f, left = 16f, bottom = 12f, right = 16f)
-            backgroundColor(0xFFFFFFFF)
+            backgroundColor(AppColor.SURFACE)
             borderRadius(10f)
         }
 
@@ -206,7 +208,7 @@ internal fun ViewContainer<*, *>.infoCard(ctx: StockDetailPage) {
                 text("基础信息")
                 fontSize(15f)
                 fontWeightBold()
-                color(0xFF333333)
+                color(AppColor.TEXT_INK)
                 marginBottom(8f)
             }
         }
@@ -230,7 +232,7 @@ internal fun ViewContainer<*, *>.infoItem(label: String, value: String) {
             attr {
                 text(label)
                 fontSize(13f)
-                color(0xFF666666)
+                color(AppColor.TEXT_GRAY)
                 width(80f)
             }
         }
@@ -240,7 +242,7 @@ internal fun ViewContainer<*, *>.infoItem(label: String, value: String) {
                 text(value)
                 fontSize(13f)
                 fontWeightBold()
-                color(0xFF333333)
+                color(AppColor.TEXT_INK)
                 flex(1f)
             }
         }
@@ -251,7 +253,7 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
     val realtime = ctx.stockDetail?.realtime ?: return
     val pct = realtime.changePercent
     val priceColor = when {
-        pct == null || pct == 0.0 -> 0xFF999999
+        pct == null || pct == 0.0 -> AppColor.TEXT_HINT
         pct > 0 -> StockColors.UP
         else -> StockColors.DOWN
     }
@@ -261,7 +263,7 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
             flexDirectionColumn()
             margin(4f, 12f, 4f, 12f)
             padding(top = 12f, left = 16f, bottom = 12f, right = 16f)
-            backgroundColor(0xFFFFFFFF)
+            backgroundColor(AppColor.SURFACE)
             borderRadius(10f)
         }
 
@@ -272,7 +274,7 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
                     text("实时行情")
                     fontSize(15f)
                     fontWeightBold()
-                    color(0xFF333333)
+                    color(AppColor.TEXT_INK)
                     flex(1f)
                 }
             }
@@ -305,10 +307,10 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
                 flexWrap(FlexWrap.WRAP)
             }
 
-            quoteItem(ctx, "开盘", realtime.openPrice, "")
-            quoteItem(ctx, "昨收", realtime.preClose, "")
-            quoteItem(ctx, "最高", realtime.high, "")
-            quoteItem(ctx, "最低", realtime.low, "")
+            stockQuoteItem(ctx, "开盘", realtime.openPrice, "")
+            stockQuoteItem(ctx, "昨收", realtime.preClose, "")
+            stockQuoteItem(ctx, "最高", realtime.high, "")
+            stockQuoteItem(ctx, "最低", realtime.low, "")
         }
 
         View {
@@ -318,54 +320,10 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
                 flexWrap(FlexWrap.WRAP)
             }
 
-            quoteItem(ctx, "成交量", realtime.volume, "手")
-            quoteItem(ctx, "成交额", realtime.amount, "元")
-            quoteItem(ctx, "市盈率", realtime.peTtm, "")
-            quoteItem(ctx, "市净率", realtime.pb, "")
-        }
-    }
-}
-
-internal fun ViewContainer<*, *>.quoteItem(
-    ctx: StockDetailPage,
-    label: String,
-    value: Double?,
-    suffix: String = ""
-) {
-    View {
-        attr {
-            // 卡片左右外边距共 24，内边距共 32；留出浮点取整余量。
-            width((ctx.pagerData.pageViewWidth - 57f) / 4f)
-            flexDirectionColumn()
-            paddingRight(4f)
-            marginTop(8f)
-        }
-
-        Text {
-            attr {
-                text(label)
-                fontSize(11f)
-                color(0xFF999999)
-            }
-        }
-
-        Text {
-            attr {
-                text(value?.let {
-                    if (suffix.isNotEmpty()) {
-                        when {
-                            abs(it) >= 100000000 -> "${fmt2(it / 100000000)}亿"
-                            abs(it) >= 10000 -> "${fmt2(it / 10000)}万"
-                            else -> fmt2(it)
-                        }
-                    } else fmt2(it)
-                } ?: "—")
-                fontSize(13f)
-                lines(1)
-                marginTop(4f)
-                fontWeightBold()
-                color(0xFF333333)
-            }
+            stockQuoteItem(ctx, "成交量", realtime.volume, "手")
+            stockQuoteItem(ctx, "成交额", realtime.amount, "元")
+            stockQuoteItem(ctx, "市盈率", realtime.peTtm, "")
+            stockQuoteItem(ctx, "市净率", realtime.pb, "")
         }
     }
 }
@@ -376,6 +334,31 @@ internal fun ViewContainer<*, *>.quoteItem(
  * [value] 是 lambda 而不是字符串：详情页支持静默刷新，数值要能在**同一个视图上**
  * 逐帧变化（价格滚动），所以取值必须发生在 attr 块里。传字符串的话值会被钉死在构建那一刻。
  */
+/**
+ * 个股页的行情小格：宽度按「卡片左右外边距 24 + 内边距 32」从屏宽里扣，留出浮点取整余量。
+ * 视觉部分走共享的 [quoteItem]。
+ */
+internal fun ViewContainer<*, *>.stockQuoteItem(
+    ctx: StockDetailPage,
+    label: String,
+    value: Double?,
+    suffix: String = ""
+) {
+    quoteItem(
+        label = label,
+        valueText = value?.let {
+            if (suffix.isNotEmpty()) {
+                when {
+                    abs(it) >= 100000000 -> "${fmt2(it / 100000000)}亿"
+                    abs(it) >= 10000 -> "${fmt2(it / 10000)}万"
+                    else -> fmt2(it)
+                }
+            } else fmt2(it)
+        } ?: "—",
+        width = (ctx.pagerData.pageViewWidth - 57f) / 4f,
+    )
+}
+
 internal fun ViewContainer<*, *>.quoteColumn(
     ctx: StockDetailPage,
     label: String,
@@ -393,7 +376,7 @@ internal fun ViewContainer<*, *>.quoteColumn(
             attr {
                 text(label)
                 fontSize(11f)
-                color(0xFF999999)
+                color(AppColor.TEXT_HINT)
             }
         }
 
@@ -415,7 +398,7 @@ internal fun ViewContainer<*, *>.dataSourceFooter(ctx: StockDetailPage) {
             flexDirectionColumn()
             margin(4f, 12f, 4f, 12f)
             padding(top = 10f, left = 16f, bottom = 10f, right = 16f)
-            backgroundColor(0xFFFAFAFA)
+            backgroundColor(AppColor.SURFACE_ALT)
             borderRadius(8f)
         }
 
@@ -423,7 +406,7 @@ internal fun ViewContainer<*, *>.dataSourceFooter(ctx: StockDetailPage) {
             attr {
                 text("数据来源")
                 fontSize(11f)
-                color(0xFF999999)
+                color(AppColor.TEXT_HINT)
                 marginBottom(4f)
             }
         }
@@ -432,7 +415,7 @@ internal fun ViewContainer<*, *>.dataSourceFooter(ctx: StockDetailPage) {
             attr {
                 text(ctx.dataSourceText)
                 fontSize(11f)
-                color(0xFF888888)
+                color(AppColor.TEXT_HINT_SOFT)
             }
         }
     }
@@ -446,7 +429,7 @@ internal fun ViewContainer<*, *>.indicatorCard(ctx: StockDetailPage) {
             flexDirectionColumn()
             margin(4f, 12f, 4f, 12f)
             padding(top = 12f, left = 16f, bottom = 12f, right = 16f)
-            backgroundColor(0xFFFFFFFF)
+            backgroundColor(AppColor.SURFACE)
             borderRadius(10f)
         }
 
@@ -457,14 +440,14 @@ internal fun ViewContainer<*, *>.indicatorCard(ctx: StockDetailPage) {
                     text("技术指标（${ind.tradeDate}）")
                     fontSize(15f)
                     fontWeightBold()
-                    color(0xFF333333)
+                    color(AppColor.TEXT_INK)
                     flex(1f)
                 }
             }
             View {
                 attr {
                     padding(4f, 8f, 4f, 8f)
-                    backgroundColor(if (ctx.klineShowMA) 0xFFE3F2FD else 0xFFF5F5F5)
+                    backgroundColor(if (ctx.klineShowMA) AppColor.PRIMARY_BG else AppColor.SURFACE_SOFT)
                     borderRadius(12f)
                 }
                 event { click { ctx.toggleMA() } }
@@ -472,7 +455,7 @@ internal fun ViewContainer<*, *>.indicatorCard(ctx: StockDetailPage) {
                     attr {
                         text(if (ctx.klineShowMA) "MA 开" else "MA 关")
                         fontSize(11f)
-                        color(if (ctx.klineShowMA) 0xFF1976D2 else 0xFF999999)
+                        color(if (ctx.klineShowMA) AppColor.PRIMARY_SOFT else AppColor.TEXT_HINT)
                     }
                 }
             }
@@ -485,31 +468,31 @@ internal fun ViewContainer<*, *>.indicatorCard(ctx: StockDetailPage) {
         indicatorItem("MA20", ind.ma20)
 
         View {
-            attr { height(1f); backgroundColor(0xFFEEEEEE); margin(8f, 0f, 8f, 0f) }
+            attr { height(1f); backgroundColor(AppColor.DIVIDER_SOFT); margin(8f, 0f, 8f, 0f) }
         }
 
         View {
             attr { flexDirectionRow(); marginTop(6f) }
-            Text { attr { text("MACD"); fontSize(12f); color(0xFF666666); width(60f) } }
+            Text { attr { text("MACD"); fontSize(12f); color(AppColor.TEXT_GRAY); width(60f) } }
             Text {
                 attr {
                     text("DIF ${fmtInd(ind.dif)}  DEA ${fmtInd(ind.dea)}  柱 ${fmtInd(ind.macd)}")
-                    fontSize(12f); lineHeight(19f); color(0xFF333333); flex(1f)
+                    fontSize(12f); lineHeight(19f); color(AppColor.TEXT_INK); flex(1f)
                 }
             }
         }
         View {
             attr { flexDirectionRow(); marginTop(6f) }
-            Text { attr { text("RSI6"); fontSize(12f); color(0xFF666666); width(60f) } }
-            Text { attr { text(fmtInd(ind.rsi6)); fontSize(12f); color(0xFF333333) } }
+            Text { attr { text("RSI6"); fontSize(12f); color(AppColor.TEXT_GRAY); width(60f) } }
+            Text { attr { text(fmtInd(ind.rsi6)); fontSize(12f); color(AppColor.TEXT_INK) } }
         }
         View {
             attr { flexDirectionRow(); marginTop(6f) }
-            Text { attr { text("KDJ"); fontSize(12f); color(0xFF666666); width(60f) } }
+            Text { attr { text("KDJ"); fontSize(12f); color(AppColor.TEXT_GRAY); width(60f) } }
             Text {
                 attr {
                     text("K ${fmtInd(ind.kdjK)}  D ${fmtInd(ind.kdjD)}  J ${fmtInd(ind.kdjJ)}")
-                    fontSize(12f); lineHeight(19f); color(0xFF333333); flex(1f)
+                    fontSize(12f); lineHeight(19f); color(AppColor.TEXT_INK); flex(1f)
                 }
             }
         }
@@ -519,8 +502,8 @@ internal fun ViewContainer<*, *>.indicatorCard(ctx: StockDetailPage) {
 internal fun ViewContainer<*, *>.indicatorItem(label: String, value: Double?) {
     View {
         attr { flexDirectionRow(); marginTop(4f) }
-        Text { attr { text(label); fontSize(12f); color(0xFF666666); width(60f) } }
-        Text { attr { text(fmtInd(value)); fontSize(12f); color(0xFF333333) } }
+        Text { attr { text(label); fontSize(12f); color(AppColor.TEXT_GRAY); width(60f) } }
+        Text { attr { text(fmtInd(value)); fontSize(12f); color(AppColor.TEXT_INK) } }
     }
 }
 

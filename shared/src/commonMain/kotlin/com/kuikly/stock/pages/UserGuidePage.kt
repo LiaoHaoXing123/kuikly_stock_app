@@ -15,6 +15,10 @@ import com.tencent.kuikly.core.reactive.handler.observableList
 import com.tencent.kuikly.core.views.Scroller
 import com.tencent.kuikly.core.views.Text
 import com.tencent.kuikly.core.views.View
+import com.kuikly.stock.ui.component.AppRoutes
+import com.kuikly.stock.ui.component.openModule
+import com.kuikly.stock.ui.component.pageTitleBar
+import com.kuikly.stock.ui.theme.AppColor
 
 /**
  * 内置使用指南：功能介绍、提问示例、常见问题。内容均为静态文本，
@@ -47,7 +51,7 @@ class UserGuidePage : BasePager() {
                 attr {
                     flex(1f)
                     flexDirectionColumn()
-                    backgroundColor(0xFFF4F7FB)
+                    backgroundColor(AppColor.BG)
                 }
                 pageTitleBar(ctx, "使用指南", "首次使用 · 操作详解 · 常见问题")
                 Scroller {
@@ -305,7 +309,7 @@ class UserGuidePage : BasePager() {
                         attr {
                             text("行情与分析仅供学习研究，不构成投资建议")
                             fontSize(11f)
-                            color(0xFF929CAB)
+                            color(AppColor.TEXT_MUTED)
                             margin(top = 18f, bottom = 8f)
                             textAlignCenter()
                         }
@@ -334,7 +338,7 @@ private fun ViewContainer<*, *>.guideSection(
             marginTop(12f)
             padding(left = 16f, top = 14f, right = 16f, bottom = 16f)
             borderRadius(16f)
-            backgroundColor(Color.WHITE)
+            backgroundColor(AppColor.SURFACE)
         }
         View {
             attr {
@@ -346,19 +350,19 @@ private fun ViewContainer<*, *>.guideSection(
             }
             event { click { ctx.toggleSection(id) } }
             View {
-                attr { size(30f, 30f); borderRadius(15f); allCenter(); backgroundColor(0xFFE8F2FF) }
-                Text { attr { text(num); fontSize(14f); fontWeightBold(); color(0xFF0E67D1) } }
+                attr { size(30f, 30f); borderRadius(15f); allCenter(); backgroundColor(AppColor.INFO_BG) }
+                Text { attr { text(num); fontSize(14f); fontWeightBold(); color(AppColor.PRIMARY) } }
             }
             View {
                 attr { flex(1f); marginLeft(10f) }
-                Text { attr { text(title); fontSize(16f); fontWeightBold(); color(0xFF14263D) } }
-                Text { attr { text(desc); fontSize(11f); color(0xFF8A94A3); marginTop(2f) } }
+                Text { attr { text(title); fontSize(16f); fontWeightBold(); color(AppColor.TEXT_STRONG) } }
+                Text { attr { text(desc); fontSize(11f); color(AppColor.TEXT_SUB); marginTop(2f) } }
             }
             Text {
                 attr {
                     text(if (ctx.expanded.contains(id)) "收起" else "展开")
                     fontSize(12f)
-                    color(0xFF0E67D1)
+                    color(AppColor.PRIMARY)
                 }
             }
         }
@@ -374,7 +378,7 @@ private fun ViewContainer<*, *>.guidePara(text: String) {
             text(text)
             fontSize(13f)
             lineHeight(20f)
-            color(0xFF3A4452)
+            color(AppColor.TEXT_DEEP)
             marginTop(10f)
         }
     }
@@ -383,10 +387,10 @@ private fun ViewContainer<*, *>.guidePara(text: String) {
 private fun ViewContainer<*, *>.guideBullet(text: String) {
     View {
         attr { flexDirectionRow(); marginTop(7f) }
-        Text { attr { text("•"); fontSize(13f); color(0xFF0E67D1); marginRight(7f) } }
+        Text { attr { text("•"); fontSize(13f); color(AppColor.PRIMARY); marginRight(7f) } }
         View {
             attr { flex(1f) }
-            Text { attr { text(text); fontSize(13f); lineHeight(20f); color(0xFF3A4452) } }
+            Text { attr { text(text); fontSize(13f); lineHeight(20f); color(AppColor.TEXT_DEEP) } }
         }
     }
 }
@@ -395,12 +399,12 @@ private fun ViewContainer<*, *>.guideStep(num: String, text: String) {
     View {
         attr { flexDirectionRow(); marginTop(8f) }
         View {
-            attr { size(20f, 20f); borderRadius(10f); allCenter(); backgroundColor(0xFF0E67D1); marginRight(8f); marginTop(1f) }
+            attr { size(20f, 20f); borderRadius(10f); allCenter(); backgroundColor(AppColor.PRIMARY); marginRight(8f); marginTop(1f) }
             Text { attr { text(num); fontSize(11f); fontWeightBold(); color(Color.WHITE) } }
         }
         View {
             attr { flex(1f) }
-            Text { attr { text(text); fontSize(13f); lineHeight(20f); color(0xFF3A4452) } }
+            Text { attr { text(text); fontSize(13f); lineHeight(20f); color(AppColor.TEXT_DEEP) } }
         }
     }
 }
@@ -412,7 +416,7 @@ private fun ViewContainer<*, *>.guideTable(headers: List<String>, rows: List<Lis
             marginTop(10f)
             padding(10f)
             borderRadius(12f)
-            backgroundColor(0xFFF4F7FB)
+            backgroundColor(AppColor.BG)
         }
         // 表头
         View {
@@ -423,7 +427,7 @@ private fun ViewContainer<*, *>.guideTable(headers: List<String>, rows: List<Lis
                         text(h)
                         fontSize(11f)
                         fontWeightBold()
-                        color(0xFF0E67D1)
+                        color(AppColor.PRIMARY)
                         flex(1f)
                         marginRight(4f)
                     }
@@ -443,7 +447,7 @@ private fun ViewContainer<*, *>.guideTable(headers: List<String>, rows: List<Lis
                             text(cell)
                             fontSize(12f)
                             lineHeight(18f)
-                            color(0xFF3A4452)
+                            color(AppColor.TEXT_DEEP)
                             flex(if (ci == 0) 1.2f else 1.4f)
                             marginRight(6f)
                         }
@@ -460,9 +464,9 @@ private fun ViewContainer<*, *>.guideNote(text: String) {
             marginTop(10f)
             padding(left = 12f, top = 9f, right = 12f, bottom = 9f)
             borderRadius(10f)
-            backgroundColor(0xFFE8F2FF)
+            backgroundColor(AppColor.INFO_BG)
         }
-        Text { attr { text(text); fontSize(12f); lineHeight(19f); color(0xFF165D9E) } }
+        Text { attr { text(text); fontSize(12f); lineHeight(19f); color(AppColor.PRIMARY_TEXT) } }
     }
 }
 
@@ -473,7 +477,7 @@ private fun ViewContainer<*, *>.guideTry(ctx: UserGuidePage, label: String, rout
             height(44f)
             borderRadius(22f)
             allCenter()
-            backgroundColor(0xFF0E67D1)
+            backgroundColor(AppColor.PRIMARY)
             accessibility(label)
             accessibilityRole(AccessibilityRole.BUTTON)
             accessibilityInfo(true, false)

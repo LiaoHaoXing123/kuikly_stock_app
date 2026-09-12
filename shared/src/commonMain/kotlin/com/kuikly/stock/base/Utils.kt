@@ -1,22 +1,14 @@
-// 通用工具集合。
+// 桥接工具集合。
+//
+// 纯字符串工具（normalizeBreaks / splitBreaks）已迁到 `com.kuikly.stock.util.TextUtil`。
+// 这里只留「需要拿到 BridgeModule 才能做的事」——它们和桥的生命周期绑在一起，
+// 放到 util 里会让 util 反向依赖 base。
 
 package com.kuikly.stock.base
 
 import com.tencent.kuikly.core.base.BaseObject
 import com.tencent.kuikly.core.manager.BridgeManager
 import com.tencent.kuikly.core.manager.PagerManager
-
-internal fun normalizeBreaks(s: String): String {
-    if (s.isEmpty()) return s
-    var t = s.replace("<br/>", "\n").replace("<br>", "\n")
-    t = t.replace("\r\n", "\n")
-    t = t.replace('\r', '\n')
-    return t.replace("\\n", "\n")
-}
-
-internal fun splitBreaks(s: String): List<String> {
-    return normalizeBreaks(s).split("\n").map { it.trim() }.filter { it.isNotEmpty() }
-}
 
 internal object Utils : BaseObject() {
 

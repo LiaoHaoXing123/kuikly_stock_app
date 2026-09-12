@@ -1,10 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  同级模块返回：当前页淡出，下层页保持不透明（入场动画资源为 0）。
-  时长/曲线与 kr_module_fade_in 对齐，避免 Tab 进淡出切。
+  同级模块（底部 Tab）的**返回**动画：当前页淡出，露出的下层页不透明且不动。
+
+  为什么只有这一段用窗口 alpha：出场的是「自己」，下面那页是完整渲染好的不透明页面，
+  淡出自己不会产生中间态（没有「两层都半透明」的时候）。
+
+  入场则**不能**用窗口 alpha——窗口动画的 alpha 作用在整个窗口 surface 上，连窗口底色
+  一起淡，中段会透出桌面。入场改由 NavTransition.applyTabContentFadeIn 在内容层做。
+
+  时长 90ms 对应 AppMotion.TAB_OUT_MS；入场内容淡入 120ms 后开始、持续 210ms（TAB_IN_MS）。
 -->
 <alpha xmlns:android="http://schemas.android.com/apk/res/android"
-    android:interpolator="@interpolator/kr_decelerate"
-    android:duration="210"
+    android:interpolator="@interpolator/kr_accelerate"
+    android:duration="90"
     android:fromAlpha="1.0"
     android:toAlpha="0.0" />

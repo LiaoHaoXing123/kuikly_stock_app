@@ -29,12 +29,24 @@ import com.kuikly.stock.data.fmt2
 import com.kuikly.stock.data.fmtSigned2
 import com.kuikly.stock.data.fmtSignedPct
 import com.kuikly.stock.base.HapticStyle
-import com.kuikly.stock.base.PressState
-import com.kuikly.stock.base.pressedScale
+import com.kuikly.stock.ui.component.topToast
+import com.kuikly.stock.ui.component.PressState
+import com.kuikly.stock.ui.component.pressedScale
 import com.kuikly.stock.base.hapticTick
-import com.kuikly.stock.base.pressFeedback
-import com.kuikly.stock.base.pressedBg
-import com.kuikly.stock.base.skeletonBlock
+import com.kuikly.stock.ui.component.pressFeedback
+import com.kuikly.stock.ui.component.pressedBg
+import com.kuikly.stock.ui.component.skeletonBlock
+import com.kuikly.stock.ui.component.segmentedControl
+import com.kuikly.stock.ui.component.AppRoutes
+import com.kuikly.stock.ui.component.REFRESH_SPIN_STEP_MS
+import com.kuikly.stock.ui.component.appBottomNav
+import com.kuikly.stock.ui.component.autoLoadFooter
+import com.kuikly.stock.ui.component.loadMoreLabel
+import com.kuikly.stock.ui.component.pullRefreshLabel
+import com.kuikly.stock.ui.component.pullToRefresh
+import com.kuikly.stock.ui.component.refreshButton
+import com.kuikly.stock.ui.component.openModule
+import com.kuikly.stock.ui.theme.AppColor
 
 @Page("stock_list")
 class StockListPage : BasePager() {
@@ -86,7 +98,7 @@ class StockListPage : BasePager() {
                 attr {
                     flex(1f)
                     flexDirectionColumn()
-                    backgroundColor(0xFFF5F5F5)
+                    backgroundColor(AppColor.SURFACE_SOFT)
                 }
 
                 navigationBar(ctx)
@@ -292,7 +304,7 @@ internal fun ViewContainer<*, *>.navigationBar(ctx: StockListPage) {
         attr {
             flexDirectionRow()
             alignItems(FlexAlign.CENTER)
-            backgroundColor(0xFF1976D2)
+            backgroundColor(AppColor.PRIMARY_SOFT)
             paddingTop(ctx.pagerData.statusBarHeight)
             height(48f + ctx.pagerData.statusBarHeight)
         }
@@ -306,7 +318,7 @@ internal fun ViewContainer<*, *>.navigationBar(ctx: StockListPage) {
                 attr {
                     text("< 返回")
                     fontSize(16f)
-                    color(0xFFFFFFFF)
+                    color(AppColor.ON_DARK)
                 }
             }
         }
@@ -316,7 +328,7 @@ internal fun ViewContainer<*, *>.navigationBar(ctx: StockListPage) {
                 text(if (ctx.listMode == "指数") "指数行情" else "股票行情")
                 fontSize(17f)
                 fontWeightBold()
-                color(0xFFFFFFFF)
+                color(AppColor.ON_DARK)
                 marginLeft(8f)
             }
         }
@@ -326,7 +338,7 @@ internal fun ViewContainer<*, *>.navigationBar(ctx: StockListPage) {
                 attr {
                     text("共 ${ctx.totalCount} " + if (ctx.listMode == "指数") "只" else "只")
                     fontSize(12f)
-                    color(0xFFB3D9FF)
+                    color(AppColor.ON_DARK_ACCENT_STRONG)
                     marginLeft(6f)
                 }
             }
@@ -336,7 +348,7 @@ internal fun ViewContainer<*, *>.navigationBar(ctx: StockListPage) {
                 attr {
                     text("共 ${ctx.stockList.size} " + if (ctx.listMode == "指数") "只" else "只")
                     fontSize(12f)
-                    color(0xFFB3D9FF)
+                    color(AppColor.ON_DARK_ACCENT_STRONG)
                     marginLeft(6f)
                 }
             }
@@ -355,12 +367,12 @@ internal fun ViewContainer<*, *>.navigationBar(ctx: StockListPage) {
                 attr {
                     text("☆ 自选")
                     fontSize(13f)
-                    color(0xFFFFFFFF)
+                    color(AppColor.ON_DARK)
                 }
             }
         }
 
-        refreshButton({ ctx.isLoading }, foreground = 0xFFFFFFFF) { ctx.refreshData() }
+        refreshButton({ ctx.isLoading }, foreground = AppColor.ON_DARK) { ctx.refreshData() }
     }
 }
 
@@ -370,7 +382,7 @@ internal fun ViewContainer<*, *>.searchBar(ctx: StockListPage) {
             flexDirectionRow()
             alignItems(FlexAlign.CENTER)
             padding(left = 12f, top = 10f, right = 12f, bottom = 10f)
-            backgroundColor(0xFFFFFFFF)
+            backgroundColor(AppColor.SURFACE)
         }
 
         View {
@@ -379,7 +391,7 @@ internal fun ViewContainer<*, *>.searchBar(ctx: StockListPage) {
                 height(36f)
                 flexDirectionRow()
                 alignItems(FlexAlign.CENTER)
-                backgroundColor(0xFFF5F5F5)
+                backgroundColor(AppColor.SURFACE_SOFT)
                 borderRadius(18f)
                 padding(left = 12f, right = 12f)
             }
@@ -392,7 +404,7 @@ internal fun ViewContainer<*, *>.searchBar(ctx: StockListPage) {
                     flex(1f)
                     height(36f)
                     fontSize(14f)
-                    color(Color(0xFF333333))
+                    color(Color(AppColor.TEXT_INK))
                     editable(true)
                     returnKeyTypeSearch()
                     maxTextLength(20)
@@ -414,7 +426,7 @@ internal fun ViewContainer<*, *>.searchBar(ctx: StockListPage) {
                     attr {
                         text(if (ctx.listMode == "指数") "搜索指数代码或名称..." else "搜索股票代码或名称...")
                         fontSize(14f)
-                        color(0xFF999999)
+                        color(AppColor.TEXT_HINT)
                         absolutePosition(left = 12f, top = 9f)
                     }
                     event {
@@ -430,7 +442,7 @@ internal fun ViewContainer<*, *>.searchBar(ctx: StockListPage) {
             attr {
                 width(60f)
                 height(36f)
-                backgroundColor(0xFF1976D2)
+                backgroundColor(AppColor.PRIMARY_SOFT)
                 borderRadius(18f)
                 alignItems(FlexAlign.CENTER)
                 justifyContent(FlexJustifyContent.CENTER)
@@ -443,7 +455,7 @@ internal fun ViewContainer<*, *>.searchBar(ctx: StockListPage) {
                 attr {
                     text("搜索")
                     fontSize(14f)
-                    color(0xFFFFFFFF)
+                    color(AppColor.ON_DARK)
                     fontWeightBold()
                 }
             }
@@ -451,21 +463,18 @@ internal fun ViewContainer<*, *>.searchBar(ctx: StockListPage) {
     }
 }
 
-/** 模式 Tab 的单项宽度（dp）。指示器宽度与它一致，百分比位移才能正好跨一格。 */
+/** 模式 Tab 的单项宽度（dp）。滑块宽度与它一致，百分比位移才能正好跨一格。 */
 private const val MODE_TAB_W = 68f
 
-private val MODE_TAB_ANIMATION = Animation.easeOut(0.2f)
+/** 股票 / 指数两个模式，下标即滑块位移量。 */
+private val MODE_TABS = listOf("股票", "指数")
 
 /**
  * 股票 / 指数切换。
  *
- * 用「白色滑块 + 位移动画」取代原来的两个 chip：chip 的选中态是底色硬切，
- * 切标签时视觉上是「灭一盏、亮一盏」；滑块则是一个物体从左边挪到右边，
- * 用户能直接看出「当前是在两组数据之间切换」，而不是两个独立按钮。
- *
- * 位移用**百分比**而不是 dp：`Translate` 的 offsetX 会走 frame 任务、拿不到动画窗口
- * （序列化时还会被丢掉），而 percentageX 是相对元素自身宽度的——滑块宽 = 单格宽，
- * 所以 percentageX=1 正好跨一格，与容器实际宽度无关。
+ * 两个 chip 的选中态是底色硬切，切换时视觉上是「灭一盏、亮一盏」；滑块则是一个物体
+ * 从左挪到右，用户能直接看出「是在两组数据之间切换」。结构与取色见 [segmentedControl]，
+ * 这里的差异只在配色：滑块是白底、选中文字是主色，与 K 线周期那种「主色滑块 + 白字」相反。
  */
 internal fun ViewContainer<*, *>.modeTabBar(ctx: StockListPage) {
     View {
@@ -473,76 +482,39 @@ internal fun ViewContainer<*, *>.modeTabBar(ctx: StockListPage) {
             flexDirectionRow()
             alignItems(FlexAlign.CENTER)
             padding(left = 12f, top = 8f, right = 12f, bottom = 8f)
-            backgroundColor(0xFFFFFFFF)
+            backgroundColor(AppColor.SURFACE)
         }
 
-        View {
-            attr {
-                flexDirectionRow()
-                backgroundColor(0xFFEFF3F8)
-                borderRadius(16f)
-                padding(3f)
-            }
-
-            // 滑块：绝对定位铺满内区高度，靠 transform 平移
-            View {
-                attr {
-                    // 先读 observable 再声明动画（顺序不能反，见 Interaction.kt）
-                    val mode = ctx.listMode
-                    animate(MODE_TAB_ANIMATION, mode)
-                    absolutePosition(top = 3f, left = 3f, bottom = 3f)
-                    width(MODE_TAB_W)
-                    borderRadius(13f)
-                    backgroundColor(0xFFFFFFFF)
-                    transform(translate = Translate(percentageX = if (mode == "指数") 1f else 0f))
-                }
-            }
-
-            modeTab(ctx, "股票", "股票行情，已选择")
-            modeTab(ctx, "指数", "指数行情，已选择")
-        }
+        segmentedControl(
+            options = MODE_TABS,
+            selectedIndex = { MODE_TABS.indexOf(ctx.listMode) },
+            itemWidth = MODE_TAB_W,
+            height = 30f,
+            trackRadius = 16f,
+            thumbRadius = 13f,
+            thumbColor = AppColor.SURFACE,
+            selectedTextColor = AppColor.PRIMARY_SOFT,
+            fontSize = 13f,
+            accessibilityLabel = { label, selected -> if (selected) "$label 行情，已选择" else label },
+            onSelect = { ctx.switchMode(MODE_TABS[it]) },
+        )
 
         View { attr { flex(1f) } }
     }
 }
 
-private fun ViewContainer<*, *>.modeTab(ctx: StockListPage, mode: String, selectedLabel: String) {
-    View {
-        attr {
-            width(MODE_TAB_W)
-            height(30f)
-            allCenter()
-            accessibility(if (ctx.listMode == mode) selectedLabel else mode)
-            accessibilityRole(AccessibilityRole.BUTTON)
-            accessibilityInfo(ctx.listMode != mode, false)
-        }
-        event { click { hapticTick(HapticStyle.Light); ctx.switchMode(mode) } }
-        Text {
-            attr {
-                text(mode)
-                fontSize(13f)
-                if (ctx.listMode == mode) fontWeightBold()
-                color(if (ctx.listMode == mode) 0xFF1976D2 else 0xFF7A8797)
-            }
-        }
-    }
-}
-
-/** 排序单格宽度（dp）。指示器宽度与它一致，percentageX 位移才能正好跨一格。 */
+/** 排序单格宽度（dp）。滑块宽度与它一致，percentageX 位移才能正好跨一格。 */
 private const val SORT_TAB_W = 54f
 
 /** 排序项固定顺序，下标即滑块位移量。「成交量」3 个字，宽度按它取。 */
 private val SORT_OPTIONS = listOf("默认", "涨幅", "跌幅", "成交量")
 
-private val SORT_TAB_ANIMATION = Animation.easeOut(0.2f)
-
 /**
  * 排序切换。
  *
- * 原来是四个 chip 各自硬切底色，切换时像「灭一盏、亮一盏」，看不出选中的跑哪去了。
- * 换成和 K 线周期（日K/周K/月K）、股票/指数同一套「滑块 + 位移」：一个蓝色滑块在四格间
- * 平移，位移本身就表达「在同一组选项里切换」。位移用百分比（相对滑块自身宽度=单格宽），
- * 原因见 modeTabBar 注释。
+ * 四个 chip 各自硬切底色时，切换像「灭一盏、亮一盏」，看不出选中的跑哪去了。
+ * 换成和 K 线周期、股票/指数同一套「滑块 + 位移」：一个蓝色滑块在四格间平移，
+ * 位移本身就表达「在同一组选项里切换」。结构见 [segmentedControl]。
  */
 internal fun ViewContainer<*, *>.sortBar(ctx: StockListPage) {
     View {
@@ -550,68 +522,25 @@ internal fun ViewContainer<*, *>.sortBar(ctx: StockListPage) {
             flexDirectionRow()
             alignItems(FlexAlign.CENTER)
             padding(left = 12f, top = 8f, right = 12f, bottom = 8f)
-            backgroundColor(0xFFFFFFFF)
+            backgroundColor(AppColor.SURFACE)
         }
 
         vif({ ctx.listMode != "指数" }) {
-            View {
-                attr {
-                    flexDirectionRow()
-                    backgroundColor(0xFFF0F4F9)
-                    borderRadius(14f)
-                    padding(3f)
-                }
-
-                // 滑块：绝对定位铺满内区高度，靠 transform 平移到选中格
-                View {
-                    attr {
-                        // 先读 observable 再声明动画（顺序不能反，见 Interaction.kt）
-                        val sort = ctx.sortOption
-                        animate(SORT_TAB_ANIMATION, sort)
-                        absolutePosition(top = 3f, left = 3f, bottom = 3f)
-                        width(SORT_TAB_W)
-                        borderRadius(11f)
-                        backgroundColor(0xFF1976D2)
-                        transform(translate = Translate(percentageX = sortOffset(sort)))
-                    }
-                }
-
-                SORT_OPTIONS.forEach { option -> sortTab(ctx, option) }
-            }
+            segmentedControl(
+                options = SORT_OPTIONS,
+                selectedIndex = { SORT_OPTIONS.indexOf(ctx.sortOption) },
+                itemWidth = SORT_TAB_W,
+                onSelect = { ctx.applySort(SORT_OPTIONS[it]) },
+            )
         }
 
         View { attr { flex(1f) } }
 
         legendItem(StockColors.UP, "涨")
         legendItem(StockColors.DOWN, "跌")
-        legendItem(0xFF999999, "平")
+        legendItem(AppColor.TEXT_HINT, "平")
     }
 }
-
-private fun ViewContainer<*, *>.sortTab(ctx: StockListPage, option: String) {
-    View {
-        attr {
-            width(SORT_TAB_W)
-            height(28f)
-            allCenter()
-            accessibility(if (ctx.sortOption == option) "$option，已选择" else option)
-            accessibilityRole(AccessibilityRole.BUTTON)
-            accessibilityInfo(ctx.sortOption != option, false)
-        }
-        event { click { hapticTick(HapticStyle.Light); ctx.applySort(option) } }
-        Text {
-            attr {
-                text(option)
-                fontSize(12f)
-                fontWeightBold()
-                color(if (ctx.sortOption == option) 0xFFFFFFFF else 0xFF666666)
-            }
-        }
-    }
-}
-
-private fun sortOffset(option: String): Float =
-    SORT_OPTIONS.indexOf(option).coerceAtLeast(0).toFloat()
 
 internal fun ViewContainer<*, *>.legendItem(color: Long, label: String) {
     View {
@@ -632,7 +561,7 @@ internal fun ViewContainer<*, *>.legendItem(color: Long, label: String) {
             attr {
                 text(label)
                 fontSize(10f)
-                color(0xFF888888)
+                color(AppColor.TEXT_HINT_SOFT)
                 marginLeft(3f)
             }
         }
@@ -645,14 +574,14 @@ internal fun ViewContainer<*, *>.listHeaderRow() {
             flexDirectionRow()
             alignItems(FlexAlign.CENTER)
             padding(left = 16f, top = 6f, right = 16f, bottom = 6f)
-            backgroundColor(0xFFF7F8FA)
+            backgroundColor(AppColor.SURFACE_ALT)
         }
 
-        Text { attr { text("名称"); fontSize(11f); color(0xFF999999); flex(1f) } }
-        Text { attr { text("代码"); fontSize(11f); color(0xFF999999); width(60f) } }
-        Text { attr { text("最新价"); fontSize(11f); color(0xFF999999); width(68f); textAlignRight() } }
-        Text { attr { text("涨跌额"); fontSize(11f); color(0xFF999999); width(56f); textAlignRight() } }
-        Text { attr { text("涨跌幅"); fontSize(11f); color(0xFF999999); width(64f); textAlignRight() } }
+        Text { attr { text("名称"); fontSize(11f); color(AppColor.TEXT_HINT); flex(1f) } }
+        Text { attr { text("代码"); fontSize(11f); color(AppColor.TEXT_HINT); width(60f) } }
+        Text { attr { text("最新价"); fontSize(11f); color(AppColor.TEXT_HINT); width(68f); textAlignRight() } }
+        Text { attr { text("涨跌额"); fontSize(11f); color(AppColor.TEXT_HINT); width(56f); textAlignRight() } }
+        Text { attr { text("涨跌幅"); fontSize(11f); color(AppColor.TEXT_HINT); width(64f); textAlignRight() } }
     }
 }
 
@@ -701,7 +630,7 @@ internal fun ViewContainer<*, *>.stockListItem(
 ) {
     val pct = stock.changePercent
     val changeColor = when {
-        pct == null || pct == 0.0 -> 0xFF999999
+        pct == null || pct == 0.0 -> AppColor.TEXT_HINT
         pct > 0 -> StockColors.UP
         else -> StockColors.DOWN
     }
@@ -717,7 +646,7 @@ internal fun ViewContainer<*, *>.stockListItem(
             alignItems(FlexAlign.CENTER)
             marginTop(1f)
             padding(left = 16f, top = 12f, right = 16f, bottom = 12f)
-            pressedBg(ctx.press, rowTag, normal = 0xFFFFFFFF)
+            pressedBg(ctx.press, rowTag, normal = AppColor.SURFACE)
         }
         event {
             // 按下先给视觉反馈，松手才真的跳转。原来这里什么都没有，
@@ -744,7 +673,7 @@ internal fun ViewContainer<*, *>.stockListItem(
                     attr {
                         text(seg)
                         fontSize(15f)
-                        color(if (hit) StockColors.UP else 0xFF333333)
+                        color(if (hit) StockColors.UP else AppColor.TEXT_INK)
                     }
                 }
             }
@@ -761,7 +690,7 @@ internal fun ViewContainer<*, *>.stockListItem(
                         text(seg)
                         fontSize(12f)
                         fontWeightBold()
-                        color(if (hit) StockColors.UP else 0xFF888888)
+                        color(if (hit) StockColors.UP else AppColor.TEXT_HINT_SOFT)
                     }
                 }
             }
@@ -820,7 +749,7 @@ internal fun ViewContainer<*, *>.stockListLoadingView(ctx: StockListPage) {
                     alignItems(FlexAlign.CENTER)
                     marginTop(1f)
                     padding(left = 16f, top = 12f, right = 16f, bottom = 12f)
-                    backgroundColor(0xFFFFFFFF)
+                    backgroundColor(AppColor.SURFACE)
                 }
 
                 // 名称（flex）
@@ -878,7 +807,7 @@ internal fun ViewContainer<*, *>.emptyView(ctx: StockListPage) {
                 text(if (filtered) "没有匹配的${if (ctx.listMode == "指数") "指数" else "股票"}" else "暂无行情数据")
                 fontSize(16f)
                 fontWeightBold()
-                color(0xFF333333)
+                color(AppColor.TEXT_INK)
                 textAlignCenter()
             }
         }
@@ -890,7 +819,7 @@ internal fun ViewContainer<*, *>.emptyView(ctx: StockListPage) {
                     else "数据源可能还在更新，稍后刷新即可"
                 )
                 fontSize(13f)
-                color(0xFF999999)
+                color(AppColor.TEXT_HINT)
                 marginTop(8f)
                 textAlignCenter()
                 lineHeight(19f)
@@ -925,7 +854,7 @@ private fun ViewContainer<*, *>.emptyStateButton(
     View {
         attr {
             padding(top = 11f, left = 22f, bottom = 11f, right = 22f)
-            backgroundColor(if (primary) 0xFF1976D2 else 0xFFE8F2FF)
+            backgroundColor(if (primary) AppColor.PRIMARY_SOFT else AppColor.PRIMARY_BG_LIGHT)
             borderRadius(20f)
             pressedScale(ctx.press, tag, normal = 1f, pressed = 0.97f)
             accessibility(label)
@@ -944,7 +873,7 @@ private fun ViewContainer<*, *>.emptyStateButton(
                 text(label)
                 fontSize(13f)
                 fontWeightBold()
-                color(if (primary) 0xFFFFFFFF else 0xFF1976D2)
+                color(if (primary) AppColor.ON_DARK else AppColor.PRIMARY_SOFT)
             }
         }
     }
@@ -971,7 +900,7 @@ internal fun ViewContainer<*, *>.loadErrorView(ctx: StockListPage) {
                 text("行情加载失败")
                 fontSize(16f)
                 fontWeightBold()
-                color(0xFF333333)
+                color(AppColor.TEXT_INK)
                 textAlignCenter()
             }
         }
@@ -979,7 +908,7 @@ internal fun ViewContainer<*, *>.loadErrorView(ctx: StockListPage) {
             attr {
                 text("网络或数据源可能暂时不可用，重试通常就能恢复。")
                 fontSize(13f)
-                color(0xFF888888)
+                color(AppColor.TEXT_HINT_SOFT)
                 marginTop(8f)
                 textAlignCenter()
                 lineHeight(19f)
@@ -990,7 +919,7 @@ internal fun ViewContainer<*, *>.loadErrorView(ctx: StockListPage) {
                 attr {
                     text(ctx.loadErrorMessage)
                     fontSize(11f)
-                    color(0xFFAAAAAA)
+                    color(AppColor.TEXT_MUTED)
                     marginTop(10f)
                     textAlignCenter()
                     lines(3)
@@ -1001,7 +930,7 @@ internal fun ViewContainer<*, *>.loadErrorView(ctx: StockListPage) {
             attr {
                 marginTop(18f)
                 padding(top = 11f, left = 28f, bottom = 11f, right = 28f)
-                backgroundColor(0xFF1976D2)
+                backgroundColor(AppColor.PRIMARY_SOFT)
                 borderRadius(22f)
                 pressedScale(ctx.press, LIST_RETRY_TAG, normal = 1f, pressed = 0.97f)
                 accessibility("重试加载行情")
@@ -1020,7 +949,7 @@ internal fun ViewContainer<*, *>.loadErrorView(ctx: StockListPage) {
                     text("重试")
                     fontSize(14f)
                     fontWeightBold()
-                    color(0xFFFFFFFF)
+                    color(AppColor.ON_DARK)
                 }
             }
         }
@@ -1030,30 +959,19 @@ internal fun ViewContainer<*, *>.loadErrorView(ctx: StockListPage) {
 private const val LIST_RETRY_TAG = "stock_list_error_retry"
 
 internal fun ViewContainer<*, *>.hintPopup(ctx: StockListPage) {
-    View {
-        attr {
-            absolutePosition(top = 96f, left = 0f, right = 0f)
-            alignItems(FlexAlign.CENTER)
-        }
-        event { click { ctx.hint = "" } }
-        View {
-            attr {
-                maxWidth(ctx.pagerData.pageViewWidth - 80f)
-                backgroundColor(0xE6333333)
-                borderRadius(20f)
-                padding(left = 18f, top = 9f, right = 18f, bottom = 9f)
-            }
-            Text {
-                attr {
-                    text(ctx.hint)
-                    fontSize(13f)
-                    color(0xFFFFFFFF)
-                    textAlignCenter()
-                    lineHeight(1.5f)
-                }
-            }
-        }
-    }
+    topToast(
+        ctx = ctx,
+        text = { ctx.hint },
+        onDismiss = { ctx.hint = "" },
+        tint = AppColor.TEXT_INK,
+        top = 96f,
+        maxWidthInset = 80f,
+        radius = 20f,
+        hPadding = 18f,
+        vPadding = 9f,
+        fontSize = 13f,
+        lineHeight = 1.5f,
+    )
 }
 
 data class StockListItem(

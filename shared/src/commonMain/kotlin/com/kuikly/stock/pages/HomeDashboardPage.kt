@@ -1,7 +1,7 @@
 package com.kuikly.stock.pages
 
 import com.kuikly.stock.base.BasePager
-import com.kuikly.stock.base.NumberRoll
+import com.kuikly.stock.ui.component.NumberRoll
 
 import com.kuikly.stock.data.DataUpdater
 import com.kuikly.stock.data.HoldingCalendar
@@ -32,6 +32,16 @@ import com.tencent.kuikly.core.views.RefreshViewState
 import com.tencent.kuikly.core.views.Scroller
 import com.tencent.kuikly.core.views.Text
 import com.tencent.kuikly.core.views.View
+import com.kuikly.stock.ui.component.AppRoutes
+import com.kuikly.stock.ui.component.REFRESH_SPIN_STEP_MS
+import com.kuikly.stock.ui.component.appBottomNav
+import com.kuikly.stock.ui.component.openModule
+import com.kuikly.stock.ui.component.pullRefreshLabel
+import com.kuikly.stock.ui.component.pullToRefresh
+import com.kuikly.stock.ui.component.refreshButton
+import com.kuikly.stock.ui.component.statusFeedback
+import com.kuikly.stock.ui.component.sectionHeader
+import com.kuikly.stock.ui.theme.AppColor
 
 @Page(AppRoutes.HOME)
 class HomeDashboardPage : BasePager() {
@@ -151,7 +161,7 @@ class HomeDashboardPage : BasePager() {
                 attr {
                     flex(1f)
                     flexDirectionColumn()
-                    backgroundColor(0xFFF4F7FB)
+                    backgroundColor(AppColor.BG)
                 }
                 homeTopBar(ctx)
                 guideEntryCard(ctx)
@@ -183,7 +193,7 @@ class HomeDashboardPage : BasePager() {
                         attr {
                             text("行情与指标仅供研究参考，不构成投资建议")
                             fontSize(11f)
-                            color(0xFF929CAB)
+                            color(AppColor.TEXT_MUTED)
                             margin(top = 18f, bottom = 8f)
                             textAlignCenter()
                         }
@@ -201,7 +211,7 @@ private fun ViewContainer<*, *>.homeTopBar(ctx: HomeDashboardPage) {
             padding(top = ctx.pagerData.statusBarHeight + 12f, left = 18f, right = 14f, bottom = 13f)
             flexDirectionRow()
             alignItems(FlexAlign.CENTER)
-            backgroundColor(Color.WHITE)
+            backgroundColor(AppColor.SURFACE)
         }
         View {
             attr { flex(1f) }
@@ -210,14 +220,14 @@ private fun ViewContainer<*, *>.homeTopBar(ctx: HomeDashboardPage) {
                     text("研究台")
                     fontSize(23f)
                     fontWeightBold()
-                    color(0xFF0B1F3A)
+                    color(AppColor.TITLE)
                 }
             }
             Text {
                 attr {
                     text("A股本地数据 · ${ctx.dataDate}")
                     fontSize(11f)
-                    color(0xFF7F8998)
+                    color(AppColor.TEXT_SUB)
                     marginTop(2f)
                 }
             }
@@ -232,7 +242,7 @@ private fun ViewContainer<*, *>.marketBriefCard(ctx: HomeDashboardPage) {
             marginTop(14f)
             padding(18f)
             borderRadius(18f)
-            backgroundColor(0xFF0B2B50)
+            backgroundColor(AppColor.INK_PANEL)
         }
         View {
             attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
@@ -240,14 +250,14 @@ private fun ViewContainer<*, *>.marketBriefCard(ctx: HomeDashboardPage) {
                 attr {
                     text("今日盘面")
                     fontSize(12f)
-                    color(0xFF9EC8F5)
+                    color(AppColor.ON_DARK_ACCENT)
                     letterSpacing(1f)
                 }
             }
             View { attr { flex(1f) } }
             View {
-                attr { padding(5f, 9f, 5f, 9f); borderRadius(12f); backgroundColor(0xFF154875) }
-                Text { attr { text(ctx.marketLabel); fontSize(11f); color(0xFFD7EAFF); fontWeightBold() } }
+                attr { padding(5f, 9f, 5f, 9f); borderRadius(12f); backgroundColor(AppColor.INK_PANEL_ALT) }
+                Text { attr { text(ctx.marketLabel); fontSize(11f); color(AppColor.ON_DARK_ACCENT_STRONG); fontWeightBold() } }
             }
         }
         Text {
@@ -265,7 +275,7 @@ private fun ViewContainer<*, *>.marketBriefCard(ctx: HomeDashboardPage) {
                 text(ctx.summary)
                 fontSize(13f)
                 lineHeight(20f)
-                color(0xFFC7D8EA)
+                color(AppColor.ON_DARK_SUB)
                 marginTop(8f)
             }
         }
@@ -273,19 +283,19 @@ private fun ViewContainer<*, *>.marketBriefCard(ctx: HomeDashboardPage) {
             attr {
                 text(ctx.breadthRoll.display)
                 fontSize(12f)
-                color(0xFF89B9E8)
+                color(AppColor.ON_DARK_SUB)
                 marginTop(14f)
             }
         }
     }
 }
 
+/**
+ * 首页区块标题。样式来自共享的 [sectionHeader]——「18f 加粗标题 + 11f 灰色说明」
+ * 这套层级在首页、风险中心是同一件事，各写一份迟早会漂。
+ */
 private fun ViewContainer<*, *>.sectionTitle(title: String, note: String) {
-    View {
-        attr { margin(top = 22f, bottom = 10f) }
-        Text { attr { text(title); fontSize(18f); fontWeightBold(); color(0xFF14263D) } }
-        Text { attr { text(note); fontSize(11f); color(0xFF8A94A3); marginTop(2f) } }
-    }
+    sectionHeader(title, note)
 }
 
 private fun ViewContainer<*, *>.researchGrid(ctx: HomeDashboardPage) {
@@ -297,16 +307,16 @@ private fun ViewContainer<*, *>.researchGrid(ctx: HomeDashboardPage) {
         // 第一行：AI研究室 + 组合风险
         View {
             attr { flexDirectionRow(); marginBottom(12f) }
-            researchModule(ctx, "AI 研究室", { "带本地行情上下文提问" }, "AI", 0xFFE8F2FF, 0xFF0E67D1, AppRoutes.CHAT)
+            researchModule(ctx, "AI 研究室", { "带本地行情上下文提问" }, "AI", AppColor.PRIMARY_BG_LIGHT, AppColor.PRIMARY, AppRoutes.CHAT)
             View { attr { width(12f) } }
-            researchModule(ctx, "组合风险", { "仓位、行业与回撤" }, "盾", 0xFFFFF1E6, 0xFFB85C00, AppRoutes.RISK)
+            researchModule(ctx, "组合风险", { "仓位、行业与回撤" }, "盾", AppColor.WARNING_BG, AppColor.WARNING_TEXT, AppRoutes.RISK)
         }
         // 第二行：全市场 + 自选盯盘
         View {
             attr { flexDirectionRow(); marginBottom(12f) }
-            researchModule(ctx, "全市场", { "搜索与涨跌幅排序" }, "势", 0xFFEAF8F0, 0xFF17834E, AppRoutes.MARKET)
+            researchModule(ctx, "全市场", { "搜索与涨跌幅排序" }, "势", AppColor.SUCCESS_BG, AppColor.SUCCESS, AppRoutes.MARKET)
             View { attr { width(12f) } }
-            researchModule(ctx, "自选盯盘", { ctx.watchRoll.display }, "盯", 0xFFF2EDFF, 0xFF6650A4, AppRoutes.WATCHLIST)
+            researchModule(ctx, "自选盯盘", { ctx.watchRoll.display }, "盯", AppColor.VIOLET_BG, AppColor.VIOLET, AppRoutes.WATCHLIST)
         }
     }
 }
@@ -326,8 +336,8 @@ private fun ViewContainer<*, *>.researchModule(
             minHeight(132f)
             padding(14f)
             borderRadius(16f)
-            backgroundColor(Color.WHITE)
-            border(Border(1f, BorderStyle.SOLID, Color(0xFFE9EEF5)))
+            backgroundColor(AppColor.SURFACE)
+            border(Border(1f, BorderStyle.SOLID, Color(AppColor.DIVIDER)))
             accessibility("打开$title，${subtitle()}")
             accessibilityRole(AccessibilityRole.BUTTON)
             accessibilityInfo(true, false)
@@ -337,8 +347,8 @@ private fun ViewContainer<*, *>.researchModule(
             attr { size(34f, 34f); borderRadius(10f); allCenter(); backgroundColor(tint) }
             Text { attr { text(mark); fontSize(if (mark == "AI") 12f else 15f); fontWeightBold(); color(accent) } }
         }
-        Text { attr { text(title); fontSize(15f); fontWeightBold(); color(0xFF172A43); marginTop(12f) } }
-        Text { attr { text(subtitle()); fontSize(11f); lineHeight(16f); color(0xFF788494); marginTop(4f) } }
+        Text { attr { text(title); fontSize(15f); fontWeightBold(); color(AppColor.TEXT_STRONG); marginTop(12f) } }
+        Text { attr { text(subtitle()); fontSize(11f); lineHeight(16f); color(AppColor.TEXT_SUB_DEEP); marginTop(4f) } }
     }
 }
 
@@ -348,8 +358,8 @@ private fun ViewContainer<*, *>.calendarEntryCard(ctx: HomeDashboardPage) {
             marginTop(4f)
             padding(14f)
             borderRadius(16f)
-            backgroundColor(Color.WHITE)
-            border(Border(1f, BorderStyle.SOLID, Color(0xFFE9EEF5)))
+            backgroundColor(AppColor.SURFACE)
+            border(Border(1f, BorderStyle.SOLID, Color(AppColor.DIVIDER)))
             flexDirectionRow()
             alignItems(FlexAlign.CENTER)
             accessibility("打开盈亏日历，查看每日持仓盈亏")
@@ -358,15 +368,15 @@ private fun ViewContainer<*, *>.calendarEntryCard(ctx: HomeDashboardPage) {
         }
         event { click { ctx.open(AppRoutes.CALENDAR) } }
         View {
-            attr { size(34f, 34f); borderRadius(10f); allCenter(); backgroundColor(0xFFEAF8F0) }
-            Text { attr { text("历"); fontSize(15f); fontWeightBold(); color(0xFF17834E) } }
+            attr { size(34f, 34f); borderRadius(10f); allCenter(); backgroundColor(AppColor.SUCCESS_BG) }
+            Text { attr { text("历"); fontSize(15f); fontWeightBold(); color(AppColor.SUCCESS) } }
         }
         View {
             attr { flex(1f); marginLeft(12f) }
-            Text { attr { text("盈亏日历"); fontSize(15f); fontWeightBold(); color(0xFF172A43) } }
-            Text { attr { text("行情更新后自动记下当天持仓，对照沪深300"); fontSize(11f); color(0xFF788494); marginTop(3f) } }
+            Text { attr { text("盈亏日历"); fontSize(15f); fontWeightBold(); color(AppColor.TEXT_STRONG) } }
+            Text { attr { text("行情更新后自动记下当天持仓，对照沪深300"); fontSize(11f); color(AppColor.TEXT_SUB_DEEP); marginTop(3f) } }
         }
-        Text { attr { text("›"); fontSize(26f); color(0xFF9EA7B2) } }
+        Text { attr { text("›"); fontSize(26f); color(AppColor.TEXT_MUTED) } }
     }
 }
 
@@ -376,7 +386,7 @@ private fun ViewContainer<*, *>.guideEntryCard(ctx: HomeDashboardPage) {
             margin(top = 10f, left = 16f, right = 16f)
             padding(14f)
             borderRadius(16f)
-            backgroundColor(0xFF0B2B50)
+            backgroundColor(AppColor.INK_PANEL)
             flexDirectionRow()
             alignItems(FlexAlign.CENTER)
             accessibility("打开使用指南，功能介绍、提问示例与常见问题")
@@ -385,15 +395,15 @@ private fun ViewContainer<*, *>.guideEntryCard(ctx: HomeDashboardPage) {
         }
         event { click { ctx.open(AppRoutes.GUIDE) } }
         View {
-            attr { size(34f, 34f); borderRadius(10f); allCenter(); backgroundColor(0xFF154875) }
-            Text { attr { text("?"); fontSize(17f); fontWeightBold(); color(0xFFD7EAFF) } }
+            attr { size(34f, 34f); borderRadius(10f); allCenter(); backgroundColor(AppColor.INK_PANEL_ALT) }
+            Text { attr { text("?"); fontSize(17f); fontWeightBold(); color(AppColor.ON_DARK_ACCENT_STRONG) } }
         }
         View {
             attr { flex(1f); marginLeft(12f) }
             Text { attr { text("使用指南"); fontSize(15f); fontWeightBold(); color(Color.WHITE) } }
-            Text { attr { text("功能介绍 · 提问示例 · 常见问题"); fontSize(11f); color(0xFF9EC8F5); marginTop(3f) } }
+            Text { attr { text("功能介绍 · 提问示例 · 常见问题"); fontSize(11f); color(AppColor.ON_DARK_ACCENT); marginTop(3f) } }
         }
-        Text { attr { text("›"); fontSize(26f); color(0xFF9EC8F5) } }
+        Text { attr { text("›"); fontSize(26f); color(AppColor.ON_DARK_ACCENT) } }
     }
 }
 
@@ -403,7 +413,7 @@ private fun ViewContainer<*, *>.focusRow(item: DashboardFocusItem) {
             marginBottom(9f)
             padding(14f)
             borderRadius(14f)
-            backgroundColor(Color.WHITE)
+            backgroundColor(AppColor.SURFACE)
             flexDirectionRow()
             alignItems(FlexAlign.CENTER)
         }
@@ -412,15 +422,15 @@ private fun ViewContainer<*, *>.focusRow(item: DashboardFocusItem) {
                 width(4f)
                 height(42f)
                 borderRadius(2f)
-                backgroundColor(if (item.tag == "提醒触发") 0xFFE55050 else 0xFF2E7BC4)
+                backgroundColor(if (item.tag == "提醒触发") AppColor.DANGER else AppColor.PRIMARY_SOFT)
                 marginRight(12f)
             }
         }
         View {
             attr { flex(1f) }
-            Text { attr { text(item.title); fontSize(14f); fontWeightBold(); color(0xFF1A2D45); lineHeight(20f) } }
-            Text { attr { text(item.subtitle); fontSize(11f); color(0xFF8993A1); marginTop(3f) } }
+            Text { attr { text(item.title); fontSize(14f); fontWeightBold(); color(AppColor.TEXT_STRONG); lineHeight(20f) } }
+            Text { attr { text(item.subtitle); fontSize(11f); color(AppColor.TEXT_SUB); marginTop(3f) } }
         }
-        Text { attr { text(item.tag); fontSize(10f); color(0xFF607188); marginLeft(8f) } }
+        Text { attr { text(item.tag); fontSize(10f); color(AppColor.TEXT_SUB_DEEP); marginLeft(8f) } }
     }
 }

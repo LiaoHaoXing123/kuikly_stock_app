@@ -24,8 +24,9 @@
 //
 //   扫光的驱动值必须是「挂载之后才翻转」的 observable：attr 块首帧走的是
 //   `isFirst=true` 分支，不加动画；只有后续变更才会带上 ANIMATION prop。
-//   所以由页面在骨架屏挂载后调用 [SkeletonSweep.restart]，并且**静态兜底必须是不可见的**——
-//   起点在块左外侧、终点在块右外侧，万一动画没跑起来也只是「没有扫光」，不会留下脏色块。
+//   所以由页面在骨架屏挂载后调用 [SkeletonSweep] 的持有者（`MountPulse.bump()`），
+//   并且**静态兜底必须是不可见的**——起点在块左外侧、终点在块右外侧，
+//   万一动画没跑起来也只是「没有扫光」，不会留下脏色块。
 //
 // 纪律：
 //   - 按压态只改「表现」，绝不改业务状态，也不动 click 的既有逻辑；
@@ -36,8 +37,10 @@
 //     就是这个原因——按下那一下渲染出来了，抬起那一下没渲染回去）。
 //     原生按钮的按压态本来就是硬切，不做过渡也不损失什么。
 
-package com.kuikly.stock.base
+package com.kuikly.stock.ui.component
 
+import com.kuikly.stock.ui.theme.AppColor
+import com.kuikly.stock.ui.theme.AppMotion
 import com.tencent.kuikly.core.base.Animation
 import com.tencent.kuikly.core.base.Attr
 import com.tencent.kuikly.core.base.Color
@@ -51,18 +54,18 @@ import com.tencent.kuikly.core.reactive.handler.observable
 import com.tencent.kuikly.core.views.View
 import com.tencent.kuikly.core.views.internal.GroupEvent
 
-/** 深色卡片按下时的高亮底色（浅色底用）。 */
-internal const val PRESS_BG_LIGHT: Long = 0xFFE8EBEF
+/** 中性面按下时的高亮底色。接主题：深色底上换成极淡的白，避免整块跳亮。 */
+internal val PRESS_BG_LIGHT: Long get() = AppColor.PRESS_BG
 
 /** 深色/彩色底按下时的高亮底色。
  *  注意必须显式标 Long：0x33FFFFFF 落在 Int 范围内，不标会被推成 Int。 */
 internal const val PRESS_BG_DARK: Long = 0x33FFFFFF
 
-/** 骨架块底色。 */
-internal const val SKELETON_BG: Long = 0xFFE9EDF2
+/** 骨架块底色。接主题：深色底上要换成「比卡片略亮」，浅灰会刺眼。 */
+internal val SKELETON_BG: Long get() = AppColor.SKELETON_BG
 
 /** 骨架块上的次级元素（文字行）底色，比底色再深一档，用来区分结构。 */
-internal const val SKELETON_BG_STRONG: Long = 0xFFDDE3EA
+internal val SKELETON_BG_STRONG: Long get() = AppColor.SKELETON_BG_STRONG
 
 /** 深色/彩色底上的骨架块（例如顶栏里的占位），用半透明白才看得见。 */
 internal const val SKELETON_BG_ON_DARK: Long = 0x59FFFFFF
@@ -71,7 +74,7 @@ internal const val SKELETON_BG_ON_DARK: Long = 0x59FFFFFF
 internal const val PRESS_BG_NONE: Long = 0x00FFFFFF
 
 /** 按下时的缩放比例。0.96 是 iOS/Android 原生按钮反馈的常见幅度：能感觉到，但不跳。 */
-internal const val PRESS_SCALE = 0.96f
+internal const val PRESS_SCALE = AppMotion.PRESS_SCALE
 
 // --- 骨架屏扫光参数 ---
 
@@ -166,7 +169,7 @@ internal class PressState(scope: PagerScope) {
  * ```
  * View {
  *     attr {
- *         pressedBg(ctx.press, "row:$code", normal = 0xFFFFFFFF)
+ *         pressedBg(ctx.press, "row:$code", normal = AppColor.SURFACE)
  *     }
  *     event { pressFeedback(ctx.press, "row:$code") }
  * }

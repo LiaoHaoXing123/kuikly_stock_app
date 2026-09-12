@@ -19,7 +19,7 @@ import com.kuikly.stock.ai.protocol.anyToStringMap
 import com.kuikly.stock.ai.protocol.validateCards
 import com.kuikly.stock.ai.protocol.validateObject
 import com.kuikly.stock.ai.tool.StockTools
-import com.kuikly.stock.base.normalizeBreaks
+import com.kuikly.stock.util.normalizeBreaks
 import com.kuikly.stock.data.AIVerdict
 import com.kuikly.stock.data.ChatResult
 import com.kuikly.stock.data.StockDb

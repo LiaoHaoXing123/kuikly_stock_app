@@ -1,11 +1,11 @@
 package com.kuikly.stock.pages
 
 import com.kuikly.stock.base.BasePager
-import com.kuikly.stock.base.Overlay
-import com.kuikly.stock.base.PressState
-import com.kuikly.stock.base.overlayEnterExit
-import com.kuikly.stock.base.pressFeedback
-import com.kuikly.stock.base.pressedScale
+import com.kuikly.stock.ui.component.Overlay
+import com.kuikly.stock.ui.component.PressState
+import com.kuikly.stock.ui.component.overlayEnterExit
+import com.kuikly.stock.ui.component.pressFeedback
+import com.kuikly.stock.ui.component.pressedScale
 import com.kuikly.stock.data.CAL_EVENT_ALERT
 import com.kuikly.stock.data.CAL_EVENT_DIVIDEND
 import com.kuikly.stock.data.CAL_EVENT_EARNINGS
@@ -27,12 +27,18 @@ import com.kuikly.stock.data.fmtSignedPct
 import com.kuikly.stock.data.heatStrip
 import com.kuikly.stock.data.monthCells
 import com.tencent.kuikly.core.annotations.Page
+import com.tencent.kuikly.core.base.Animation
 import com.tencent.kuikly.core.base.Border
 import com.tencent.kuikly.core.base.BorderStyle
 import com.tencent.kuikly.core.base.Color
+import com.tencent.kuikly.core.base.ColorStop
+import com.tencent.kuikly.core.base.Direction
+import com.tencent.kuikly.core.base.Translate
 import com.tencent.kuikly.core.base.ViewBuilder
 import com.tencent.kuikly.core.base.ViewContainer
+import com.tencent.kuikly.core.base.ViewRef
 import com.tencent.kuikly.core.base.attr.AccessibilityRole
+import com.tencent.kuikly.core.coroutines.delay
 import com.tencent.kuikly.core.coroutines.launch
 import com.tencent.kuikly.core.directives.vfor
 import com.tencent.kuikly.core.directives.vif
@@ -44,20 +50,56 @@ import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
 import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.observable
 import com.tencent.kuikly.core.reactive.handler.observableList
+import com.tencent.kuikly.core.views.RefreshView
+import com.tencent.kuikly.core.views.RefreshViewState
 import com.tencent.kuikly.core.views.Scroller
 import com.tencent.kuikly.core.views.Text
 import com.tencent.kuikly.core.views.View
 import kotlin.math.abs
+import com.kuikly.stock.ui.component.AppRoutes
+import com.kuikly.stock.ui.component.REFRESH_SPIN_STEP_MS
+import com.kuikly.stock.ui.component.emptyStatePanel
+import com.kuikly.stock.ui.component.openModule
+import com.kuikly.stock.ui.component.pageTitleBar
+import com.kuikly.stock.ui.component.pullRefreshLabel
+import com.kuikly.stock.ui.component.pullToRefresh
+import com.kuikly.stock.ui.theme.AppColor
 
 internal data class CalendarWeekRow(val key: String, val days: List<CalendarCellVm>)
+
+/** 单日最多画几个事件圆点，超出的折成 +N。 */
+private const val DAY_EVENT_DOT_MAX = 3
+
+/** 切月横滑的位移量，单位是月历网格自身宽度的比例。 */
+private const val MONTH_SLIDE_RATIO = 0.14f
+
+/** 切月动画时长。滑出与滑入共用一条曲线，合计两段。 */
+private const val MONTH_SLIDE_MS = 150
+
+private val MONTH_SLIDE_ANIM: Animation = Animation.easeOut(MONTH_SLIDE_MS / 1000f)
 
 @Page(AppRoutes.CALENDAR)
 class HoldingCalendarPage : BasePager() {
 
     internal var loading by observable(false)
+
+    /** 下拉刷新头的当前状态（见 Refresh.kt）。 */
+    internal var pullState by observable(RefreshViewState.IDLE)
+
+    /** 刷新头引用。取数结束（含早退与失败）都要用它 endRefresh()，否则指示器一直转。 */
+    internal var pullRefreshRef: ViewRef<RefreshView>? = null
     internal var hasHoldings by observable(false)
     internal var monthTitle by observable("盈亏日历")
     internal var subtitle by observable("结合当前持仓，算出每天盈亏")
+    /** 切月位移的起点，写入不带动画：用它把内容瞬移到对侧，再交给 [monthReveal] 滑进来。 */
+    private var monthSlideBase by observable(0f)
+
+    /** 切月进场进度：0 = 贴在侧边且透明，1 = 落位。动画挂在这个 observable 上。 */
+    internal var monthReveal by observable(1f)
+
+    /** 切月动画进行中，期间忽略重复点击。 */
+    private var monthSliding = false
+
     internal var viewYear by observable(2026)
     internal var viewMonth by observable(9)
     internal var canPrev by observable(false)
@@ -99,23 +141,45 @@ class HoldingCalendarPage : BasePager() {
         val ctx = this
         return {
             View {
-                attr { flex(1f); flexDirectionColumn(); backgroundColor(0xFFF4F7FB) }
+                attr { flex(1f); flexDirectionColumn(); backgroundColor(AppColor.BG) }
                 pageTitleBar(ctx, "盈亏日历", ctx.subtitle, { ctx.loading }) { ctx.reload() }
                 Scroller {
                     attr { flex(1f); flexDirectionColumn(); scrollEnable(true); padding(left = 16f, right = 16f, bottom = 24f) }
+                    // 必须是 Scroller 的第一个子视图：RefreshView 取 Scroller 用的是 parent.parent
+                    pullToRefresh(
+                        bind = { ctx.pullRefreshRef = it },
+                        label = { pullRefreshLabel(ctx.pullState, ctx.loading) },
+                        onStateChange = { ctx.pullState = it },
+                        onRefresh = { ctx.reload() },
+                        spin = ctx.refreshSpin,
+                        spinning = { ctx.loading },
+                    )
                     vif({ !ctx.hasHoldings && ctx.heatCells.isEmpty() }) { calendarEmpty(ctx) }
                     vif({ ctx.hasHoldings || ctx.heatCells.isNotEmpty() }) {
                         calendarStats(ctx)
                         calendarMonthNav(ctx)
-                        calendarWeekHead()
-                        vfor({ ctx.weeks }) { week -> calendarWeekRowView(ctx, week) }
+                        View {
+                            attr {
+                                flexDirectionColumn()
+                                animate(MONTH_SLIDE_ANIM, ctx.monthReveal)
+                                opacity(ctx.monthReveal)
+                                transform(
+                                    translate = Translate(
+                                        percentageX = ctx.monthSlideBase * (1f - ctx.monthReveal),
+                                    ),
+                                )
+                            }
+                            calendarWeekHead()
+                            vfor({ ctx.weeks }) { week -> calendarWeekRowView(ctx, week) }
+                        }
+                        View { attr { height(1f); backgroundColor(AppColor.DIVIDER); marginTop(20f) } }
                         vif({ ctx.legend.isNotEmpty() }) { calendarLegend(ctx) }
                         calendarHeat(ctx)
                         Text {
                             attr {
                                 text("颜色越深，当天盈亏幅度越大。点格子看哪只股票贡献了多少。彩色圆点标记涨跌停、提醒、除权和财报日。")
                                 fontSize(11f)
-                                color(0xFF929CAB)
+                                color(AppColor.TEXT_MUTED)
                                 margin(top = 14f, bottom = 8f)
                                 lineHeight(17f)
                             }
@@ -128,8 +192,14 @@ class HoldingCalendarPage : BasePager() {
     }
 
     internal fun reload() {
-        if (loading) return
+        if (loading) {
+            // 已有请求在跑：立刻收掉刷新头，否则它会一直转
+            pullRefreshRef?.view?.endRefresh()
+            return
+        }
         loading = true
+        // 刷新头箭头开始转；结束由 loading 翻 false 自然停（不能用 repeatForever，见 Motion.kt）
+        refreshSpin.loop(REFRESH_SPIN_STEP_MS) { loading }
         lifecycleScope.launch {
             try {
                 val pack = pageResult {
@@ -181,16 +251,34 @@ class HoldingCalendarPage : BasePager() {
                 rebuild()
             } finally {
                 loading = false
+                pullRefreshRef?.view?.endRefresh()
             }
         }
     }
 
+    /**
+     * 切月：旧内容朝 delta 方向滑出淡出，换好月份后新内容从对侧滑入。
+     *
+     * 两段共用 [monthReveal] 一条动画，靠 [monthSlideBase] 的「无动画写入」换边——
+     * 换边那一刻 opacity 正好是 0，位移跳变看不见。
+     */
     internal fun shiftMonth(delta: Int) {
         val next = CivilDate(viewYear, viewMonth, 1).plusMonths(delta).startOfMonth()
         if (next < minMonth || next > maxMonth) return
-        viewYear = next.year
-        viewMonth = next.month
-        rebuild()
+        if (monthSliding) return
+        monthSliding = true
+        monthSlideBase = delta * MONTH_SLIDE_RATIO
+        monthReveal = 0f
+        lifecycleScope.launch {
+            delay(MONTH_SLIDE_MS)
+            viewYear = next.year
+            viewMonth = next.month
+            rebuild()
+            monthSlideBase = -delta * MONTH_SLIDE_RATIO
+            monthReveal = 1f
+            delay(MONTH_SLIDE_MS)
+            monthSliding = false
+        }
     }
 
     internal fun openDay(cell: CalendarCellVm) {
@@ -266,11 +354,11 @@ class HoldingCalendarPage : BasePager() {
         canPrev = current > minMonth
         canNext = current < maxMonth
         val byDate = cached.associateBy { it.date }
-        val grid = monthCells(viewYear, viewMonth, byDate, maxAbs, externalEvents)
+        val grid = monthCells(viewYear, viewMonth, byDate, maxAbs, externalEvents, AppColor.SURFACE_ALT, AppColor.SURFACE_SOFT)
         weeks.clear()
         weeks.addAll(grid.mapIndexed { i, row -> CalendarWeekRow("w$i-${row.first().date}", row) })
         heatCells.clear()
-        heatCells.addAll(heatStrip(cached, maxAbs))
+        heatCells.addAll(heatStrip(cached, maxAbs, AppColor.TRACK))
         val snapKinds = cached.filter { it.date.startsWith(prefix) }.flatMap { it.events }.map { it.kind }.toSet()
         val extKinds = externalEvents.entries.filter { it.key.startsWith(prefix) }.flatMap { it.value }.map { it.kind }.toSet()
         val kinds = snapKinds + extKinds
@@ -296,77 +384,53 @@ private fun eventLegend(kind: String): String = when (kind) {
 private fun eventDotColor(kind: String): Long = when (kind) {
     CAL_EVENT_LIMIT_UP -> StockColors.UP
     CAL_EVENT_LIMIT_DOWN -> StockColors.DOWN
-    CAL_EVENT_ALERT -> 0xFFA56100
-    CAL_EVENT_DIVIDEND -> 0xFF0E67D1
-    CAL_EVENT_EARNINGS -> 0xFF6650A4
-    else -> 0xFF9AA3AF
+    CAL_EVENT_ALERT -> AppColor.WARNING_TEXT
+    CAL_EVENT_DIVIDEND -> AppColor.PRIMARY
+    CAL_EVENT_EARNINGS -> AppColor.VIOLET
+    else -> AppColor.TEXT_MUTED
 }
 
 private fun ViewContainer<*, *>.calendarEmpty(ctx: HoldingCalendarPage) {
-    View {
-        attr {
-            marginTop(18f)
-            padding(22f)
-            borderRadius(16f)
-            backgroundColor(Color.WHITE)
-            alignItems(FlexAlign.CENTER)
-        }
-        Text { attr { text("还没有可记的持仓"); fontSize(16f); fontWeightBold(); color(0xFF24364D) } }
-        Text {
-            attr {
-                text("在自选里填股数和成本。日历会结合当前持仓和日线收盘价，算出最近每个交易日的盈亏。")
-                fontSize(12f)
-                lineHeight(19f)
-                color(0xFF7F8998)
-                marginTop(8f)
-                textAlignCenter()
-            }
-        }
-        View {
-            attr {
-                marginTop(16f)
-                height(44f)
-                padding(left = 22f, right = 22f)
-                borderRadius(22f)
-                allCenter()
-                backgroundColor(0xFF0E67D1)
-                pressedScale(ctx.press, "cal_empty", normal = 1f, pressed = 0.97f)
-                accessibility("去自选设置持仓")
-                accessibilityRole(AccessibilityRole.BUTTON)
-                accessibilityInfo(true, false)
-            }
-            event {
-                pressFeedback(ctx.press, "cal_empty")
-                click {
-                    ctx.press.releaseAll()
-                    ctx.goWatchlist()
-                }
-            }
-            Text { attr { text("去自选设置持仓"); fontSize(14f); fontWeightBold(); color(Color.WHITE) } }
-        }
-    }
+    emptyStatePanel(
+        title = "还没有可记的持仓",
+        message = "在自选里填股数和成本。日历会结合当前持仓和日线收盘价，算出最近每个交易日的盈亏。",
+        actionLabel = "去自选设置持仓",
+        press = ctx.press,
+        actionTag = "cal_empty",
+        onAction = { ctx.goWatchlist() },
+    )
 }
 
 private fun ViewContainer<*, *>.calendarStats(ctx: HoldingCalendarPage) {
     View {
-        attr { marginTop(14f); padding(16f); borderRadius(18f); backgroundColor(0xFF0B2B50) }
-        Text { attr { text("本月盈亏"); fontSize(12f); color(0xFF9EC8F5) } }
+        attr {
+            marginTop(14f)
+            padding(16f)
+            borderRadius(18f)
+            // 纯色深蓝压在浅蓝页底上边界太硬，改成右下角略微提亮的斜向渐变
+            backgroundLinearGradient(
+                Direction.TO_BOTTOM_RIGHT,
+                ColorStop(Color(AppColor.INK_PANEL), 0f),
+                ColorStop(Color(AppColor.INK_PANEL_SOFT), 1f),
+            )
+        }
+        Text { attr { text("本月盈亏"); fontSize(12f); color(AppColor.ON_DARK_ACCENT) } }
         Text { attr { text(ctx.monthPnlText); fontSize(28f); fontWeightBold(); color(ctx.monthPnlColor); marginTop(6f) } }
-        Text { attr { text(ctx.beatText); fontSize(12f); color(0xFFC7D8EA); marginTop(6f) } }
+        Text { attr { text(ctx.beatText); fontSize(12f); color(AppColor.ON_DARK_SUB); marginTop(6f) } }
         View {
             attr { flexDirectionRow(); marginTop(16f) }
             calendarStatChip("日胜率", { ctx.winRateText })
             calendarStatChip("连盈 / 连亏", { ctx.streakText })
         }
-        Text { attr { text(ctx.extremaText); fontSize(11f); color(0xFF9EB2C7); marginTop(10f) } }
+        Text { attr { text(ctx.extremaText); fontSize(11f); color(AppColor.ON_DARK_MUTED); marginTop(10f) } }
     }
 }
 
 private fun ViewContainer<*, *>.calendarStatChip(label: String, value: () -> String) {
     View {
         attr { flex(1f) }
-        Text { attr { text(label); fontSize(11f); color(0xFF9EB2C7) } }
-        Text { attr { text(value()); fontSize(14f); fontWeightBold(); color(Color.WHITE); marginTop(4f) } }
+        Text { attr { text(label); fontSize(11f); color(AppColor.ON_DARK_MUTED) } }
+        Text { attr { text(value()); fontSize(14f); fontWeightBold(); color(Color(AppColor.ON_DARK)); marginTop(4f) } }
     }
 }
 
@@ -382,11 +446,11 @@ private fun ViewContainer<*, *>.calendarMonthNav(ctx: HoldingCalendarPage) {
                 accessibilityInfo(ctx.canPrev, false)
             }
             event { click { if (ctx.canPrev) ctx.shiftMonth(-1) } }
-            Text { attr { text("‹"); fontSize(26f); color(if (ctx.canPrev) 0xFF172A43 else 0xFFC5CAD1) } }
+            Text { attr { text("‹"); fontSize(26f); color(if (ctx.canPrev) AppColor.TEXT_STRONG else AppColor.DISABLED) } }
         }
         View {
             attr { flex(1f); alignItems(FlexAlign.CENTER) }
-            Text { attr { text(ctx.monthTitle); fontSize(17f); fontWeightBold(); color(0xFF14263D) } }
+            Text { attr { text(ctx.monthTitle); fontSize(17f); fontWeightBold(); color(AppColor.TEXT_STRONG) } }
         }
         View {
             attr {
@@ -397,7 +461,7 @@ private fun ViewContainer<*, *>.calendarMonthNav(ctx: HoldingCalendarPage) {
                 accessibilityInfo(ctx.canNext, false)
             }
             event { click { if (ctx.canNext) ctx.shiftMonth(1) } }
-            Text { attr { text("›"); fontSize(26f); color(if (ctx.canNext) 0xFF172A43 else 0xFFC5CAD1) } }
+            Text { attr { text("›"); fontSize(26f); color(if (ctx.canNext) AppColor.TEXT_STRONG else AppColor.DISABLED) } }
         }
     }
 }
@@ -408,7 +472,7 @@ private fun ViewContainer<*, *>.calendarWeekHead() {
         listOf("一", "二", "三", "四", "五", "六", "日").forEach { d ->
             View {
                 attr { flex(1f); allCenter(); height(22f) }
-                Text { attr { text(d); fontSize(11f); color(if (d == "六" || d == "日") 0xFFB0B7C0 else 0xFF8A94A3) } }
+                Text { attr { text(d); fontSize(11f); color(if (d == "六" || d == "日") AppColor.DISABLED else AppColor.TEXT_SUB) } }
             }
         }
     }
@@ -433,7 +497,7 @@ private fun ViewContainer<*, *>.calendarDayCell(ctx: HoldingCalendarPage, day: C
             backgroundColor(day.color)
             alignItems(FlexAlign.CENTER)
             padding(top = 5f, bottom = 4f)
-            if (selected) border(Border(1.5f, BorderStyle.SOLID, Color(0xFF0E67D1)))
+            if (selected) border(Border(1.5f, BorderStyle.SOLID, Color(AppColor.PRIMARY)))
             pressedScale(ctx.press, tag, normal = 1f, pressed = 0.96f)
             val vs = if (day.vsHs300.isNotEmpty()) "，${if (day.vsHs300 == "赢") "跑赢" else "跑输"}沪深300" else ""
             val pnl = if (day.pnlText.isNotEmpty()) "，盈亏 ${day.pnlText}" else "，无记录"
@@ -453,7 +517,7 @@ private fun ViewContainer<*, *>.calendarDayCell(ctx: HoldingCalendarPage, day: C
                 text(day.dayNum.toString())
                 fontSize(12f)
                 fontWeightBold()
-                color(if (day.inMonth) 0xFF1C3048 else 0xFFC5CAD1)
+                color(if (day.inMonth) AppColor.TEXT else AppColor.DISABLED)
             }
         }
         Text {
@@ -463,8 +527,8 @@ private fun ViewContainer<*, *>.calendarDayCell(ctx: HoldingCalendarPage, day: C
                 fontWeightBold()
                 color(
                     if (day.pnl != null) {
-                        if (day.pnl > 0) 0xFF1A1A1A else 0xFFFFFFFF
-                    } else 0xFFB0B7C0
+                        if (day.pnl > 0) AppColor.TEXT_INK else AppColor.ON_DARK
+                    } else AppColor.DISABLED
                 )
                 marginTop(2f)
             }
@@ -482,8 +546,18 @@ private fun ViewContainer<*, *>.calendarDayCell(ctx: HoldingCalendarPage, day: C
         vif({ day.events.isNotEmpty() && day.inMonth }) {
             View {
                 attr { flexDirectionRow(); marginTop(2f); alignItems(FlexAlign.CENTER) }
-                day.events.take(3).forEach { ev ->
+                day.events.take(DAY_EVENT_DOT_MAX).forEach { ev ->
                     View { attr { size(5f, 5f); borderRadius(2.5f); backgroundColor(eventDotColor(ev.kind)); margin(1f) } }
+                }
+                vif({ day.events.size > DAY_EVENT_DOT_MAX }) {
+                    Text {
+                        attr {
+                            text("+${day.events.size - DAY_EVENT_DOT_MAX}")
+                            fontSize(8f)
+                            color(AppColor.TEXT_SUB)
+                            marginLeft(1f)
+                        }
+                    }
                 }
             }
         }
@@ -493,9 +567,9 @@ private fun ViewContainer<*, *>.calendarDayCell(ctx: HoldingCalendarPage, day: C
 private fun ViewContainer<*, *>.calendarLegend(ctx: HoldingCalendarPage) {
     View {
         attr { flexDirectionRow(); flexWrapWrap(); marginTop(8f); alignItems(FlexAlign.CENTER) }
-        Text { attr { text("标记  "); fontSize(11f); color(0xFF8A94A3) } }
+        Text { attr { text("标记  "); fontSize(11f); color(AppColor.TEXT_SUB) } }
         vfor({ ctx.legend }) { label ->
-            Text { attr { text(label + "  "); fontSize(11f); color(0xFF5A6B82) } }
+            Text { attr { text(label + "  "); fontSize(11f); color(AppColor.TEXT_SUB_DEEP) } }
         }
     }
 }
@@ -503,9 +577,9 @@ private fun ViewContainer<*, *>.calendarLegend(ctx: HoldingCalendarPage) {
 private fun ViewContainer<*, *>.calendarHeat(ctx: HoldingCalendarPage) {
     vif({ ctx.heatCells.isNotEmpty() }) {
         View {
-            attr { marginTop(18f); padding(14f); borderRadius(16f); backgroundColor(Color.WHITE) }
-            Text { attr { text("节奏热力图"); fontSize(15f); fontWeightBold(); color(0xFF172A43) } }
-            Text { attr { text("自首次记录起，红涨绿跌，深浅表示幅度"); fontSize(11f); color(0xFF8A94A3); marginTop(3f) } }
+            attr { marginTop(14f); padding(14f); borderRadius(16f); backgroundColor(AppColor.SURFACE) }
+            Text { attr { text("节奏热力图"); fontSize(15f); fontWeightBold(); color(AppColor.TEXT_STRONG) } }
+            Text { attr { text("自首次记录起，红涨绿跌，深浅表示幅度"); fontSize(11f); color(AppColor.TEXT_SUB); marginTop(3f) } }
             View {
                 attr { flexDirectionRow(); flexWrapWrap(); marginTop(10f) }
                 vfor({ ctx.heatCells }) { cell ->
@@ -522,13 +596,13 @@ private fun ViewContainer<*, *>.calendarHeat(ctx: HoldingCalendarPage) {
             }
             View {
                 attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginTop(10f) }
-                Text { attr { text("亏"); fontSize(10f); color(0xFF8A94A3); marginRight(6f) } }
+                Text { attr { text("亏"); fontSize(10f); color(AppColor.TEXT_SUB); marginRight(6f) } }
                 View { attr { size(10f, 10f); borderRadius(2f); backgroundColor(StockColors.down(0x48)); marginRight(3f) } }
                 View { attr { size(10f, 10f); borderRadius(2f); backgroundColor(StockColors.down(0xE6)); marginRight(8f) } }
-                View { attr { size(10f, 10f); borderRadius(2f); backgroundColor(0xFFEEF1F4); marginRight(8f) } }
+                View { attr { size(10f, 10f); borderRadius(2f); backgroundColor(AppColor.SURFACE_ALT); marginRight(8f) } }
                 View { attr { size(10f, 10f); borderRadius(2f); backgroundColor(StockColors.up(0x48)); marginRight(3f) } }
                 View { attr { size(10f, 10f); borderRadius(2f); backgroundColor(StockColors.up(0xE6)); marginRight(6f) } }
-                Text { attr { text("盈"); fontSize(10f); color(0xFF8A94A3) } }
+                Text { attr { text("盈"); fontSize(10f); color(AppColor.TEXT_SUB) } }
             }
         }
     }
@@ -538,7 +612,7 @@ private fun ViewContainer<*, *>.calendarDaySheet(ctx: HoldingCalendarPage) {
     View {
         attr {
             absolutePositionAllZero()
-            backgroundColor(0x88000000)
+            backgroundColor(AppColor.SCRIM)
             alignItems(FlexAlign.CENTER)
             justifyContent(FlexJustifyContent.CENTER)
         }
@@ -548,22 +622,22 @@ private fun ViewContainer<*, *>.calendarDaySheet(ctx: HoldingCalendarPage) {
                 width(ctx.pagerData.pageViewWidth - 40f)
                 padding(18f)
                 borderRadius(16f)
-                backgroundColor(Color.WHITE)
+                backgroundColor(AppColor.SURFACE)
                 overlayEnterExit(ctx.dayOverlay)
             }
-            Text { attr { text(ctx.selectedDate); fontSize(12f); color(0xFF8A94A3) } }
-            Text { attr { text(ctx.selectedHeadline); fontSize(26f); fontWeightBold(); color(0xFF14263D); marginTop(4f) } }
-            Text { attr { text(ctx.selectedSub); fontSize(12f); color(0xFF5A6B82); marginTop(4f) } }
+            Text { attr { text(ctx.selectedDate); fontSize(12f); color(AppColor.TEXT_SUB) } }
+            Text { attr { text(ctx.selectedHeadline); fontSize(26f); fontWeightBold(); color(AppColor.TEXT_STRONG); marginTop(4f) } }
+            Text { attr { text(ctx.selectedSub); fontSize(12f); color(AppColor.TEXT_SUB_DEEP); marginTop(4f) } }
             vif({ ctx.selectedVs.isNotEmpty() }) {
-                Text { attr { text(ctx.selectedVs); fontSize(12f); fontWeightBold(); color(0xFF0E67D1); marginTop(6f) } }
+                Text { attr { text(ctx.selectedVs); fontSize(12f); fontWeightBold(); color(AppColor.PRIMARY); marginTop(6f) } }
             }
             vif({ ctx.detailEvents.isNotEmpty() }) {
                 vfor({ ctx.detailEvents }) { label ->
-                    Text { attr { text("· $label"); fontSize(12f); color(0xFF8B4C12); marginTop(4f) } }
+                    Text { attr { text("· $label"); fontSize(12f); color(AppColor.WARNING_TEXT_DEEP); marginTop(4f) } }
                 }
             }
             vif({ ctx.detailCodes.isNotEmpty() }) {
-                Text { attr { text("盈亏构成"); fontSize(13f); fontWeightBold(); color(0xFF172A43); marginTop(14f) } }
+                Text { attr { text("盈亏构成"); fontSize(13f); fontWeightBold(); color(AppColor.TEXT_STRONG); marginTop(14f) } }
                 vfor({ ctx.detailCodes }) { code ->
                     calendarHoldingLine(ctx, code)
                 }
@@ -574,13 +648,13 @@ private fun ViewContainer<*, *>.calendarDaySheet(ctx: HoldingCalendarPage) {
                     height(44f)
                     allCenter()
                     borderRadius(12f)
-                    backgroundColor(0xFFF0F2F5)
+                    backgroundColor(AppColor.BG_SOFT)
                     accessibility("关闭")
                     accessibilityRole(AccessibilityRole.BUTTON)
                     accessibilityInfo(true, false)
                 }
                 event { click { ctx.dayOverlay.hide() } }
-                Text { attr { text("关闭"); fontSize(13f); color(0xFF697586) } }
+                Text { attr { text("关闭"); fontSize(13f); color(AppColor.TEXT_SUB_DEEP) } }
             }
         }
     }
@@ -595,7 +669,7 @@ private fun ViewContainer<*, *>.calendarHoldingLine(ctx: HoldingCalendarPage, co
             marginTop(8f)
             padding(10f)
             borderRadius(10f)
-            backgroundColor(0xFFF4F7FB)
+            backgroundColor(AppColor.BG)
             accessibility("打开${line.name}详情，当日盈亏 ${compactPnl(line.dayPnl)}")
             accessibilityRole(AccessibilityRole.BUTTON)
             accessibilityInfo(true, false)
@@ -603,7 +677,7 @@ private fun ViewContainer<*, *>.calendarHoldingLine(ctx: HoldingCalendarPage, co
         event { click { ctx.openStock(code) } }
         View {
             attr { flex(1f) }
-            Text { attr { text(line.name); fontSize(14f); fontWeightBold(); color(0xFF1C3048) } }
+            Text { attr { text(line.name); fontSize(14f); fontWeightBold(); color(AppColor.TEXT) } }
             Text {
                 attr {
                     text(
@@ -611,7 +685,7 @@ private fun ViewContainer<*, *>.calendarHoldingLine(ctx: HoldingCalendarPage, co
                             if (line.limit.isNotEmpty()) "  ${if (line.limit == "up") "涨停" else "跌停"}" else ""
                     )
                     fontSize(11f)
-                    color(0xFF8993A1)
+                    color(AppColor.TEXT_SUB)
                     marginTop(2f)
                 }
             }
