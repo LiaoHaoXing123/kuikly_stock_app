@@ -26,6 +26,9 @@ function showQuote(index){const b=rows[index];if(!b)return;document.getElementBy
 function draw(name){chart.createOverlay({name});statusText('在图表上选择画线锚点');}
 window.chartCommand=function(cmd){if(cmd!=='reset'||!chart||!rows.length)return;try{const el=document.getElementById('chart');chart.setBarSpace(Math.max(3,Math.min(28,(el.clientWidth-65)/Math.max(1,Math.min(rows.length,period==='M'?12:period==='W'?26:30)))));chart.scrollToRealTime();chart.removeOverlay();statusText('已重置视口');}catch(e){statusText('重置失败：'+(e.message||e));}};
 function zoomChart(f){if(!chart)return;const box=document.getElementById('chart');try{chart.zoomAtCoordinate(f,{x:box.clientWidth/2,y:Math.min(120,box.clientHeight/2)});statusText(f>1?'已放大':'已缩小');}catch(e){statusText('缩放失败：'+(e.message||e));}}
+// 真机部分 WebView 在布局后 chart canvas 未合成（工具条/quote 正常但图形空白），滚动才恢复。
+// 通过高度微调强制 reflow + 多次延迟 resize 触发重绘；resize 在尺寸不变时不重画，所以主动改高再还原。
+function forceRepaint(){try{const el=document.getElementById('chart');const h=el.clientHeight;chart.resize();if(h>1){el.style.height=(h-1)+'px';requestAnimationFrame(()=>{el.style.height='';try{chart.resize();}catch(e){}});}}catch(e){}}
 function syncStartBtn(){const b=document.querySelector('#actions button');if(b)b.textContent=start>=0?'重设起点':'设为区间起点';}
 function drawRangeMarkers(){
   chart.removeOverlay({id:'range_start'});chart.removeOverlay({id:'range_end'});lastMarked=-1;
@@ -44,7 +47,8 @@ function askRange(){if(start<0||selected<0||start===selected)return statusText('
 document.getElementById('indicator').onchange=e=>{if(pane)chart.removeIndicator(pane);pane=chart.createIndicator(e.target.value,false,{height:120,gap:{top:58,bottom:12}});};
 window.renderChart=function(p){try{
  document.body.classList.toggle('dark',!!p.dark);
- if(!chart){chart=klinecharts.init('chart',{locale:'zh-CN',timezone:'Asia/Shanghai'});chart.createIndicator('MA',false,{id:'candle_pane',gap:{top:70,bottom:28}});pane=chart.createIndicator('VOL',false,{height:120,gap:{top:58,bottom:12}});
+ if(!chart){const el0=document.getElementById('chart');if(el0.clientWidth<2||el0.clientHeight<2){console.log('[chart] 容器未就绪 '+el0.clientWidth+'x'+el0.clientHeight+' 延迟重试');return setTimeout(()=>renderChart(p),120);}
+ chart=klinecharts.init('chart',{locale:'zh-CN',timezone:'Asia/Shanghai'});chart.createIndicator('MA',false,{id:'candle_pane',gap:{top:70,bottom:28}});pane=chart.createIndicator('VOL',false,{height:120,gap:{top:58,bottom:12}});
  chart.subscribeAction('onCrosshairChange',e=>{if(e.dataIndex>=0&&e.dataIndex<rows.length){selected=e.dataIndex;showQuote(selected);
   if(start>=0&&selected!==start){statusText('终点：'+rows[selected].date+' · 点「解读区间」生成统计');if(lastMarked!==selected)drawRangeMarkers();}
   else if(start>=0){statusText('起点 '+rows[start].date+' · 长按另一根蜡烛作为终点');}
@@ -58,6 +62,6 @@ window.renderChart=function(p){try{
  if(nextKey!==key){key=nextKey;rows=p.bars||[];selected=-1;start=-1;focus=-1;highlight=0;chart.removeOverlay();chart.removeOverlay({id:'range_start'});chart.removeOverlay({id:'range_end'});syncStartBtn();chart.applyNewData(rows.map(b=>({...b,timestamp:Date.parse(b.date+'T00:00:00+08:00')})));chart.setBarSpace(Math.max(3,Math.min(28,(document.getElementById('chart').clientWidth-65)/Math.max(1,Math.min(rows.length,p.period==='M'?12:p.period==='W'?26:30)))));chart.scrollToRealTime();statusText('本地行情截至 '+(rows.at(-1)?.date||'未知')+' · 长按选点');}
  if(p.focus>=0&&p.focus<rows.length&&p.focus!==focus){focus=p.focus;selected=focus;chart.scrollToDataIndex(focus);chart.removeOverlay({id:'evidence'});chart.createOverlay({id:'evidence',name:'verticalStraightLine',lock:true,points:[{dataIndex:focus}]});}
  if(p.highlight!==highlight){highlight=p.highlight;chart.removeOverlay({id:'ai-price'});if(highlight>0)chart.createOverlay({id:'ai-price',name:'horizontalStraightLine',lock:true,points:[{value:highlight}]});}
- showQuote(selected>=0?selected:rows.length-1);chart.resize();
+ showQuote(selected>=0?selected:rows.length-1);chart.resize();forceRepaint();setTimeout(forceRepaint,150);setTimeout(forceRepaint,500);
  }catch(e){statusText('图表加载失败，请切换基础图表');console.error(e.stack||String(e));}}
 </script></body></html>
