@@ -71,3 +71,6 @@ persisted_output.json
 
 # Codex 会话验证截图（本地验证产物，不入库）
 artifacts/
+
+# 历史调试帧序列产物
+v_frames_seq/
