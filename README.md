@@ -4,7 +4,7 @@
 
 https://github.com/user-attachments/assets/23088982-636d-4207-836d-b153984626b7
 
-> 完整演示约 18 分钟，可直接在上方播放，也可[打开视频](https://github.com/user-attachments/assets/23088982-636d-4207-836d-b153984626b7)。各功能详细介绍见 [`docs/使用指南.md`](docs/使用指南.md)。
+> 完整演示约 18 分钟，可直接在上方播放器观看。各功能详细介绍见 [`docs/使用指南.md`](docs/使用指南.md)。
 
 ---
 
