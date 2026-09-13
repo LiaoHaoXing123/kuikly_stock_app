@@ -230,8 +230,8 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
                                 "W" -> 26
                                 "M" -> 12
                                 else -> 30
-                            }.coerceAtMost(hist.size)
-                            klineStartIndex = (hist.size - klineVisibleCount).coerceAtLeast(0)
+                            }.coerceAtMost(getAggregatedKline().size)
+                            klineStartIndex = (getAggregatedKline().size - klineVisibleCount).coerceAtLeast(0)
                             detailEpoch++
                         }
                     }
@@ -370,16 +370,14 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
                 val data = StockRepository.loadStockDetail(stockCode)
                 delay(0)
                 if (data != null) {
-                    stockDetail = data
+                    val history = retainLongerHistory(stockDetail?.kline.orEmpty(), data.kline.orEmpty())
+                    stockDetail = data.copy(kline = history)
+                    liveBackfilled = history.size >= 60
                     industrySnapshot = runCatching { com.kuikly.stock.data.StockDb.industryPeers(stockCode) }.getOrNull()
                     sectorSnapshot = runCatching { com.kuikly.stock.data.StockDb.sectorOfStock(stockCode) }.getOrNull()
                     // 初始化K线视口
-                    val total = data.kline?.size ?: 0
-                    klineVisibleCount = when {
-                        total >= 60 -> 30
-                        total >= 30 -> total
-                        else -> total
-                    }
+                    val total = getAggregatedKline().size
+                    klineVisibleCount = (when (klinePeriod) { "W" -> 26; "M" -> 12; else -> 30 }).coerceAtMost(total)
                     klineStartIndex = (total - klineVisibleCount).coerceAtLeast(0)
                     selectedKlineIndex = -1
                     klineInfoText = ""

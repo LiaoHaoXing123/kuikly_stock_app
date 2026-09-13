@@ -147,7 +147,7 @@ class RiskCenterPage : BasePager() {
         val (code, shares, cost) = input
         val detail = runCatching { StockDb.stockDetail(code) }.getOrNull()
         val name = detail?.info?.name ?: code
-        WatchStore.updateHolding(WatchHolding(code, name, shares, cost))
+        WatchStore.updateHolding(WatchHolding(code, name, shares, cost, WatchStore.find(code)?.startDate.orEmpty()))
         showAddDialog = false
         addMessage = ""
         refreshMessage = "已添加 $name 持仓"
@@ -169,7 +169,7 @@ class RiskCenterPage : BasePager() {
             editMessage = "请输入有效股数和成本价；股数填0清空持仓并保留自选仓"
             return
         }
-        WatchStore.updateHolding(WatchHolding(input.code, editName, input.shares, input.cost))
+        WatchStore.updateHolding(WatchHolding(input.code, editName, input.shares, input.cost, if (input.shares > 0) WatchStore.find(input.code)?.startDate.orEmpty() else ""))
         showEditDialog = false
         reload()
     }

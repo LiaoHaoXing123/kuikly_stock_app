@@ -5,6 +5,14 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class DetailChartTest {
+    @Test fun localRefreshPreservesBackfilledHistoryButNewerDataWins() {
+        val history = listOf(bar("2026-08-31"), bar("2026-09-01"), bar("2026-09-02"))
+        assertEquals(history, retainLongerHistory(history, history.takeLast(1)))
+        val newer = listOf(bar("2026-09-03"))
+        assertEquals(newer, retainLongerHistory(history, newer))
+        assertEquals(2, aggregateToMonthly(history).size)
+        assertEquals(1, aggregateToWeekly(history).size)
+    }
     @Test fun followupKeepsFullRangeStatisticsBeyondBoundedCandles() {
         val data = (1..20).map { bar("2026-09-${it.toString().padStart(2, '0')}") }
         val range = summarizeRange(data, 0, 19)!!

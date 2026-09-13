@@ -5,6 +5,11 @@ import com.kuikly.stock.data.fmtSignedPct
 
 internal fun normalizedTradeDate(date: String): String = date.filter { it in '0'..'9' }.take(8)
 
+/** Keep a completed backfill across a local quote refresh, but never keep an older end date. */
+internal fun retainLongerHistory(current: List<KLineDataItem>, incoming: List<KLineDataItem>): List<KLineDataItem> =
+    if (current.size > incoming.size && normalizedTradeDate(current.lastOrNull()?.tradeDate.orEmpty()) >=
+        normalizedTradeDate(incoming.lastOrNull()?.tradeDate.orEmpty())) current else incoming
+
 /** Gregorian ordinal; week zero starts on Monday 0001-01-01. No JVM date APIs. */
 private fun weekKey(date: String): String {
     val digits = normalizedTradeDate(date)

@@ -40,7 +40,7 @@ class CivilDateTest {
 
 class HoldingCalendarLogicTest {
     private fun holding(code: String, shares: Double = 100.0, cost: Double = 10.0, name: String = "测") =
-        WatchHolding(code, name, shares, cost)
+        WatchHolding(code, name, shares, cost, "2026-01-01")
 
     private fun quote(price: Double, change: Double, pct: Double, name: String = "测") =
         QuoteProbe(name, price, change, pct, name)

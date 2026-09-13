@@ -7,7 +7,8 @@ internal data class WatchHolding(
     val code: String,
     val name: String,
     val shares: Double = 0.0,
-    val cost: Double = 0.0
+    val cost: Double = 0.0,
+    val startDate: String = "",
 )
 
 internal data class PriceAlertRule(
@@ -68,7 +69,7 @@ internal open class WatchRepository(
     }
 
     fun clearHolding(code: String) {
-        find(code)?.let { updateHolding(it.copy(shares = 0.0, cost = 0.0)) }
+        find(code)?.let { updateHolding(it.copy(shares = 0.0, cost = 0.0, startDate = "")) }
     }
 
     fun alerts(): List<PriceAlertRule> = parseAlerts(read(KEY_ALERT))
@@ -108,7 +109,8 @@ internal open class WatchRepository(
                 .put("code", h.code)
                 .put("name", h.name)
                 .put("shares", h.shares)
-                .put("cost", h.cost))
+                .put("cost", h.cost)
+                .put("startDate", h.startDate))
         }
         return JSONObject().put("items", arr).toString()
     }
@@ -125,7 +127,8 @@ internal open class WatchRepository(
                         code = o.optString("code", ""),
                         name = o.optString("name", ""),
                         shares = o.optDouble("shares", 0.0),
-                        cost = o.optDouble("cost", 0.0)
+                        cost = o.optDouble("cost", 0.0),
+                        startDate = o.optString("startDate", ""),
                     ))
                 }
             }

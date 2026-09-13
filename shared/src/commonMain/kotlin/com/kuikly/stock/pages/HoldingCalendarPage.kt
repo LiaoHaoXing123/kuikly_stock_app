@@ -177,7 +177,7 @@ class HoldingCalendarPage : BasePager() {
                         calendarHeat(ctx)
                         Text {
                             attr {
-                                text("颜色越深，当天盈亏幅度越大。点格子看哪只股票贡献了多少。彩色圆点标记涨跌停、提醒、除权和财报日。")
+                                text("按各股起始日、当前股数和成本估算组合盈亏，不含加减仓、费用和分红收益。缺少任一持仓当日行情时留空；点格子查看各股贡献。")
                                 fontSize(11f)
                                 color(AppColor.TEXT_MUTED)
                                 margin(top = 14f, bottom = 8f)
@@ -203,9 +203,8 @@ class HoldingCalendarPage : BasePager() {
         lifecycleScope.launch {
             try {
                 val pack = pageResult {
-                    HoldingCalendar.syncQuietly()
                     // 用当前持仓 + 日线收盘价历史补齐最近的交易日，让用户能看到「上一天亏了多少」，
-                    // 而不是只有接入当天一个格子。只补缺失日期，不覆盖 sync 记下的真实快照。
+                    // 而不是只有接入当天一个格子。按起始日期与当前配置重新计算。
                     HoldingCalendar.backfillQuietly()
                     Triple(
                         HoldingCalendar.days(),
@@ -365,9 +364,9 @@ class HoldingCalendarPage : BasePager() {
         legend.clear()
         legend.addAll(kinds.map { eventLegend(it) }.filter { it.isNotEmpty() }.distinct())
         subtitle = if (cached.isEmpty()) {
-            if (hasHoldings) "正在按当前持仓补齐最近交易日…" else "先在自选仓里填持仓，就能看到每天盈亏。"
+            if (hasHoldings) "请补齐每只持仓的起始日期；行情完整后计算组合盈亏" else "先在自选仓里填持仓，就能看到每天盈亏。"
         } else {
-            "已记录 ${cached.size} 个交易日 · 结合当前持仓估算历史"
+            "已记录 ${cached.size} 个交易日 · 按各股持仓起始日估算"
         }
     }
 }
@@ -393,7 +392,7 @@ private fun eventDotColor(kind: String): Long = when (kind) {
 private fun ViewContainer<*, *>.calendarEmpty(ctx: HoldingCalendarPage) {
     emptyStatePanel(
         title = "还没有可记的持仓",
-        message = "在自选仓里填股数和成本。日历会结合当前持仓和日线收盘价，算出最近每个交易日的盈亏。",
+        message = "在自选仓分别填写每只股票的股数、成本和起始日期，日历从各自持仓日起汇总组合盈亏。",
         actionLabel = "去自选仓设置持仓",
         press = ctx.press,
         actionTag = "cal_empty",

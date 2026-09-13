@@ -24,7 +24,7 @@ internal fun ViewContainer<*, *>.matureKlineChart(ctx: StockDetailPage) {
             }
             println("[chart-data] Kuikly attr 重算 period=${ctx.klinePeriod} bars=${bars.length()}")
             setProp("chartData", JSONObject().put("code", ctx.stockCode).put("period", ctx.klinePeriod)
-                .put("dark", ThemeManager.isDark).put("bars", bars)
+                .put("dark", ThemeManager.isDark).put("bars", bars).put("dailyCount", ctx.stockDetail?.kline?.size ?: 0)
                 .put("focus", ctx.selectedKlineIndex).put("highlight", ctx.highlightedPrice).toString())
         }
         event {

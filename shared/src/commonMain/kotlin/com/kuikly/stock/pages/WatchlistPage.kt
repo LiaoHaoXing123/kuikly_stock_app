@@ -73,6 +73,7 @@ class WatchlistPage : BasePager() {
     internal var editName by observable("")
     internal var editSharesText by observable("")
     internal var editCostText by observable("")
+    internal var editStartDateText by observable("")
     internal var editAlertType by observable(-1)
     internal var editThresholdText by observable("")
     internal var editRules: ObservableList<PriceAlertRule> by observableList()
@@ -255,6 +256,7 @@ class WatchlistPage : BasePager() {
         // 留空即可，输入框自己的 placeholder 会给提示；保存时 saveEdit 把空当作「仅关注」处理。
         editSharesText = if (row.shares > 0.0) trimNum(row.shares) else ""
         editCostText = if (row.cost > 0.0) fmt2(row.cost) else ""
+        editStartDateText = WatchStore.find(row.code)?.startDate.orEmpty()
         editRules.clear()
         editRules.addAll(WatchStore.alertsOf(row.code))
         editAlertType = -1
@@ -283,7 +285,14 @@ class WatchlistPage : BasePager() {
             editMessage = "提醒阈值需为有效正数"
             return
         }
-        WatchStore.updateHolding(WatchHolding(editCode, editName, input.shares, input.cost))
+        val startDate = com.kuikly.stock.data.CivilDate.parse(editStartDateText.trim())
+        val today = com.kuikly.stock.data.CivilDate.fromEpochDay((com.kuikly.stock.data.nowMillis() + 8 * 3600000L) / 86400000L)
+        if (input.shares > 0 && (startDate == null || startDate.year !in 1900..9999 || startDate > today)) {
+            editMessage = "请填写有效持仓起始日期（YYYY-MM-DD），不能晚于今天"
+            return
+        }
+        WatchStore.updateHolding(WatchHolding(editCode, editName, input.shares, input.cost,
+            if (input.shares > 0) startDate!!.iso else ""))
         val alertSaved = if (editAlertType >= 0 && threshold != null) {
             WatchStore.upsertAlert(PriceAlertRule(editCode, editName, editAlertType, threshold, true))
         } else true
@@ -652,6 +661,7 @@ internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowD
         }
 
         if (row.shares > 0) {
+            Text { attr { text(WatchStore.find(row.code)?.startDate?.takeIf { it.isNotBlank() }?.let { "持仓始于 $it" } ?: "待补持仓起始日期 · 盈亏日历尚未计算"); fontSize(10f); color(AppColor.TEXT_SUB); marginBottom(4f) } }
             View {
                 attr { flexDirectionRow(); marginTop(10f) }
                 Text { attr { text("持仓 ${trimHoldNum(row.shares)} 股 · 成本 ${fmt2(row.cost)}"); fontSize(11f); color(AppColor.TEXT_SUB); flex(1f) } }
@@ -794,6 +804,13 @@ internal fun ViewContainer<*, *>.watchEditDialog(ctx: WatchlistPage) {
                 placeholder = "每股成本，如 3.20",
                 onTextChange = { ctx.editCostText = it },
             )
+            dialogField(
+                label = "持仓起始日期",
+                value = { ctx.editStartDateText },
+                placeholder = "YYYY-MM-DD，如 2026-09-01",
+                onTextChange = { ctx.editStartDateText = it },
+            )
+            Text { attr { text("每只股票分别设置日期；日历按当前股数、成本和起始日重算，不含加减仓记录。"); fontSize(10f); lineHeight(15f); color(AppColor.TEXT_SUB); marginTop(6f) } }
 
             Text {
                 attr {
