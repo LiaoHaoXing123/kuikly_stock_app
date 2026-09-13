@@ -3,15 +3,19 @@ package com.kuikly.stock.pages
 import com.kuikly.stock.base.BasePager
 
 import com.tencent.kuikly.core.annotations.Page
+import com.tencent.kuikly.core.base.Border
+import com.tencent.kuikly.core.base.BorderStyle
 import com.tencent.kuikly.core.base.Color
 import com.tencent.kuikly.core.base.ViewBuilder
 import com.tencent.kuikly.core.base.ViewContainer
 import com.tencent.kuikly.core.base.attr.AccessibilityRole
+import com.tencent.kuikly.core.base.attr.ImageUri
 import com.tencent.kuikly.core.directives.vif
 import com.tencent.kuikly.core.layout.FlexAlign
 import com.tencent.kuikly.core.pager.Pager
 import com.tencent.kuikly.core.reactive.collection.ObservableList
 import com.tencent.kuikly.core.reactive.handler.observableList
+import com.tencent.kuikly.core.views.Image
 import com.tencent.kuikly.core.views.Scroller
 import com.tencent.kuikly.core.views.Text
 import com.tencent.kuikly.core.views.View
@@ -72,6 +76,7 @@ class UserGuidePage : BasePager() {
                         guideStep("6", "如需在线分析，进入“我的 → API 配置”，配置服务并测试连通。")
                         guideStep("7", "回到个股详情，点击“AI分析”，阅读结论后点击价位或证据日期，对照图表核查。")
                         guideNote("不配置在线 API 也可以浏览本地行情。在线 AI 请求可能消耗所配置服务的额度。")
+                        guideImage("guide-home", "首页：顶部为数据日期与刷新，中部研究工作台，底部五个主 Tab")
                     }
 
                     guideSection(ctx, "g02", "二", "五个主要入口", "各 Tab 能做什么") {
@@ -96,6 +101,7 @@ class UserGuidePage : BasePager() {
                         guideStep("5", "使用左上角“返回”回到上一页。")
                         guidePara("列表通常以红色表示上涨、绿色表示下跌、灰色表示平盘。遇到价格为 0、数据为空或长期不变的股票，应先检查数据是否缺失、标的是否停牌或退市，不能直接把显示值当作可成交报价。")
                         guideNote("“000001”存在股票与指数代码重叠：平安银行为 000001.SZ，上证指数为 000001.SH。AI 提问时优先写名称，或加市场后缀。")
+                        guideImage("guide-market", "行情列表：搜索框、排序栏与涨（红）/跌（绿）/平（灰）图例")
                     }
 
                     guideSection(ctx, "g04", "四", "个股详情：从上到下怎么看", "区域与使用要点") {
@@ -117,6 +123,7 @@ class UserGuidePage : BasePager() {
                             )
                         )
                         guideNote("AI 结论生成后，行情旁和 K 线附近会显示关联提示。历史结论可能沿用旧数据，看到“日期不同”等提示时，应先核对日期，再决定是否重新分析。")
+                        guideImage("guide-detail-top", "个股详情：行情快照（含数据时间）、官方板块、公司事件与 K 线入口")
                     }
 
                     guideSection(ctx, "g05", "五", "K线操作详解", "周期、指标、手势与 AI 联动") {
@@ -130,6 +137,7 @@ class UserGuidePage : BasePager() {
                         guideBullet("左右箭头：移动可见区间。")
                         guideBullet("重置：恢复图表视口，便于重新观察。")
                         guideNote("显示根数受本地历史长度限制。例如总共只有 23 根，缩小视图也不会显示数年历史。")
+                        guideImage("guide-kline", "K线基础图：周期切换、副图（关/MACD/KDJ/RSI）、趋势与量开关、左侧 ± 缩放按钮")
                         guidePara("触摸手势：")
                         guideTable(
                             listOf("操作", "预期效果", "注意事项"),
@@ -150,6 +158,7 @@ class UserGuidePage : BasePager() {
                         guideStep("4", "在“AI引用的行情依据”中点击“定位某日期的K线与成交量”，跳转到对应位置。")
                         guideStep("5", "日期定位会使用日K；如果本地没有该日数据，会显示提示，不会补造K线。")
                         guideNote("价位虚线是分析参考，不是委托单，也不会自动交易。")
+                        guideImage("guide-kline-pro", "专业图：VOL、趋势线、水平线、斐波那契与清除画线、重置工具")
                     }
 
                     guideSection(ctx, "g06", "六", "分时、盘口与技术指标", "三类数据的边界") {
@@ -163,6 +172,7 @@ class UserGuidePage : BasePager() {
                         guidePara("技术指标：")
                         guideBullet("先看数值，再切换K线中的 MACD、KDJ 或 RSI 副图进行对照。")
                         guideBullet("缺数据或样本太短时，指标解释能力有限；RSI 既有数值也可切换副图（6/12/24 三线）。")
+                        guideImage("guide-timeshare", "分时图：价格曲线、均价、成交量与“行情依据·与K线联动”提示")
                     }
 
                     guideSection(ctx, "g07", "七", "主力资金", "周期、日期定位和追问") {
@@ -175,6 +185,7 @@ class UserGuidePage : BasePager() {
                         guidePara("横条表示该窗口内净流入金额绝对值的相对大小；红色为净流入、绿色为净流出。切换窗口后横条的比例会重新计算，不适合跨窗口直接比较长度。")
                         guidePara("金额会以万、亿等形式显示；净占比是百分比。区间累计是已展示交易日的净流入合计。选择“近10日”但实际只有 5 日时，应按 5 日解读，不能当成完整 10 日数据。")
                         guideNote("当前以日级主力数据为主，不保证每只股票都有资金数据，也不保证超大单、大单、中单、小单分档齐全。“最近交易日”不一定是今天；没有数据时会显示空状态。")
+                        guideImage("guide-funds", "盘口（可标注/提醒）→ 技术指标 → 主力资金（近1/5/10日切换）")
                     }
 
                     guideSection(ctx, "g08", "八", "同业比较与官方板块", "样本均值、板块快照、排行与跳转") {
@@ -221,6 +232,8 @@ class UserGuidePage : BasePager() {
                         guideBullet("从“历史”打开会话列表，管理新建、切换、置顶、重命名或删除。")
                         guideBullet("会话更多菜单提供 Markdown 导出或 JSON 备份等操作。")
                         guideNote("离线模式使用本地数据与模板，能力和表达深度不同于在线模型，也不会自动获得最新网络信息。")
+                        guideImage("guide-ai", "AI研究室：模型标识、历史入口、快捷问题与输入区")
+                        guideImage("guide-ai-drawer", "历史对话抽屉：新建对话、会话列表与当前会话标记")
                     }
 
                     guideSection(ctx, "g10", "十", "分析历史与自选提醒", "历史、持仓、提醒、日历") {
@@ -236,6 +249,8 @@ class UserGuidePage : BasePager() {
                         guideBullet("统计头给出日胜率、连盈连亏、最大单日盈亏和当月合计；下方热力图用红绿深浅表示幅度。")
                         guideBullet("涨跌停、提醒触发、除权除息和财报日都会在日历格子上打点。")
                         guideNote("提醒依赖应用对最新本地数据进行检查，不能视为持续后台实时监控，也不能保证锁屏后即时推送。日历只累积接入后的交易日。")
+                        guideImage("guide-watch", "自选仓：持仓总览、关注列表、提醒与设置入口")
+                        guideImage("guide-calendar", "盈亏日历：统计头、月份热力图，空状态引导去自选仓设置持仓")
                     }
 
                     guideSection(ctx, "g11", "十一", "组合风险", "市值、集中度与回撤") {
@@ -255,6 +270,7 @@ class UserGuidePage : BasePager() {
                         guidePara("生成时间较新，不代表底层行情较新。不同模块来自不同数据链路，日期可能不一致。")
                         guidePara("点击刷新是获取已发布数据，并不保证每个模块同时更新。离线时仍可读本地数据，但无法获取新的在线结果。")
                         guideNote("本文的新资金和同业能力以 Android 版为准；不要据此假定 iOS、Web 具有同等数据覆盖和手势表现。")
+                        guideImage("guide-profile", "我的：API 配置、数据更新（日期/状态）、在线/离线模式与主题切换")
                     }
 
                     guideSection(ctx, "g13", "十三", "常见问题", "问题与处理顺序") {
@@ -467,6 +483,46 @@ private fun ViewContainer<*, *>.guideNote(text: String) {
             backgroundColor(AppColor.INFO_BG)
         }
         Text { attr { text(text); fontSize(12f); lineHeight(19f); color(AppColor.PRIMARY_TEXT) } }
+    }
+}
+
+/**
+ * 指南配图：以 9:20 竖屏比例渲染成居中的手机截图缩略图（assets/guide 下打包），
+ * 下方可附一行说明文字。圆角 + 描边保证深浅主题下都可辨识。
+ */
+private fun ViewContainer<*, *>.guideImage(asset: String, caption: String? = null) {
+    View {
+        attr {
+            marginTop(12f)
+            flexDirectionColumn()
+            alignItems(FlexAlign.CENTER)
+        }
+        View {
+            attr {
+                width(118f)
+                height(262f)
+                borderRadius(10f)
+                border(Border(1f, BorderStyle.SOLID, Color(AppColor.DIVIDER)))
+                backgroundColor(AppColor.SURFACE)
+            }
+            Image {
+                attr {
+                    size(118f, 262f)
+                    src(ImageUri.commonAssets("guide/$asset"))
+                }
+            }
+        }
+        if (caption != null) {
+            Text {
+                attr {
+                    text(caption)
+                    fontSize(11f)
+                    color(AppColor.TEXT_SUB)
+                    marginTop(6f)
+                    textAlignCenter()
+                }
+            }
+        }
     }
 }
 
