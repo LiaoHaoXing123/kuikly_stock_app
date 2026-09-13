@@ -7,6 +7,7 @@ package com.kuikly.stock.ui.component
 
 import com.tencent.kuikly.core.base.Animation
 import com.tencent.kuikly.core.base.Attr
+import com.tencent.kuikly.core.base.BackPressCallback
 import com.tencent.kuikly.core.base.Scale
 import com.tencent.kuikly.core.coroutines.delay
 import com.tencent.kuikly.core.coroutines.launch
@@ -29,8 +30,15 @@ import com.kuikly.stock.ui.theme.AppMotion
  * 一个浮层一个实例。共用一份驱动值会在「A 开着时关掉 B」的瞬间把 A 也拉回起始态。
  *
  * @param exitMs 退场动画时长；`hide()` 要等它过去才卸载。抽屉比弹窗慢，用它区分。
+ * @param onBack 浮层打开期间按下系统返回键的动作。传了之后浮层**挂载期间**注册到
+ *               [Pager.getBackPressHandler]，BACK 会被消费（不再落到页面导航），
+ *               退场动画播完、浮层卸载后自动移除。不传则不拦截 BACK（弹窗默认行为）。
  */
-internal class Overlay(private val pager: Pager, private val exitMs: Int = OVERLAY_EXIT_MS) {
+internal open class Overlay(
+    private val pager: Pager,
+    private val exitMs: Int = OVERLAY_EXIT_MS,
+    onBack: (() -> Unit)? = null,
+) {
 
     /** 挂载标志（vif 条件）。退场动画期间保持 true。 */
     private var mounted by pager.observable(false)
@@ -42,6 +50,19 @@ internal class Overlay(private val pager: Pager, private val exitMs: Int = OVERL
     private var away by pager.observable(false)
 
     private var generation = 0
+
+    /** BACK 拦截回调：挂载时注册、卸载时移除。`handleOnBackPressed` 只调 [onBack]。 */
+    internal var backCallback: BackPressCallback? = null
+
+    init {
+        if (onBack != null) {
+            backCallback = object : BackPressCallback() {
+                override fun handleOnBackPressed() {
+                    onBack()
+                }
+            }
+        }
+    }
 
     /** 供 vif 判断是否挂载。 */
     internal val isVisible: Boolean get() = mounted
@@ -58,6 +79,7 @@ internal class Overlay(private val pager: Pager, private val exitMs: Int = OVERL
         away = false
         mounted = true
         tick++
+        registerBack()
     }
 
     internal fun hide() {
@@ -72,11 +94,29 @@ internal class Overlay(private val pager: Pager, private val exitMs: Int = OVERL
             away = false
             // 归位，供下次打开重放（此刻视图已卸载，不会闪）
             if (tick != 0) tick = 0
+            unregisterBack()
         }
     }
 
     internal fun toggle() {
         if (mounted) hide() else show()
+    }
+
+    /**
+     * 浮层挂载期间注册 BACK 拦截。
+     *
+     * 只拦截浮层打开的那段窗口：关闭（含退场动画）之后立刻交还 BACK，
+     * 页面导航恢复原有返回行为，不会出现「抽屉关了 BACK 却失灵」。
+     */
+    private fun registerBack() {
+        val cb = backCallback ?: return
+        val handler = pager.getBackPressHandler()
+        if (!handler.containsCallback(cb)) handler.addCallback(cb)
+    }
+
+    private fun unregisterBack() {
+        val cb = backCallback ?: return
+        pager.getBackPressHandler().removeCallback(cb)
     }
 }
 

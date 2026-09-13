@@ -17,6 +17,7 @@ package com.kuikly.stock.ui.component
 import com.kuikly.stock.ui.theme.AppMotion
 import com.tencent.kuikly.core.base.Animation
 import com.tencent.kuikly.core.base.Attr
+import com.tencent.kuikly.core.base.BackPressCallback
 import com.tencent.kuikly.core.base.Translate
 import com.tencent.kuikly.core.base.ViewContainer
 import com.tencent.kuikly.core.pager.Pager
@@ -49,8 +50,18 @@ private val SCRIM_EXIT_ANIMATION: Animation = Animation.easeIn(AppMotion.SCRIM_M
  *
  * 与弹窗的区别只在退场时长：`Overlay.hide()` 要等退场动画播完才卸载视图，
  * 抽屉滑出比弹窗淡出慢，用默认的 130ms 会在半路上把面板摘掉（看起来是「闪没了」）。
+ *
+ * 抽屉同时绑定系统返回键：打开期间按 BACK 只关抽屉，不退回页面；
+ * 抽屉关掉后 BACK 恢复原导航行为（见 [Overlay.onBack]）。
  */
-internal fun drawerState(pager: Pager): Overlay = Overlay(pager, AppMotion.DRAWER_OUT_MS)
+internal fun drawerState(pager: Pager): Overlay =
+    Overlay(pager, AppMotion.DRAWER_OUT_MS, onBack = null).apply {
+        backCallback = object : BackPressCallback() {
+            override fun handleOnBackPressed() {
+                hide()
+            }
+        }
+    }
 
 /**
  * 遮罩的进场/退场：只做淡入淡出，不位移。
@@ -94,12 +105,13 @@ internal fun Attr.drawerEnterExit(drawer: Overlay, side: DrawerSide) {
  *         pageWidth = ctx.pagerData.pageViewWidth,
  *         side = DrawerSide.LEFT,
  *         onScrimTap = { ctx.drawer.hide() },
- *         onBack = { ctx.drawer.hide() },
  *     ) {
  *         // 抽屉内部内容
  *     }
  * }
  * ```
+ *
+ * 系统返回键由 [drawerState] 统一绑定为「关抽屉」，这里不用再传。
  *
  * @param pageWidth   屏幕宽度（`pagerData.pageViewWidth`）。抽屉宽度 = pageWidth × [widthRatio]
  * @param side        从哪一侧滑入；面板也贴那一侧

@@ -76,6 +76,24 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
         NavTransition.pendingClose(this, navMotion())
     }
 
+    /**
+     * 系统返回键：先交给 Kuikly 引擎消费。
+     *
+     * 页面浮层（侧边抽屉、弹窗）打开期间，JS 侧会往 BackPressHandler 注册回调；
+     * 引擎 [KuiklyRenderViewBaseDelegator.onBackPressed] 发现回调列表非空就返回
+     * true（已消费），BACK 只关浮层、不退出页面。浮层关掉后回调移除，引擎返回
+     * false，这里才走默认行为 finish 返回上一页。
+     *
+     * 之前没接这个入口：抽屉开着按 BACK 会直接 finish 整个页面，与「先关抽屉」
+     * 的预期不符。
+     */
+    @Suppress("DEPRECATION")
+    override fun onBackPressed() {
+        if (!kuiklyRenderViewDelegator.onBackPressed()) {
+            super.onBackPressed()
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         kuiklyRenderViewDelegator.onDetach()
