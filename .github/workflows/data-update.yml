@@ -40,6 +40,13 @@ jobs:
       - name: Build stock.db + version.json
         run: python data-pipeline/build_stock_db.py
 
+      # 公司事件（分红除权/财报披露）写入同一个 stock.db；漏跑这一步会导致
+      # 发布库缺 stock_dividend/stock_earnings 表，详情页事件卡与 AI 事件工具全部空转。
+      # 容错：事件拉取失败不阻断行情发布（ensure_schema 仍会建好表，端上表现为"未收录"）。
+      - name: Build company events (dividend + earnings)
+        run: python data-pipeline/build_events.py
+        continue-on-error: true
+
       - name: Run data quality gate tests
         run: python data-pipeline/test_quality_gate.py
 

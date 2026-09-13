@@ -68,6 +68,16 @@ object DetailProtocolV2 {
                 ),
             ),
             CardSchema(
+                type = "event_card",
+                required = mapOf(
+                    "events" to FieldRule.ObjList(
+                        required = mapOf("date" to FieldRule.DateIn(null), "label" to FieldRule.Text),
+                        optional = mapOf("kind" to FieldRule.Enum(setOf("分红除权", "财报"))),
+                        min = 1, max = 4,
+                    ),
+                ),
+            ),
+            CardSchema(
                 type = "evidence_card",
                 required = mapOf(
                     "items" to FieldRule.ObjList(
@@ -107,6 +117,7 @@ object DetailProtocolV2 {
     ]},
     {"type":"level_card","action":"买入|卖出|持有|观望","target_value":数字,"stop_loss_value":数字,"support_value":数字,"resistance_value":数字,"data_date":"YYYY-MM-DD"},
     {"type":"risk_card","risk_level":"低|中|高","risks":["风险1","风险2"]},
+    {"type":"event_card","events":[{"date":"YYYY-MM-DD","kind":"分红除权|财报","label":"事件说明"}]},
     {"type":"evidence_card","items":[{"date":"YYYY-MM-DD","fact":"当日事实","metric":"指标名","value":"指标值"}]},
     {"type":"summary_card","summary":"总结"}
   ]
@@ -114,9 +125,9 @@ object DetailProtocolV2 {
 
 硬性约束：
 1. 所有价格字段必须是 JSON number，禁止字符串、禁止带"元"或"约"。
-2. 所有日期字段必须是下方【K线数据】中真实出现的交易日，禁止编造、禁止使用未来日期。
+2. 所有日期字段必须是下方【K线数据】中真实出现的交易日，禁止编造、禁止使用未来日期；event_card 的 date 例外，必须原样引用【公司事件】中给出的事件日期（除权日/披露日可以不是K线交易日）。
 3. signals 每条尽量带 start_date/end_date 指向该信号在K线上形成的区间；确实无法定位时省略日期字段，不得填假日期。
-4. cards 最多 6 张且每种类型最多 1 张；signals 最多 6 条；risks 最多 5 条；evidence items 最多 6 条。
+4. cards 最多 6 张且每种类型最多 1 张；signals 最多 6 条；risks 最多 5 条；evidence items 最多 6 条；event_card 仅在提供了【公司事件】数据时才输出，events 最多 4 条。
 5. 不得输出上述未定义的字段。
 """.trimIndent()
 }

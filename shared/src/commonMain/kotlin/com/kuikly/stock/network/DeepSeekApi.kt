@@ -149,10 +149,11 @@ object DeepSeekApi {
                 config = config,
                 messages = listOf("user" to "只回复 OK"),
                 tools = null,
-                maxTokens = 8,
+                // 预算给足：推理型模型（如 deepseek-flash）会先消耗 token 生成思考链
+                maxTokens = 512,
             )
             val message = postChat(config, body)
-            if (extractContent(message).isNullOrBlank()) {
+            if (extractContent(message).isNullOrBlank() && extractReasoning(message).isNullOrBlank()) {
                 throw IllegalStateException("服务响应格式不兼容")
             }
             AiConnectionResult(
@@ -172,6 +173,10 @@ object DeepSeekApi {
             )
         }
     }
+
+    /** 推理型模型把输出放在 reasoning_content；测试连接时视为有效响应。 */
+    private fun extractReasoning(m: JsonObject): String? =
+        (m["reasoning_content"] as? kotlinx.serialization.json.JsonPrimitive)?.content
 
     suspend fun analyzeStock(detail: StockDetailData): AIAnalysisData {
         val messages = buildAnalysisPrompt(detail)
@@ -201,6 +206,7 @@ object DeepSeekApi {
             }
 
         // ---------- L3: 抛出异常让 StockRepository 走离线模板 ----------
+        println("[AI] v2/legacy 解析失败 rawLen=${raw.length} head=${raw.take(160)} tail=${raw.takeLast(160)}")
         throw IllegalStateException("AI 返回的分析不完整，请重试")
     }
 
@@ -440,6 +446,8 @@ $klineText
             append("\n- 区间累计: ${fmtMoney(sum)}（${if (sum >= 0) "净流入" else "净流出"}）")
         } else ""
 
+        val eventsText = buildEventsText(code)
+
         val system = """你是一位专业的股票分析师，请对以下股票进行全面的综合分析。
 
 ${DetailProtocolV2.PROMPT}"""
@@ -472,14 +480,37 @@ $fundFlowText
 
 $industryText
 
-请根据以上数据进行全面分析：结合技术指标**序列**判断均线排列与交叉时点、MACD金叉死叉位置、RSI超买超卖、KDJ钝化；结合当日分时摘要判断盘中强弱与量价配合；结合盘口委比与主力资金流向判断买卖压力。标注「程序计算/程序采集」的数据是真实数据，请直接引用，禁止修改或编造数值。"""
+$eventsText
+
+请根据以上数据进行全面分析：结合技术指标**序列**判断均线排列与交叉时点、MACD金叉死叉位置、RSI超买超卖、KDJ钝化；结合当日分时摘要判断盘中强弱与量价配合；结合盘口委比与主力资金流向判断买卖压力。标注「程序计算/程序采集」的数据是真实数据，请直接引用，禁止修改或编造数值。若提供了【公司事件】，结合临近的除权或披露事件解释异动，并按协议输出 event_card。"""
 
         return listOf("system" to system, "user" to user)
     }
 
+    /** 公司事件（分红除权/财报披露），区分未发生与已发生；未收录时明确告知模型不得臆断。 */
+    private fun buildEventsText(code: String): String {
+        val snap = com.kuikly.stock.data.MarketRepository.events(code)
+        if (!snap.covered) {
+            return "\n## 公司事件\n本地事件库未收录该股的事件（覆盖有限，截至 ${snap.asOf}）。" +
+                "请勿断言该股没有分红或财报事件，也不要输出 event_card。"
+        }
+        fun kindLabel(kind: String) = if (kind == "dividend") "分红除权" else "财报"
+        return buildString {
+            append("\n## 公司事件（程序采集，数据截至 ${snap.asOf}）")
+            if (snap.upcoming.isNotEmpty()) {
+                append("\n### 未发生")
+                snap.upcoming.forEach { append("\n- ${it.date} ${kindLabel(it.kind)}：${it.label}") }
+            }
+            if (snap.recent.isNotEmpty()) {
+                append("\n### 已发生")
+                snap.recent.forEach { append("\n- ${it.date} ${kindLabel(it.kind)}：${it.label}") }
+            }
+            append("\nevent_card 中的日期必须原样引用上列日期，禁止编造。")
+        }
+    }
+
     /** 近 20 日技术指标序列；序列不可用时退回详情自带的最新一条。 */
-    private fun buildIndicatorSeriesText(code: String, latest: IndicatorData?): String {
-        val series: List<IndicatorData> = runCatching { StockDb.indicators(code, 20) }.getOrDefault(emptyList())
+    private fun buildIndicatorSeriesText(code: String, latest: IndicatorData?): String {        val series: List<IndicatorData> = runCatching { StockDb.indicators(code, 20) }.getOrDefault(emptyList())
         val rows = if (series.isNotEmpty()) series else listOfNotNull(latest)
         if (rows.isEmpty()) return "（暂无技术指标数据）"
         return buildString {

@@ -430,7 +430,7 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
                 attr { flexDirectionColumn() }
                 aiEvidencePanel({ ctx.aiAnalysis }) { ctx.focusEvidenceDate(it) }
                 // 按类型分组，固定顺序：趋势、信号、建议、风险、总结
-                val orderedTypes = listOf("trend_card", "signal_card", "suggestion_card", "level_card", "risk_card", "summary_card")
+                val orderedTypes = listOf("trend_card", "signal_card", "event_card", "suggestion_card", "level_card", "risk_card", "summary_card")
                 val grouped = analysis.cards.filter { it["type"] != "evidence_card" }.groupBy { it["type"] as? String ?: "unknown" }
                 orderedTypes.forEach { t ->
                     grouped[t]?.forEachIndexed { idx, card ->
@@ -483,6 +483,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
         "suggestion_card" -> "操作建议"
         "level_card" -> "关键价位"
         "risk_card" -> "风险提示"
+        "event_card" -> "公司事件"
         "summary_card" -> "总结"
         else -> "分析"
     }
@@ -568,6 +569,53 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
         }
         "signal_card" -> {
             signalCardV2(ctx, card)
+        }
+        "event_card" -> {
+            val events = (card["events"] as? List<*>)?.mapNotNull { it as? Map<*, *> } ?: emptyList()
+            View {
+                attr {
+                    flexDirectionColumn()
+                    marginTop(8f)
+                    backgroundColor(AppColor.SURFACE)
+                    borderRadius(12f)
+                    padding(12f, 14f, 12f, 14f)
+                    border(Border(1f, BorderStyle.SOLID, Color(AppColor.PRIMARY_BG)))
+                }
+                View {
+                    attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
+                    View {
+                        attr { width(4f); height(16f); backgroundColor(AppColor.VIOLET); borderRadius(2f); marginRight(8f) }
+                    }
+                    Text {
+                        attr { text(title); fontSize(14f); fontWeightBold(); color(AppColor.PRIMARY_SOFT); flex(1f) }
+                    }
+                }
+                events.forEach { e ->
+                    val date = e["date"]?.toString().orEmpty()
+                    val kind = e["kind"]?.toString().orEmpty()
+                    val label = e["label"]?.toString().orEmpty()
+                    View {
+                        attr {
+                            flexDirectionRow(); alignItems(FlexAlign.CENTER)
+                            marginTop(8f); padding(7f, 10f, 7f, 10f)
+                            backgroundColor(AppColor.SURFACE_SOFT); borderRadius(8f)
+                        }
+                        event { click { if (date.isNotEmpty()) ctx.focusEvidenceDate(date) } }
+                        vif({ kind.isNotEmpty() }) {
+                            View {
+                                attr { padding(2f, 7f, 2f, 7f); backgroundColor(AppColor.PRIMARY_BG); borderRadius(6f); marginRight(8f) }
+                                Text { attr { text(kind); fontSize(10f); color(AppColor.PRIMARY_SOFT) } }
+                            }
+                        }
+                        Text {
+                            attr { text("$date  $label"); fontSize(12f); color(AppColor.TEXT_INK); flex(1f); lineHeight(17f) }
+                        }
+                    }
+                }
+                Text {
+                    attr { text("点击事件可定位到对应日期的K线"); fontSize(10f); color(AppColor.TEXT_HINT); marginTop(8f) }
+                }
+            }
         }
         "suggestion_card" -> {
             val suggestion = card["suggestion"] as? String ?: "-"

@@ -972,6 +972,7 @@ private fun ViewContainer<*, *>.detailContent(ctx: StockDetailPage) {
     realtimeCard(ctx)
     industryCard(ctx)
     sectorCard(ctx)
+    eventCard(ctx)
     View {
         event { layoutFrameDidChange { frame -> ctx.chartAnchorY = frame.y } }
         klineChartArea(ctx)
