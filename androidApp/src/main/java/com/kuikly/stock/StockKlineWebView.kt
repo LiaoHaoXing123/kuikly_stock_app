@@ -23,6 +23,7 @@ import kotlin.math.abs
 class StockKlineWebView(context: Context) : KRView(context) {
     private var disposed = false
     private var payload = "{}"
+    private var lastCommand = ""
     private var callback: ((Any?) -> Unit)? = null
     private var downX = 0f
     private var downY = 0f
@@ -47,6 +48,19 @@ class StockKlineWebView(context: Context) : KRView(context) {
         "chartSelection" -> {
             @Suppress("UNCHECKED_CAST")
             callback = propValue as? ((Any?) -> Unit)
+            true
+        }
+        "chartCommand" -> {
+            // attr 每次重算都会推送一次命令；用 tick 去重，只有新指令才真正执行。
+            // 注意不能用本实例 disposed 判断：详情页 8 秒刷新会销毁重建 MatureChartView，
+            // 图表实际由 ChartBridgeHolder 的共享 WebView 承载（单例），loaded 即可安全执行。
+            val cmd = propValue.toString()
+            if (cmd != lastCommand) {
+                lastCommand = cmd
+                if (ChartBridgeHolder.loaded && cmd.contains("reset")) {
+                    web.evaluateJavascript("window.chartCommand('reset')", null)
+                }
+            }
             true
         }
         else -> super.setProp(propKey, propValue)

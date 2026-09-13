@@ -90,6 +90,12 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
             attr { flexDirectionRow(); marginBottom(8f) }
             klinePeriodBar(ctx)
             View { attr { flex(1f) } }
+            // 重置视口：专业图/基础图通用（见 ctx.resetKline 分流）
+            View {
+                attr { height(34f); paddingLeft(8f); paddingRight(8f); allCenter(); backgroundColor(AppColor.PRIMARY_BG); borderRadius(8f); marginRight(6f); accessibility("重置K线视口") }
+                event { click { ctx.resetKline() } }
+                Text { attr { text("重置"); fontSize(11f); color(AppColor.PRIMARY) } }
+            }
             vif({ ctx.matureChartAvailable }) {
                 View {
                     attr { height(34f); paddingLeft(8f); paddingRight(8f); allCenter(); backgroundColor(AppColor.PRIMARY_BG); borderRadius(8f); marginRight(6f) }
@@ -147,7 +153,7 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                 }
                 chartControlButton("＋", { ctx.zoomOut() })
                 chartControlButton("▶▶", { ctx.panRight() })
-                chartControlButton("重置", { ctx.resetView() })
+                chartControlButton("重置", { ctx.resetKline() })
                 View { attr { flex(1f) } }
                 vif({ ctx.highlightedPrice > 0 }) {
                     View {

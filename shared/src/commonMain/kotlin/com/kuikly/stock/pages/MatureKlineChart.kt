@@ -26,6 +26,8 @@ internal fun ViewContainer<*, *>.matureKlineChart(ctx: StockDetailPage) {
             setProp("chartData", JSONObject().put("code", ctx.stockCode).put("period", ctx.klinePeriod)
                 .put("dark", ThemeManager.isDark).put("bars", bars).put("dailyCount", ctx.stockDetail?.kline?.size ?: 0)
                 .put("focus", ctx.selectedKlineIndex).put("highlight", ctx.highlightedPrice).toString())
+            // 重置指令：chartResetTick 每次自增都会触发一次 attr 重算，Native 端按 tick 去重后只执行最新一次
+            setProp("chartCommand", JSONObject().put("cmd", "reset").put("tick", ctx.chartResetTick).toString())
         }
         event {
             register("chartSelection") { value ->

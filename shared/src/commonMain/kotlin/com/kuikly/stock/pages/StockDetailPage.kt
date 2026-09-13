@@ -832,13 +832,41 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         klineInfoText = ""
     }
 
+    /**
+     * 重置 K 线视口：回到该周期默认可见根数，并平移到最新一根。
+     *
+     * 之前只把 startIndex 移回最新、保留用户缩放级别，缩放过的图表「重置」后
+     * 还是放大状态，和预期不符。现在连可见根数一起恢复（D:30 / W:26 / M:12，
+     * 与切周期时的默认视口一致），并清除选中/高亮/画线交互状态。
+     */
     internal fun resetView() {
         clearChartSelection()
         val total = getAggregatedKline().size
-        klineStartIndex = (total - klineVisibleCount).coerceAtLeast(0)
+        if (total <= 0) return
+        val defaultCount = when (klinePeriod) {
+            "W" -> 26
+            "M" -> 12
+            else -> 30
+        }.coerceAtMost(total)
+        animateViewport(
+            toStart = (total - defaultCount).coerceAtLeast(0).toFloat(),
+            toCount = defaultCount.toFloat(),
+        )
         selectedKlineIndex = -1
         highlightedPrice = 0.0
         highlightedPriceLabel = ""
+    }
+
+    /** 专业图重置指令序号：自增一次 = 通知 WebView 图表重置视口一次（见 MatureKlineChart）。 */
+    internal var chartResetTick by observable(0)
+
+    /** 统一重置入口：专业图走 WebView 指令，基础图走本地视口恢复。 */
+    internal fun resetKline() {
+        if (matureChartAvailable && matureChartEnabled) {
+            chartResetTick++
+        } else {
+            resetView()
+        }
     }
 
     internal fun toggleMA() {

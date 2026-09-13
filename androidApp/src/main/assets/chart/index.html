@@ -18,12 +18,13 @@ button:active{background:#d7e5f8;border-color:#9db9de;transform:scale(.96)}
 <div id="chartWrap"><div id="chart"></div><div id="zoom"><button onclick="zoomChart(1.6)">＋</button><button onclick="zoomChart(0.625)">－</button></div></div><div id="status">长按查看蜡烛 · 双指缩放 · 横拖平移</div>
 <div id="actions"><button onclick="markStart()">设为区间起点</button><button onclick="askRange()">解读区间</button><button onclick="askCandle()">解读此根</button></div>
 <script>/* ENGINE_BUNDLE */</script><script>
-let chart=null, rows=[],selected=-1,start=-1,pane=null,key='',focus=-1,highlight=0,lastMarked=-1;
+let chart=null, rows=[],selected=-1,start=-1,pane=null,key='',focus=-1,highlight=0,lastMarked=-1,period='D';
 const statusText=t=>document.getElementById('status').textContent=t;
 const fmtNum=n=>n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtVol=v=>v>=1e8?(v/1e8).toFixed(2)+'亿':v>=1e4?(v/1e4).toFixed(1)+'万':String(v);
 function showQuote(index){const b=rows[index];if(!b)return;document.getElementById('quoteDate').textContent=b.date+' · '+(index===rows.length-1?'最新':'选中');const box=document.getElementById('quoteValues');box.replaceChildren();[['开',b.open],['高',b.high],['低',b.low],['收',b.close],['量',b.volume]].forEach(([label,val])=>{const span=document.createElement('span');span.className='qv';span.textContent=label+' '+(label==='量'?fmtVol(val):fmtNum(val));box.appendChild(span);});}
 function draw(name){chart.createOverlay({name});statusText('在图表上选择画线锚点');}
+window.chartCommand=function(cmd){if(cmd!=='reset'||!chart||!rows.length)return;try{const el=document.getElementById('chart');chart.setBarSpace(Math.max(3,Math.min(28,(el.clientWidth-65)/Math.max(1,Math.min(rows.length,period==='M'?12:period==='W'?26:30)))));chart.scrollToRealTime();chart.removeOverlay();statusText('已重置视口');}catch(e){statusText('重置失败：'+(e.message||e));}};
 function zoomChart(f){if(!chart)return;const box=document.getElementById('chart');try{chart.zoomAtCoordinate(f,{x:box.clientWidth/2,y:Math.min(120,box.clientHeight/2)});statusText(f>1?'已放大':'已缩小');}catch(e){statusText('缩放失败：'+(e.message||e));}}
 function syncStartBtn(){const b=document.querySelector('#actions button');if(b)b.textContent=start>=0?'重设起点':'设为区间起点';}
 function drawRangeMarkers(){
@@ -51,7 +52,7 @@ window.renderChart=function(p){try{
  new ResizeObserver(()=>chart.resize()).observe(document.getElementById('chart'));}
  chart.setStyles(p.dark?'dark':'light');
  chart.setStyles({candle:{tooltip:{showRule:'none'},bar:{upColor:'#e65054',downColor:'#16a079',upBorderColor:'#e65054',downBorderColor:'#16a079',upWickColor:'#e65054',downWickColor:'#16a079'}},indicator:{tooltip:{text:{size:10,marginTop:3,marginBottom:3,marginLeft:4,marginRight:6}}},yAxis:{tickText:{size:10}},xAxis:{tickText:{size:10}}});
- document.getElementById('periodInfo').textContent=({D:'日K',W:'周K',M:'月K'}[p.period]||p.period)+' · '+(p.bars||[]).length+' 根 · 原始日K '+p.dailyCount+' 根';
+ period=p.period; document.getElementById('periodInfo').textContent=({D:'日K',W:'周K',M:'月K'}[p.period]||p.period)+' · '+(p.bars||[]).length+' 根 · 原始日K '+p.dailyCount+' 根';
  const nextKey=JSON.stringify([p.code,p.period,p.bars]);
  console.log('[chart] period='+p.period+' bars='+(p.bars||[]).length);
  if(nextKey!==key){key=nextKey;rows=p.bars||[];selected=-1;start=-1;focus=-1;highlight=0;chart.removeOverlay();chart.removeOverlay({id:'range_start'});chart.removeOverlay({id:'range_end'});syncStartBtn();chart.applyNewData(rows.map(b=>({...b,timestamp:Date.parse(b.date+'T00:00:00+08:00')})));chart.setBarSpace(Math.max(3,Math.min(28,(document.getElementById('chart').clientWidth-65)/Math.max(1,Math.min(rows.length,p.period==='M'?12:p.period==='W'?26:30)))));chart.scrollToRealTime();statusText('本地行情截至 '+(rows.at(-1)?.date||'未知')+' · 长按选点');}
