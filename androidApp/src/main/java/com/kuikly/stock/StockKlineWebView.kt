@@ -40,6 +40,7 @@ class StockKlineWebView(context: Context) : KRView(context) {
     override fun setProp(propKey: String, propValue: Any): Boolean = when (propKey) {
         "chartData" -> {
             val next = propValue.toString()
+            println("[chart-data] native setProp len=${next.length} changed=${next != payload}")
             if (next != payload) { payload = next; render() }
             true
         }

@@ -6,14 +6,16 @@ body{display:flex;flex-direction:column}#tools{display:flex;gap:6px;overflow-x:a
 button,select{font:12px sans-serif;border:1px solid #dce3ee;border-radius:7px;padding:8px;background:#f4f7fb;color:inherit;white-space:nowrap;min-height:34px;transition:background .08s,border-color .08s,transform .06s}
 button:active{background:#d7e5f8;border-color:#9db9de;transform:scale(.96)}
 .dark button:active{background:#31415a;border-color:#4c617f}
-#chart{flex:1;min-height:0}#status{font-size:11px;padding:7px 0;min-height:28px}#actions{display:flex;gap:6px;padding-bottom:4px}#actions button{flex:1}.dark{color:#b9c5d7}.dark button,.dark select{background:#232d3c;border-color:#39465a}
+#chartWrap{position:relative;flex:1;min-height:0;display:flex;flex-direction:column}#chart{flex:1;min-height:0}
+#zoom{position:absolute;left:8px;top:64px;display:flex;flex-direction:column;gap:6px;z-index:5}
+#zoom button{width:30px;height:44px;padding:0;font-size:15px;font-weight:bold;border-radius:9px}#status{font-size:11px;padding:7px 0;min-height:28px}#actions{display:flex;gap:6px;padding-bottom:4px}#actions button{flex:1}.dark{color:#b9c5d7}.dark button,.dark select{background:#232d3c;border-color:#39465a}
 #quote{flex-shrink:0;padding:5px 10px;margin-bottom:4px;border-radius:8px;background:#f4f7fb;line-height:20px;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow-x:scroll;overflow-y:hidden;scrollbar-width:none}
 #quote::-webkit-scrollbar{display:none}
 #quoteDate{color:#64748b;margin-right:8px}#quoteValues{display:inline}.qv{margin-right:9px}.dark #quote{background:#232d3c}.dark #quoteDate{color:#a6b4c8}
 </style></head><body>
 <div id="tools"><select id="indicator" aria-label="副图指标"><option>VOL</option><option>MACD</option><option>KDJ</option><option>RSI</option></select><button onclick="draw('segment')">趋势线</button><button onclick="draw('horizontalStraightLine')">水平线</button><button onclick="draw('fibonacciLine')">斐波那契</button><button onclick="chart.removeOverlay();statusText('画线已清除')">清除画线</button><button onclick="chart.scrollToRealTime()">最新</button></div>
 <div id="quote"><div id="quoteDate">行情信息</div><div id="quoteValues"></div></div>
-<div id="chart"></div><div id="status">长按查看蜡烛 · 双指缩放 · 横拖平移</div>
+<div id="chartWrap"><div id="chart"></div><div id="zoom"><button onclick="zoomChart(1.6)">＋</button><button onclick="zoomChart(0.625)">－</button></div></div><div id="status">长按查看蜡烛 · 双指缩放 · 横拖平移</div>
 <div id="actions"><button onclick="markStart()">设为区间起点</button><button onclick="askRange()">解读区间</button><button onclick="askCandle()">解读此根</button></div>
 <script>/* ENGINE_BUNDLE */</script><script>
 let chart=null, rows=[],selected=-1,start=-1,pane=null,key='',focus=-1,highlight=0,lastMarked=-1;
@@ -22,6 +24,7 @@ const fmtNum=n=>n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractio
 const fmtVol=v=>v>=1e8?(v/1e8).toFixed(2)+'亿':v>=1e4?(v/1e4).toFixed(1)+'万':String(v);
 function showQuote(index){const b=rows[index];if(!b)return;document.getElementById('quoteDate').textContent=b.date+' · '+(index===rows.length-1?'最新':'选中');const box=document.getElementById('quoteValues');box.replaceChildren();[['开',b.open],['高',b.high],['低',b.low],['收',b.close],['量',b.volume]].forEach(([label,val])=>{const span=document.createElement('span');span.className='qv';span.textContent=label+' '+(label==='量'?fmtVol(val):fmtNum(val));box.appendChild(span);});}
 function draw(name){chart.createOverlay({name});statusText('在图表上选择画线锚点');}
+function zoomChart(f){if(!chart)return;const box=document.getElementById('chart');try{chart.zoomAtCoordinate(f,{x:box.clientWidth/2,y:Math.min(120,box.clientHeight/2)});statusText(f>1?'已放大':'已缩小');}catch(e){statusText('缩放失败：'+(e.message||e));}}
 function syncStartBtn(){const b=document.querySelector('#actions button');if(b)b.textContent=start>=0?'重设起点':'设为区间起点';}
 function drawRangeMarkers(){
   chart.removeOverlay({id:'range_start'});chart.removeOverlay({id:'range_end'});lastMarked=-1;
@@ -49,6 +52,7 @@ window.renderChart=function(p){try{
  chart.setStyles(p.dark?'dark':'light');
  chart.setStyles({candle:{tooltip:{showRule:'none'},bar:{upColor:'#e65054',downColor:'#16a079',upBorderColor:'#e65054',downBorderColor:'#16a079',upWickColor:'#e65054',downWickColor:'#16a079'}},indicator:{tooltip:{text:{size:10,marginTop:3,marginBottom:3,marginLeft:4,marginRight:6}}},yAxis:{tickText:{size:10}},xAxis:{tickText:{size:10}}});
  const nextKey=JSON.stringify([p.code,p.period,p.bars]);
+ console.log('[chart] period='+p.period+' bars='+(p.bars||[]).length);
  if(nextKey!==key){key=nextKey;rows=p.bars||[];selected=-1;start=-1;focus=-1;highlight=0;chart.removeOverlay();chart.removeOverlay({id:'range_start'});chart.removeOverlay({id:'range_end'});syncStartBtn();chart.applyNewData(rows.map(b=>({...b,timestamp:Date.parse(b.date+'T00:00:00+08:00')})));statusText('本地行情截至 '+(rows.at(-1)?.date||'未知')+' · 长按选点');}
  if(p.focus>=0&&p.focus<rows.length&&p.focus!==focus){focus=p.focus;selected=focus;chart.scrollToDataIndex(focus);chart.removeOverlay({id:'evidence'});chart.createOverlay({id:'evidence',name:'verticalStraightLine',lock:true,points:[{dataIndex:focus}]});}
  if(p.highlight!==highlight){highlight=p.highlight;chart.removeOverlay({id:'ai-price'});if(highlight>0)chart.createOverlay({id:'ai-price',name:'horizontalStraightLine',lock:true,points:[{value:highlight}]});}

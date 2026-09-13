@@ -228,8 +228,19 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                         matureKlineChart(ctx)
                     }
                     velse {
-                        klineChartCanvas(ctx)
-                        chartTouchLayer(ctx)
+                        View {
+                            attr { flexDirectionRow() }
+                            // 图左常驻缩放钮：与工具条里的 ＋/－ 同一套 zoomIn/Out（带缓动）
+                            View {
+                                attr { width(30f); flexDirectionColumn(); justifyContentCenter() }
+                                zoomFab("＋") { ctx.zoomIn() }
+                                zoomFab("－") { ctx.zoomOut() }
+                            }
+                            View { attr { flex(1f) }
+                                klineChartCanvas(ctx)
+                                chartTouchLayer(ctx)
+                            }
+                        }
                     }
                 }
                 vfor({ ObservableList(mutableListOf(listOf(ctx.klineStartIndex, ctx.klineVisibleCount, ctx.selectedKlineIndex, ctx.klinePeriod))) }) { _ ->
@@ -425,6 +436,23 @@ internal fun ViewContainer<*, *>.klineErrorView(ctx: StockDetailPage) {
                 }
             }
         }
+    }
+}
+
+/** 图表左侧的缩放悬浮钮：紧凑圆形，常驻可见，不占用工具条空间。 */
+internal fun ViewContainer<*, *>.zoomFab(label: String, action: () -> Unit) {
+    View {
+        attr {
+            size(30f, 44f)
+            allCenter()
+            margin(3f)
+            borderRadius(9f)
+            backgroundColor(AppColor.SURFACE_ALT)
+            accessibility("缩放${if (label == "＋") "放大" else "缩小"}")
+            accessibilityRole(AccessibilityRole.BUTTON)
+        }
+        event { click { action() } }
+        Text { attr { text(label); fontSize(15f); fontWeightBold(); color(AppColor.PRIMARY_SOFT) } }
     }
 }
 

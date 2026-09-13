@@ -283,8 +283,15 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
 
         Text {
             attr {
-                text("本地数据 · 截至 ${realtime.updateTime?.takeIf { it.isNotBlank() } ?: "时间未提供"}")
-                fontSize(10f); color(AppColor.TEXT_HINT); marginBottom(8f)
+                // 实时层生效时展示实时状态（含更新暂停），否则回落本地库的时间戳
+                text(
+                    if (ctx.liveStatusText.isNotEmpty()) {
+                        (if (ctx.livePaused) "⚠ " else "") + ctx.liveStatusText
+                    } else {
+                        "本地数据 · 截至 ${realtime.updateTime?.takeIf { it.isNotBlank() } ?: "时间未提供"}"
+                    }
+                )
+                fontSize(10f); color(if (ctx.livePaused) AppColor.WARNING_TEXT else AppColor.TEXT_HINT); marginBottom(8f)
             }
         }
 

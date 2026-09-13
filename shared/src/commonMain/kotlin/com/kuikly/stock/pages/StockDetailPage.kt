@@ -37,6 +37,8 @@ import com.kuikly.stock.data.nowMillis
 import com.kuikly.stock.data.AIVerdict
 import com.kuikly.stock.ai.protocol.VerdictSynthesizer
 import com.kuikly.stock.network.DeepSeekApi
+import com.kuikly.stock.network.MarketLiveProvider
+import com.kuikly.stock.data.MarketRepository
 import com.kuikly.stock.data.ConclusionAlertFactory
 import com.kuikly.stock.data.PriceAlertRule
 import com.tencent.kuikly.core.coroutines.delay
@@ -133,6 +135,12 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
     internal var klineSubIndicator by observable("none") // none / macd / kdj / rsi，副图指标，默认关闭
     internal var klineShowTrend by observable(false) // 自动趋势线（支撑/压力）叠加，默认关闭
 
+    // --- 实时层（LiveProvider 轮询）状态 ---
+    internal var liveStatusText by observable("")   // 非空时行情卡副标题显示此文案（实时/暂停）
+    internal var livePaused by observable(false)
+    private var liveRunning = false
+    private var liveBackfilled = false
+
     // --- P1 K线交互状态 ---
     override val crosshair = CrosshairController()
     override val nativeChartGestures: Boolean get() = pagerData.params.optBoolean("nativeChartGestures", false)
@@ -190,6 +198,71 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
             loadStockDetail()
             loadExtraQuote()
             loadDataSource()
+            startLiveLoop()
+        }
+    }
+
+    /**
+     * 实时轮询：详情页存续期间拉取东财 push2 快照，价格三件套走 NumberRoll 原地滚动，
+     * 不做整页重建（每 8 秒重建会把滚动位置和专业图状态打掉）。
+     * 失败连续两次进入"更新暂停"，显示最近有效数据；恢复后自动继续。
+     */
+    private fun startLiveLoop() {
+        MarketRepository.liveProvider = MarketLiveProvider
+        if (liveRunning) return
+        liveRunning = true
+        lifecycleScope.launch {
+            var fails = 0
+            while (liveRunning && stockCode.isNotEmpty()) {
+                val codeAtStart = stockCode
+                // 历史回补：腾讯 fqkline 约一年（与本地库同源同口径）。
+                // 放在轮询循环里等本地详情就绪后重试，避免与首次加载竞态。
+                if (!liveBackfilled && !refreshing && stockDetail != null && (stockDetail?.kline?.size ?: 0) < 60) {
+                    val hist = runCatching { MarketLiveProvider.dailyKline(codeAtStart, 250) }.getOrDefault(emptyList())
+                    println("[Live] backfill ${codeAtStart}: ${hist.size} bars")
+                    if (hist.size >= 60 && stockCode == codeAtStart) {
+                        liveBackfilled = true
+                        val merged = stockDetail?.copy(kline = hist)
+                        if (merged != null) {
+                            stockDetail = merged
+                            // 视口按当前周期重置，与 switchKlinePeriod 的语义保持一致
+                            klineVisibleCount = when (klinePeriod) {
+                                "W" -> 26
+                                "M" -> 12
+                                else -> 30
+                            }.coerceAtMost(hist.size)
+                            klineStartIndex = (hist.size - klineVisibleCount).coerceAtLeast(0)
+                            detailEpoch++
+                        }
+                    }
+                }
+                val quote = runCatching { MarketLiveProvider.realtimeQuote(codeAtStart) }.getOrNull()
+                if (quote != null && stockCode == codeAtStart) {
+                    fails = 0
+                    livePaused = false
+                    liveStatusText = "实时 · 已更新 ${quote.updateTime}"
+                    val base = stockDetail
+                    val price = quote.price
+                    if (base?.realtime != null && price != null) {
+                        stockDetail = base.copy(realtime = quote.copy(name = base.realtime?.name ?: base.info?.name))
+                        quoteRoll.rollTo(price, quote.change ?: 0.0, quote.changePercent ?: 0.0)
+                    }
+                } else {
+                    fails++
+                    println("[Live] quote fail #$fails ${codeAtStart}")
+                    if (fails >= 2 && !livePaused) {
+                        livePaused = true
+                        liveStatusText = "实时更新暂停 · 保留最近有效数据（${MarketLiveProvider.beijingClock()}）"
+                    }
+                }
+                // 交易时段 8 秒一拍；非时段降频到 60 秒（盘后价基本不动，仅保持数据新鲜度标记）。
+                // 分片等待：停轮询后 1 秒内退出，不拖尾。
+                val wait = if (MarketLiveProvider.isTradingTime()) 8_000 else 60_000
+                repeat(wait / 1_000) {
+                    if (!liveRunning) return@launch
+                    delay(1_000)
+                }
+            }
         }
     }
 
@@ -201,6 +274,13 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         // 重新上屏时静默刷新一次：这是详情页唯一自然的刷新时机。
         // 首屏之后不再铺骨架屏，用户看不到页面被清空，只有数字在动。
         loadStockDetail()
+        startLiveLoop()
+    }
+
+    override fun pageDidDisappear() {
+        super.pageDidDisappear()
+        // 离开详情页即停轮询：旧页面不再发请求，也不会覆盖新股票的数据
+        liveRunning = false
     }
 
     internal fun toggleWatch() {

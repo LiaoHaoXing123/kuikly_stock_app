@@ -22,6 +22,7 @@ internal fun ViewContainer<*, *>.matureKlineChart(ctx: StockDetailPage) {
                 if (d.length == 8) bars.put(JSONObject().put("date", "${d.take(4)}-${d.substring(4, 6)}-${d.takeLast(2)}")
                     .put("open", b.open).put("close", b.close).put("high", b.high).put("low", b.low).put("volume", b.volume))
             }
+            println("[chart-data] Kuikly attr 重算 period=${ctx.klinePeriod} bars=${bars.length()}")
             setProp("chartData", JSONObject().put("code", ctx.stockCode).put("period", ctx.klinePeriod)
                 .put("dark", ThemeManager.isDark).put("bars", bars)
                 .put("focus", ctx.selectedKlineIndex).put("highlight", ctx.highlightedPrice).toString())
