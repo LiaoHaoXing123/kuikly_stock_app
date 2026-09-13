@@ -68,3 +68,6 @@ ui.xml
 ci_screenshot*.png
 review_checklist.png
 persisted_output.json
+
+# Codex 会话验证截图（本地验证产物，不入库）
+artifacts/

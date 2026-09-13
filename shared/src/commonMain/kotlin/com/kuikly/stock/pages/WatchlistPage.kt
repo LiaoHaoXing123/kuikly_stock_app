@@ -662,6 +662,9 @@ internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowD
                 Text { attr { text("累计 ${row.pnlText} (${row.pnlPctText})"); fontSize(11f); color(pnlColor(row.posPnl)); flex(1f) } }
                 Text { attr { text("今日 ${row.todayPnlText}"); fontSize(11f); color(pnlColor(row.todayPnl)) } }
             }
+            if (row.hasAlert) {
+                Text { attr { text("提醒 ${row.alertDesc}"); fontSize(11f); color(AppColor.WARNING_TEXT); marginTop(6f) } }
+            }
         } else {
             View {
                 attr {

@@ -46,7 +46,10 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import com.kuikly.stock.data.nowMillis
+import com.kuikly.stock.data.fmt2
 import com.kuikly.stock.data.fmt3
+import com.kuikly.stock.pages.MinutePoint
+import com.kuikly.stock.pages.OrderBookData
 
 private const val TAG_JSON = "```json"
 
@@ -382,7 +385,8 @@ $klineText
     }
 
     private fun buildAnalysisPrompt(detail: StockDetailData): List<Pair<String, String>> {
-        val industryText = runCatching { StockDb.industryPeers(detail.info?.code.orEmpty())?.evidence(detail.info?.code.orEmpty()) }.getOrNull().orEmpty()
+        val code = detail.info?.code.orEmpty()
+        val industryText = runCatching { StockDb.industryPeers(code)?.evidence(code) }.getOrNull().orEmpty()
         val info = detail.info
         val infoText = buildString {
             info?.let {
@@ -401,6 +405,12 @@ $klineText
             append("\n- 最低价：${r.low ?: "-"}")
             append("\n- 成交量：${r.volume ?: "-"} 手")
             append("\n- 成交额：${r.amount ?: "-"} 元")
+            r.turnoverRate?.let { append("\n- 换手率：${fmtRatio1(it)}%") }
+            r.volumeRatio?.let { append("\n- 量比：${fmtRatio1(it)}") }
+            r.totalMarketCap?.let { append("\n- 总市值：${fmtMoney(it)}元") }
+            r.circulateMarketCap?.let { append("\n- 流通市值：${fmtMoney(it)}元") }
+            r.limitUp?.takeIf { it > 0 }?.let { append("\n- 涨停价：$it") }
+            r.limitDown?.takeIf { it > 0 }?.let { append("\n- 跌停价：$it") }
             append("\n- 市盈率(PE)：${r.peTtm ?: "-"}")
             append("\n- 市净率(PB)：${r.pb ?: "-"}")
         } else ""
@@ -413,14 +423,11 @@ $klineText
             }
         } else ""
 
-        val ind: IndicatorData? = detail.indicator
-        val indicatorText = if (ind != null) buildString {
-            append("\n- 交易日：${ind.tradeDate}")
-            append("\n- 均线：MA5=${ind.ma5}, MA10=${ind.ma10}, MA20=${ind.ma20}")
-            append("\n- MACD：DIF=${ind.dif}, DEA=${ind.dea}, MACD柱=${ind.macd}")
-            append("\n- RSI(6)：${ind.rsi6}")
-            append("\n- KDJ：K=${ind.kdjK}, D=${ind.kdjD}, J=${ind.kdjJ}")
-        } else ""
+        val indicatorText = buildIndicatorSeriesText(code, detail.indicator)
+
+        val minuteText = buildMinuteSummaryText(code)
+
+        val orderBookText = buildOrderBookText(code)
 
         val ff = detail.fundFlow.orEmpty()
         val fundFlowText = if (ff.isNotEmpty()) buildString {
@@ -453,16 +460,75 @@ $realtimeText
 $klineText
 $datePool
 
-## 最新技术指标（程序计算，非AI生成）
 $indicatorText
+
+## 当日分时摘要（程序计算）
+$minuteText
+
+## 五档盘口（程序采集）
+$orderBookText
 
 $fundFlowText
 
 $industryText
 
-请根据以上数据进行全面分析，需结合技术指标（均线排列、MACD金叉死叉、RSI超买超卖、KDJ钝化等）与主力资金流向（净流入/净流出趋势、占比变化）给出专业判断。"""
+请根据以上数据进行全面分析：结合技术指标**序列**判断均线排列与交叉时点、MACD金叉死叉位置、RSI超买超卖、KDJ钝化；结合当日分时摘要判断盘中强弱与量价配合；结合盘口委比与主力资金流向判断买卖压力。标注「程序计算/程序采集」的数据是真实数据，请直接引用，禁止修改或编造数值。"""
 
         return listOf("system" to system, "user" to user)
+    }
+
+    /** 近 20 日技术指标序列；序列不可用时退回详情自带的最新一条。 */
+    private fun buildIndicatorSeriesText(code: String, latest: IndicatorData?): String {
+        val series: List<IndicatorData> = runCatching { StockDb.indicators(code, 20) }.getOrDefault(emptyList())
+        val rows = if (series.isNotEmpty()) series else listOfNotNull(latest)
+        if (rows.isEmpty()) return "（暂无技术指标数据）"
+        return buildString {
+            append("\n## 近${rows.size}日技术指标序列（程序计算）")
+            append("\n日期 | MA5 | MA10 | MA20 | DIF | DEA | MACD柱 | RSI6 | KDJ-K | KDJ-D | KDJ-J")
+            rows.forEach { ind ->
+                append("\n${ind.tradeDate} | ${fmt(ind.ma5)} | ${fmt(ind.ma10)} | ${fmt(ind.ma20)}" +
+                    " | ${fmt(ind.dif)} | ${fmt(ind.dea)} | ${fmt(ind.macd)} | ${fmt(ind.rsi6)}" +
+                    " | ${fmt(ind.kdjK)} | ${fmt(ind.kdjD)} | ${fmt(ind.kdjJ)}")
+            }
+            append("\n请据此判断交叉发生的时间点与趋势演变，不要只看最新一天的数值。")
+        }
+    }
+
+    /** 当日分时摘要：每 30 分钟采样 + 关键统计。无分钟数据（iOS/JS 资产平台）时给出占位说明。 */
+    private fun buildMinuteSummaryText(code: String): String {
+        val points: List<MinutePoint> = runCatching { StockDb.minute(code) }.getOrDefault(emptyList())
+        if (points.isEmpty()) return "（无当日分时数据）"
+        val sampled = points.filterIndexed { idx, _ -> idx % 30 == 0 || idx == points.lastIndex }
+        val last = points.last()
+        val dayHigh = points.maxOfOrNull { it.price }
+        val dayLow = points.minOfOrNull { it.price }
+        return buildString {
+            append(sampled.joinToString("；") { p ->
+                "${p.time} 价${fmt2(p.price)}" + (p.avgPrice?.let { " 均${fmt2(it)}" } ?: "")
+            })
+            if (dayHigh != null && dayLow != null) {
+                append("\n- 日内最高 ${fmt2(dayHigh)} / 最低 ${fmt2(dayLow)}")
+            }
+            last.avgPrice?.let { avg ->
+                val pos = if (last.price >= avg) "现价在均价线上方（盘中偏强）" else "现价在均价线下方（盘中偏弱）"
+                append("\n- 均价线 ${fmt2(avg)}，$pos")
+            }
+        }
+    }
+
+    /** 五档盘口 + 委比。无盘口数据时给出占位说明。 */
+    private fun buildOrderBookText(code: String): String {
+        val book: OrderBookData? = runCatching { StockDb.orderBook(code) }.getOrNull()
+        if (book == null || (book.bids.isEmpty() && book.asks.isEmpty())) return "（无盘口数据）"
+        return buildString {
+            book.asks.take(5).forEachIndexed { i, p ->
+                append("\n- 卖${i + 1}：${fmt(p.first)} × ${p.second ?: "-"}")
+            }
+            book.bids.take(5).forEachIndexed { i, p ->
+                append("\n- 买${i + 1}：${fmt(p.first)} × ${p.second ?: "-"}")
+            }
+            book.commissionRatio?.let { append("\n- 委比：${fmtRatio1(it)}%") }
+        }.trim()
     }
 
         private fun buildAnalysisCards(detail: StockDetailData, a: Map<String, Any?>): List<Map<String, Any?>> {

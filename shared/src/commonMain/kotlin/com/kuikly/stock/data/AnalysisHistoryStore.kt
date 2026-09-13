@@ -48,7 +48,20 @@ internal class AnalysisHistoryStore(
         put("code", r.code); put("name", r.name)
         put("source", r.source); put("generatedAt", r.generatedAt); put("dataDate", r.dataDate)
         put("analysis", toJson(r.analysis)); put("cards", toJson(r.cards))
+        // verdict 必须落盘：AI 复盘要用历史记录当时给出的方向与价位，解码侧缺字段视为旧记录（null）
+        r.verdict?.let { put("verdict", toJson(verdictMap(it))) }
     }
+
+    private fun verdictMap(v: AIVerdict): Map<String, Any?> = mapOf(
+        "bias" to v.bias,
+        "one_liner" to v.oneLiner,
+        "confidence" to v.confidence,
+        "horizon" to v.horizon,
+        "support_value" to v.supportValue,
+        "resistance_value" to v.resistanceValue,
+        "target_value" to v.targetValue,
+        "stop_loss_value" to v.stopLossValue,
+    )
 
     private fun decode(o: JsonObject): AnalysisSnapshot {
         fun text(key: String) = o[key]?.jsonPrimitive?.contentOrNull.orEmpty()
@@ -57,10 +70,13 @@ internal class AnalysisHistoryStore(
         val cards = (o["cards"] as? JsonArray ?: error("missing cards")).map { card ->
             card.jsonObject.mapValues { fromJson(it.value) }
         }
+        val verdict = (o["verdict"] as? JsonObject)
+            ?.mapValues { fromJson(it.value) }
+            ?.let { AIVerdict.from(it) }
         return AnalysisSnapshot(text("id"), text("kind"), AIAnalysisData(
             code, text("name"), o["analysis"]!!.jsonObject.mapValues { fromJson(it.value) }, cards,
             source = text("source"), generatedAt = o["generatedAt"]!!.jsonPrimitive.long,
-            dataDate = text("dataDate"),
+            dataDate = text("dataDate"), verdict = verdict,
         ))
     }
 }

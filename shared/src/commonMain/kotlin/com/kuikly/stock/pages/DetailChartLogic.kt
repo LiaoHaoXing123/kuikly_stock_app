@@ -72,9 +72,18 @@ internal fun chartEvidence(data: List<KLineDataItem>): List<ChartEvidence> = dat
 internal fun detailFollowupPrompt(
     kind: String, code: String, name: String, period: String,
     data: List<KLineDataItem>, selected: Int, analysis: AIAnalysisData?,
+    range: RangeStats? = null, viewport: List<KLineDataItem> = data,
+    indicator: String = "none",
 ): String = buildString {
     append("请解释${if (kind == "index") "指数" else "股票"} $name($code) 的选中行情，并说明依据和不确定性。\n")
     append("周期：${when (period) { "W" -> "周K（自然周）"; "M" -> "月K"; else -> "日K" }}\n")
+    append("数据类型：本地历史快照，非实时；复权口径：未提供，不得假定。\n")
+    append("视口：${viewport.firstOrNull()?.tradeDate ?: "无"} 至 ${viewport.lastOrNull()?.tradeDate ?: "无"}，${viewport.size}根；副图：$indicator\n")
+    if (range != null) {
+        append("解读目标：选中区间 ${range.startDate} 至 ${range.endDate}，共${range.bars}根。\n")
+        append("本地计算：区间涨跌幅${fmt2(range.changePct)}%（末收/首开-1）；振幅${fmt2(range.amplitude)}%（最高/最低-1）；最高${range.highPrice}；最低${range.lowPrice}；累计成交量${range.totalVolume}（沿用数据源单位）。\n")
+        append("以下蜡烛是有界明细，不代表完整区间；请以区间统计为准，不得用明细重新推断区间长度。\n")
+    }
     val candles = if (selected in data.indices) data.subList((selected - 5).coerceAtLeast(0), selected + 1) else data.takeLast(10)
     append("选中：${data.getOrNull(selected)?.tradeDate ?: "当前可见区间"}\n")
     candles.forEach { append("${it.tradeDate} 开${it.open} 收${it.close} 高${it.high} 低${it.low} 量${it.volume}\n") }

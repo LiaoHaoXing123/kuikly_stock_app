@@ -260,6 +260,7 @@ class ChatMainPage : BasePager() {
         if (detailQuestion.isNotBlank()) {
             newChat()
             inputText = detailQuestion
+            inputRef.view?.setText(detailQuestion)
             aiErrorNotice = "已带入选中行情，可编辑后发送"
         }
         loadQuickQuestion()

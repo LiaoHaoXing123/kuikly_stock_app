@@ -128,6 +128,8 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
     internal var highlightedPriceLabel by observable("")
     internal var klineInfoText by observable("")
     internal var klineToolsExpanded by observable(false)
+    internal var matureChartEnabled by observable(true)
+    internal val matureChartAvailable get() = pagerData.params.optBoolean("matureChart", false)
     internal var klineSubIndicator by observable("none") // none / macd / kdj / rsi，副图指标，默认关闭
     internal var klineShowTrend by observable(false) // 自动趋势线（支撑/压力）叠加，默认关闭
 
@@ -156,6 +158,7 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
     // --- AI卡片交互 ---
     internal var aiExpandedKeys: ObservableList<String> by observableList()
     internal var aiCardHighlightKey by observable("")
+    internal var reviewExpanded by observable(false) // AI 复盘卡明细展开态
 
     // --- P0 AI联动状态 ---
     internal var pendingFocus: KlineFocus? by observable(null)
@@ -389,13 +392,7 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
 
     /** 统一：无论 v2/v1/离线/旧历史记录，UI 永远拿得到一个 verdict */
     internal val effectiveVerdict: AIVerdict?
-        get() {
-            val d = aiAnalysis ?: return null
-            d.verdict?.let { return it }
-            return AIVerdict.fromSynth(
-                VerdictSynthesizer.fromLegacy(d.analysis) { DeepSeekApi.numericLevel(it) }
-            )
-        }
+        get() = aiAnalysis?.let { com.kuikly.stock.data.AiReviewEngine.verdictOf(it) }
 
     /** 统一联动入口：滚至 K 线并高亮目标 */
     internal fun focusKline(f: KlineFocus) {
@@ -826,10 +823,11 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         focusCandle(index)
     }
 
-    internal fun askAboutChart() {
+    internal fun askAboutChart(indicator: String = klineSubIndicator) {
         val selected = selectedKlineIndex
         val bars = if (selected >= 0) getAggregatedKline() else getVisibleKline()
-        val prompt = detailFollowupPrompt("stock", stockCode, stockDetail?.info?.name ?: stockCode, klinePeriod, bars, selected, aiAnalysis)
+        val prompt = detailFollowupPrompt("stock", stockCode, stockDetail?.info?.name ?: stockCode, klinePeriod, bars, selected, aiAnalysis,
+            range = rangeStats, viewport = getVisibleKline(), indicator = indicator)
         val params = JSONObject()
         params.put("detail_question", prompt)
         openModule(AppRoutes.CHAT, params)
@@ -986,6 +984,16 @@ private fun ViewContainer<*, *>.detailContent(ctx: StockDetailPage) {
         event { layoutFrameDidChange { frame -> ctx.aiSectionY = frame.y } }
         aiAnalysisCards(ctx)
     }
+    aiReviewCard(ctx) { record ->
+        ctx.clearInteraction()
+        ctx.clearChartSelection()
+        ctx.clearMinuteSelection()
+        ctx.clearHighlight()
+        ctx.aiExpandedKeys.clear()
+        ctx.analysisState.select(record)
+        ctx.analysisState.notice = "已切换到该历史分析，已滚动至底部查看"
+        ctx.jumpToAiSection()
+    }
     analysisHistoryPanel(ctx.analysisState) {
         ctx.clearInteraction()
         ctx.clearChartSelection()
@@ -999,5 +1007,3 @@ private fun ViewContainer<*, *>.detailContent(ctx: StockDetailPage) {
         dataSourceFooter(ctx)
     }
 }
-
-

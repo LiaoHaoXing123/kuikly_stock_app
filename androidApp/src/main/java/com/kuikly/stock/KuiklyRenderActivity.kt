@@ -110,6 +110,7 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
         super.registerExternalRenderView(kuiklyRenderExport)
         with(kuiklyRenderExport) {
             renderViewExport("StockChartGestureView", { context -> StockChartGestureView(context) })
+            renderViewExport("StockKlineWebView", { context -> StockKlineWebView(context) })
         }
     }
 
@@ -125,6 +126,7 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
         val param = argsToMap()
         param["appId"] = 1
         param["nativeChartGestures"] = true
+        param["matureChart"] = true
         return param
     }
 

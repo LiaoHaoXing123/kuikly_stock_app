@@ -271,7 +271,7 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
             attr { flexDirectionRow(); alignItemsCenter(); marginBottom(12f) }
             Text {
                 attr {
-                    text("实时行情")
+                    text("行情快照")
                     fontSize(15f)
                     fontWeightBold()
                     color(AppColor.TEXT_INK)
@@ -279,6 +279,13 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
                 }
             }
             aiBiasChip(ctx)
+        }
+
+        Text {
+            attr {
+                text("本地数据 · 截至 ${realtime.updateTime?.takeIf { it.isNotBlank() } ?: "时间未提供"}")
+                fontSize(10f); color(AppColor.TEXT_HINT); marginBottom(8f)
+            }
         }
 
         View {
@@ -324,6 +331,23 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
             stockQuoteItem(ctx, "成交额", realtime.amount, "元")
             stockQuoteItem(ctx, "市盈率", realtime.peTtm, "")
             stockQuoteItem(ctx, "市净率", realtime.pb, "")
+        }
+
+        // 换手率/量比/市值：stock_realtime 已落库但此前未展示；JSON 资产平台全为 null，整行隐藏
+        vif({ realtime.turnoverRate != null || realtime.volumeRatio != null ||
+            realtime.totalMarketCap != null || realtime.circulateMarketCap != null }) {
+            View {
+                attr {
+                    flexDirectionRow()
+                    marginTop(8f)
+                    flexWrap(FlexWrap.WRAP)
+                }
+
+                stockQuoteItem(ctx, "换手率", realtime.turnoverRate, "%")
+                stockQuoteItem(ctx, "量比", realtime.volumeRatio, "")
+                stockQuoteItem(ctx, "总市值", realtime.totalMarketCap, "元")
+                stockQuoteItem(ctx, "流通市值", realtime.circulateMarketCap, "元")
+            }
         }
     }
 }

@@ -169,6 +169,13 @@ actual object StockDb {
                 amount = c.getDoubleOrNull("amount"),
                 peTtm = c.getDoubleOrNull("pe_ttm"),
                 pb = c.getDoubleOrNull("pb"),
+                turnoverRate = c.getDoubleOrNull("turnover_rate"),
+                volumeRatio = c.getDoubleOrNull("volume_ratio"),
+                totalMarketCap = c.getDoubleOrNull("total_market_cap"),
+                circulateMarketCap = c.getDoubleOrNull("circulate_market_cap"),
+                limitUp = c.getDoubleOrNull("limit_up"),
+                limitDown = c.getDoubleOrNull("limit_down"),
+                updateTime = c.getStringOrNull("update_time"),
             )
         }
 

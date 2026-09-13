@@ -48,4 +48,22 @@ class AnalysisHistoryTest {
         val failing = AnalysisHistoryStore({ if (failedRead) null else raw }, { _, _ -> failedRead = true })
         assertFalse(failing.delete(id))
     }
+
+    @Test fun verdictRoundTripsAndOldRecordsWithoutVerdictDecodeToNull() {
+        val memory = mutableMapOf<String, String>()
+        val withVerdict = result.copy(verdict = AIVerdict("偏多", "看涨", confidence = "高", supportValue = 10.5))
+        val store = AnalysisHistoryStore({ memory[it] }, { key, value -> memory[key] = value })
+        assertTrue(store.save("stock", withVerdict))
+        val restored = AnalysisHistoryStore({ memory[it] }, { key, value -> memory[key] = value })
+            .list("stock", "000001").single().result
+        assertEquals("偏多", restored.verdict?.bias)
+        assertEquals(10.5, restored.verdict?.supportValue)
+
+        // verdict 持久化之前写入的历史 payload（无 verdict 字段）必须仍可解码
+        val legacyJson = """[{"id":"stock:000001:1","kind":"stock","code":"000001","name":"平安银行",
+            "source":"DeepSeek","generatedAt":1,"dataDate":"2025-01-01",
+            "analysis":{"summary":"观察"},"cards":[]}]"""
+        val legacyStore = AnalysisHistoryStore({ legacyJson }, { _, _ -> })
+        assertNull(legacyStore.list("stock", "000001").single().result.verdict)
+    }
 }

@@ -90,6 +90,14 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
             attr { flexDirectionRow(); marginBottom(8f) }
             klinePeriodBar(ctx)
             View { attr { flex(1f) } }
+            vif({ ctx.matureChartAvailable }) {
+                View {
+                    attr { height(34f); paddingLeft(8f); paddingRight(8f); allCenter(); backgroundColor(AppColor.PRIMARY_BG); borderRadius(8f); marginRight(6f) }
+                    event { click { ctx.matureChartEnabled = !ctx.matureChartEnabled } }
+                    Text { attr { text(if (ctx.matureChartEnabled) "专业图" else "基础图"); fontSize(11f); color(AppColor.PRIMARY) } }
+                }
+            }
+            vif({ !ctx.matureChartAvailable || !ctx.matureChartEnabled }) {
             View {
                 attr {
                     padding(4f, 8f, 4f, 8f)
@@ -112,12 +120,14 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                 event { click { ctx.klineToolsExpanded = !ctx.klineToolsExpanded } }
                 Text { attr { text(if (ctx.klineToolsExpanded) "收起" else "工具"); fontSize(11f); color(AppColor.PRIMARY) } }
             }
+            }
         }
 
         vif({ ctx.isLoading }) {
             klineLoadingView(ctx)
         }
         velseif({ originalKline != null && originalKline.isNotEmpty() }) {
+            vif({ !ctx.matureChartAvailable || !ctx.matureChartEnabled }) {
             vif({ ctx.klineToolsExpanded }) {
             // 缩放平移控制
             View {
@@ -189,6 +199,7 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
             vif({ ctx.klineToolsExpanded }) {
                 Text { attr { text("横拖平移 · 点选锁定 · 长按选区间 · 双指缩放"); fontSize(10f); lineHeight(16f); color(AppColor.TEXT_SUB); marginBottom(6f) } }
             }
+            }
 
             View {
                 attr { flexDirectionColumn() }
@@ -213,8 +224,13 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                     }
                 }
                 View {
-                    klineChartCanvas(ctx)
-                    chartTouchLayer(ctx)
+                    vif({ ctx.matureChartAvailable && ctx.matureChartEnabled }) {
+                        matureKlineChart(ctx)
+                    }
+                    velse {
+                        klineChartCanvas(ctx)
+                        chartTouchLayer(ctx)
+                    }
                 }
                 vfor({ ObservableList(mutableListOf(listOf(ctx.klineStartIndex, ctx.klineVisibleCount, ctx.selectedKlineIndex, ctx.klinePeriod))) }) { _ ->
                 klineSummary(ctx, ctx.getVisibleKline())

@@ -484,7 +484,8 @@ class IndexDetailPage : BasePager(), KlineInteractionHost {
     internal fun askAboutChart() {
         val selected = selectedKlineIndex
         val bars = if (selected >= 0) getAggregatedKline() else getVisibleKline()
-        val prompt = detailFollowupPrompt("index", indexCode, indexDetail?.info?.name ?: indexCode, klinePeriod, bars, selected, aiAnalysis)
+        val prompt = detailFollowupPrompt("index", indexCode, indexDetail?.info?.name ?: indexCode, klinePeriod, bars, selected, aiAnalysis,
+            range = rangeStats, viewport = getVisibleKline())
         val params = JSONObject()
         params.put("detail_question", prompt)
         openModule(AppRoutes.CHAT, params)

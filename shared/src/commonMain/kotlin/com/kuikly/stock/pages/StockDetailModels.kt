@@ -62,7 +62,15 @@ data class RealtimeQuoteData(
     val volume: Double?,
     val amount: Double?,
     val peTtm: Double?,
-    val pb: Double?
+    val pb: Double?,
+    // ---- stock_realtime 已落库、此前未映射的字段（JSON 资产平台为 null）----
+    val turnoverRate: Double? = null,       // 换手率 %
+    val volumeRatio: Double? = null,        // 量比
+    val totalMarketCap: Double? = null,     // 总市值（元）
+    val circulateMarketCap: Double? = null, // 流通市值（元）
+    val limitUp: Double? = null,            // 涨停价
+    val limitDown: Double? = null,          // 跌停价
+    val updateTime: String? = null,
 )
 
 data class IndicatorData(
