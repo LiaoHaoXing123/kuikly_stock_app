@@ -1,37 +1,4 @@
-"""export_common_assets.py —— 把 SQLite 专属数据表导出为双端共用的内置 JSON 资产。
-
-背景
-----
-Android 通过 SQLite 读取 stock.db 拿到指数、官方板块、资金流数据；
-iOS / JS 没有 SQLite（见 shared/src/*Main/.../JsonBackedStockDb.kt），
-因此这些数据在 iOS / JS 上一直返回 null / empty，指数页与板块卡、资金流卡只有空态。
-
-本脚本把这三类表从 stock.db 导出成 JSON，落在 shared/src/commonMain/assets/，
-两个平台都能通过 LocalDataService.loadAssetText() 同步读取，行为与 Android 对齐。
-
-产物
-----
-index_list.json     指数快照（index_info LEFT JOIN index_realtime）
-sector_list.json    官方行业板块 + 成分股（sector_board / sector_member）
-fundflow_list.json  个股资金流（stock_fund_flow）
-
-数据量大的两张表用「紧凑数组」编码（而不是对象数组），
-把重复的键名省掉，体积约为对象编码的 6 成：
-
-    sector_list.json  {"boards":[...], "members": {"BK1452": [["000001","平安银行",11.59,0.26], ...]}}
-    fundflow_list.json{"600519": [["2026-09-09", -641850339.1, -15.73, null, ...], ...]}
-
-用法
-----
-    venv/Scripts/python.exe export_common_assets.py
-    venv/Scripts/python.exe export_common_assets.py --db path/to/stock.db
-    venv/Scripts/python.exe export_common_assets.py --dry-run   # 只统计，不写文件
-
-注意
-----
-数据源是 stock.db，每日流水线（run_daily）刷新 stock.db 后需要重跑本脚本，
-否则 JSON 资产会停留在上一次导出的快照。
-"""
+# 从 SQLite 导出 iOS 和 Web 使用的同口径快照。
 
 from __future__ import annotations
 
@@ -45,23 +12,16 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DB = REPO_ROOT / "shared" / "src" / "commonMain" / "assets" / "stock.db"
 ASSETS_DIR = REPO_ROOT / "shared" / "src" / "commonMain" / "assets"
 
-# (输出文件名, 生成函数名)
 OUTPUTS = ("index_list.json", "sector_list.json", "fundflow_list.json")
 
-
 def _num(v):
-    """空串/None -> None，数字 -> float/int 原样。"""
+
     if v is None or v == "":
         return None
     return v
 
-
 def export_index(conn: sqlite3.Connection) -> list:
-    """指数：index_info 为主体，LEFT JOIN index_realtime 取最新行情。
 
-    与 Android StockDb.indexDetail / listIndices 同源同口径：
-    即使没有 realtime 行也要保留该指数（列表页要能看到），只是行情字段为 null。
-    """
     conn.row_factory = sqlite3.Row
     rows = conn.execute(
         """
@@ -93,27 +53,10 @@ def export_index(conn: sqlite3.Connection) -> list:
         })
     return out
 
-
 def export_sector(conn: sqlite3.Connection) -> dict:
-    """官方行业板块 + 成分股 + 「个股 -> 板块」直连映射。
 
-    为什么需要 stock_board 直连映射
-    ------------------------------
-    Android 的 sectorOfStock 用 `stock_info.industry = sector_board.board_name` 做 JOIN，
-    而 iOS/JS 手里只有 stock_list.json。问题是 stock_list.json 是一份较早的裁剪快照，
-    它的 industry 词表已经过时（例如同一只股票在旧快照里是"银行Ⅱ"、在新库里是"股份制银行Ⅲ"），
-    直接按名称匹配会选到粒度不同的另一个板块，两端结果对不上。
-
-    所以这里在导出时就把 JOIN 结果固化成 code -> board_code 的映射，
-    iOS/JS 查板块不再依赖 industry 词表，结果与 Android 逐字段一致。
-    板块与成分股也只导出被映射引用到的那些，避免带出无成分股的空板块。
-
-    stock_board 同时保留了 sector_board 中该板块的最新快照（fetch_date 最大者），
-    与 Android 的 `ORDER BY b.fetch_date DESC LIMIT 1` 同义。
-    """
     conn.row_factory = sqlite3.Row
 
-    # 1) 个股 -> 板块（同 Android 的 JOIN；同名板块取最新快照）
     stock_board: dict[str, str] = {}
     stock_fetch: dict[str, str] = {}
     for r in conn.execute(
@@ -128,7 +71,6 @@ def export_sector(conn: sqlite3.Connection) -> dict:
 
     used_codes = set(stock_board.values())
 
-    # 2) 只导出被引用到的板块，以及这些板块的最新成分股
     boards = []
     members: dict[str, list] = {}
     for b in conn.execute(
@@ -158,7 +100,7 @@ def export_sector(conn: sqlite3.Connection) -> dict:
                ORDER BY code ASC""",
             (b["board_code"], b["board_code"]),
         ).fetchall()
-        # 紧凑数组：[代码, 名称, 最新价, 涨跌幅%]
+
         members[b["board_code"]] = [
             [m["code"], _num(m["name"]), _num(m["price"]), _num(m["change_percent"])]
             for m in rows
@@ -166,9 +108,8 @@ def export_sector(conn: sqlite3.Connection) -> dict:
 
     return {"boards": boards, "members": members, "stock_board": stock_board}
 
-
 def export_fund_flow(conn: sqlite3.Connection) -> dict:
-    """个股资金流，按 code 分组，日期倒序（与 Android 的 ORDER BY trade_date DESC 一致）。"""
+
     conn.row_factory = sqlite3.Row
     out: dict[str, list] = {}
     for r in conn.execute(
@@ -187,7 +128,6 @@ def export_fund_flow(conn: sqlite3.Connection) -> dict:
             r["source"] or "",
         ])
     return out
-
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="导出双端共用的内置 JSON 资产")
@@ -214,7 +154,7 @@ def main() -> int:
     total = 0
     for name in OUTPUTS:
         data = payloads[name]
-        # 不缩进：这些是打包进 App 的资产，缩进会让体积膨胀 30% 以上
+
         text = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
         size = len(text.encode("utf-8"))
         total += size
@@ -235,7 +175,6 @@ def main() -> int:
     else:
         print(f"已写入 {ASSETS_DIR}")
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

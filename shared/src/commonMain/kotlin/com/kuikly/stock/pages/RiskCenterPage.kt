@@ -236,7 +236,7 @@ class RiskCenterPage : BasePager() {
                         riskSectionTitle("风险提示 · 点击展开建议")
                         vif({ ctx.riskMessages.isEmpty() }) { calmRiskState() }
                         vfor({ ctx.riskMessages }) { message ->
-                            // 需要index，用hash替代
+
                             riskMessage(ctx, message, message.hashCode().toString())
                         }
                         riskSectionTitle("持仓拆解 · 点击编辑")

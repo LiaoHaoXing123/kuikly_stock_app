@@ -10,7 +10,6 @@ import io.ktor.utils.io.*
 import kotlinx.serialization.json.*
 import com.kuikly.stock.data.nowMillis
 
-/** Requests are scoped by the caller's Job; execute releases the streaming body. */
 internal object ChatTransport {
     internal suspend fun generate(
         config: AiRequestConfig,
@@ -42,7 +41,7 @@ internal object ChatTransport {
             val calls = reply.calls
             if (calls.isEmpty()) return reply.text
             if (toolRounds++ >= 2) throw ChatProtocolException("工具查询次数过多，请缩小问题范围")
-            onText("") // Tool planning content is not the final user-facing answer.
+            onText("")
             messages.add(buildJsonObject {
                 put("role", "assistant")
                 put("content", reply.text.takeIf { it.isNotBlank() }?.let(::JsonPrimitive) ?: JsonNull)
@@ -88,7 +87,7 @@ internal object ChatTransport {
                 throw AiProviderException(response.status.value, providerErrorMessage(response.status.value))
             }
             if (response.contentType()?.match(ContentType.Text.EventStream) != true) {
-                // Some compatible services accept stream=true but return a complete JSON body.
+
                 val root = Json.parseToJsonElement(response.bodyAsText()).jsonObject
                 val choice = (root["choices"] as? JsonArray)?.firstOrNull()?.jsonObject
                     ?: throw ChatProtocolException("服务响应缺少 choices")

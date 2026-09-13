@@ -1,7 +1,3 @@
-// 个股详情页 —— K 线图表区域。
-// 自 StockDetailPage.kt 拆出：多周期切换(W/M)、缩放平移、MA/副图指标、K 线画布与区间摘要。
-// 均为 ViewContainer 的扩展函数，仅依赖同包的 StockDetailPage 与数据模型。
-
 package com.kuikly.stock.pages
 
 import com.kuikly.stock.data.StockColors
@@ -62,7 +58,6 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
             borderRadius(10f)
         }
 
-        // 标题 + 周期切换
         View {
             attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginBottom(8f) }
             Text {
@@ -85,12 +80,11 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
             }
         }
 
-        // 周期切换（滑块指示器，和行情页的股票/指数切换同一手感）
         View {
             attr { flexDirectionRow(); marginBottom(8f) }
             klinePeriodBar(ctx)
             View { attr { flex(1f) } }
-            // 重置视口：专业图/基础图通用（见 ctx.resetKline 分流）
+
             View {
                 attr { height(34f); paddingLeft(8f); paddingRight(8f); allCenter(); backgroundColor(AppColor.PRIMARY_BG); borderRadius(8f); marginRight(6f); accessibility("重置K线视口") }
                 event { click { ctx.resetKline() } }
@@ -135,7 +129,7 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
         velseif({ originalKline != null && originalKline.isNotEmpty() }) {
             vif({ !ctx.matureChartAvailable || !ctx.matureChartEnabled }) {
             vif({ ctx.klineToolsExpanded }) {
-            // 缩放平移控制
+
             View {
                 attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginBottom(6f) }
                 chartControlButton("◀◀", { ctx.panLeft() })
@@ -182,7 +176,7 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                 }
             }
             }
-            // 副图指标选择器（关 / MACD / KDJ / RSI，默认关；开启时主画布向下增高）
+
             View {
                 attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginBottom(6f) }
                 Text { attr { text("副图"); fontSize(11f); color(AppColor.TEXT_HINT); marginRight(8f) } }
@@ -236,7 +230,7 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                     velse {
                         View {
                             attr { flexDirectionRow() }
-                            // 图左常驻缩放钮：与工具条里的 ＋/－ 同一套 zoomIn/Out（带缓动）
+
                             View {
                                 attr { width(30f); flexDirectionColumn(); justifyContentCenter() }
                                 zoomFab("＋") { ctx.zoomIn() }
@@ -266,7 +260,6 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
                 }
             }
 
-            // AI价位图例
             vfor({ ObservableList(listOfNotNull(ctx.aiAnalysis).toMutableList()) }) { analysis ->
                 View {
                     attr { flexDirectionRow(); flexWrapWrap(); marginTop(8f) }
@@ -327,18 +320,10 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
     }
 }
 
-/** 周期单格宽度（dp）。滑块宽度与它一致，百分比位移才能正好跨一格。 */
 private const val KLINE_PERIOD_TAB_W = 46f
 
-/** 日 / 周 / 月 的键与文案；下标即滑块位移量。 */
 private val KLINE_PERIODS = listOf("D" to "日K", "W" to "周K", "M" to "月K")
 
-/**
- * K 线周期切换。
- *
- * 三个选项各自硬切底色时，切周期很难一眼看出「选中的那个跑哪去了」；
- * 滑块平移之后位移本身就是答案。结构见 [segmentedControl]。
- */
 internal fun ViewContainer<*, *>.klinePeriodBar(ctx: StockDetailPage) {
     segmentedControl(
         options = KLINE_PERIODS.map { it.second },
@@ -368,12 +353,6 @@ internal fun ViewContainer<*, *>.subIndicatorChip(ctx: StockDetailPage, key: Str
     }
 }
 
-/**
- * K 线加载骨架：控制条（周期/副图两行）+ 主画布。
- *
- * 高度与真实版式对齐（控制条 22f、画布 200f），数据到达时只是填充，页面不跳。
- * 换成骨架前这里是一行「K线数据加载中...」，信息量为零且让卡片在数据前后高度不同。
- */
 internal fun ViewContainer<*, *>.klineLoadingView(ctx: BasePager) {
     val sweep = ctx.skeletonPulse
     View {
@@ -381,7 +360,6 @@ internal fun ViewContainer<*, *>.klineLoadingView(ctx: BasePager) {
             flexDirectionColumn()
         }
 
-        // 周期选择条
         View {
             attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginBottom(6f) }
             skeletonBlock(height = 22f, w = 40f, radius = 11f, sweep = sweep)
@@ -393,7 +371,6 @@ internal fun ViewContainer<*, *>.klineLoadingView(ctx: BasePager) {
             skeletonBlock(height = 22f, w = 34f, radius = 11f, sweep = sweep)
         }
 
-        // 缩放/平移控制条
         View {
             attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginBottom(6f) }
             repeat(4) {
@@ -403,7 +380,6 @@ internal fun ViewContainer<*, *>.klineLoadingView(ctx: BasePager) {
             View { attr { flex(1f) } }
         }
 
-        // 主画布
         skeletonBlock(height = 200f, radius = 8f, sweep = sweep)
     }
 }
@@ -445,7 +421,6 @@ internal fun ViewContainer<*, *>.klineErrorView(ctx: StockDetailPage) {
     }
 }
 
-/** 图表左侧的缩放悬浮钮：紧凑圆形，常驻可见，不占用工具条空间。 */
 internal fun ViewContainer<*, *>.zoomFab(label: String, action: () -> Unit) {
     View {
         attr {
@@ -483,24 +458,22 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
 
         val tooltipH = 36f
         val padT = 38f
-        // 副图（MACD/KDJ）：底部预留一块高度。height 已含 +86，故 volTop 回落到 base-70，
-        // 主图与量图区域逐像素不变；副图占 [subTop, subBottom]。
+
         val subOn = ctx.klineSubIndicator != "none"
-        val subReserve = if (subOn) 86f else 0f       // 76 高 + 10 间隙
+        val subReserve = if (subOn) 86f else 0f
         val volTop = (if (ctx.klineShowVolume) height - 70f else height - 20f) - subReserve
         val volH = if (ctx.klineShowVolume) 44f else 0f
         val dateY = height - 10f
         val subTop = volTop + volH + 10f
         val subBottom = subTop + 76f
 
-        // 计算可见区间价格范围，包含AI价位
         val priceList = visible.flatMap { listOf(it.high, it.low, it.open, it.close) }.toMutableList()
         aiLevels.forEach { if (it.price > 0) priceList.add(it.price) }
         if (ctx.highlightedPrice > 0) priceList.add(ctx.highlightedPrice)
         var minP = priceList.minOrNull() ?: 0.0
         var maxP = priceList.maxOrNull() ?: 1.0
         if (maxP <= minP) maxP = minP + 1.0
-        // 留出10%边距
+
         val pad = (maxP - minP) * 0.08
         minP -= pad
         maxP += pad
@@ -511,7 +484,6 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
         val step = width / nVisible.coerceAtLeast(1)
         val cw = (step * 0.55f).coerceAtLeast(2f).coerceAtMost(14f)
 
-        // 背景网格
         context.strokeStyle(Color(AppColor.BG_SOFT))
         context.lineWidth(1f)
         for (i in 0..4) {
@@ -521,7 +493,7 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
             context.lineTo(width, gy)
             context.stroke()
         }
-        // 垂直网格
+
         context.strokeStyle(Color(AppColor.SURFACE_ALT))
         for (i in 0..nVisible step (nVisible / 5).coerceAtLeast(1)) {
             val cx = step * i + step / 2f
@@ -531,11 +503,10 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
             context.stroke()
         }
 
-        // AI价位虚线
         aiLevels.forEach { lvl ->
             if (lvl.price in minP..maxP) {
                 val y = py(lvl.price)
-                // 虚线效果：手动分段
+
                 context.strokeStyle(Color(lvl.color))
                 context.lineWidth(1f)
                 var x = 0f
@@ -546,7 +517,7 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                     context.stroke()
                     x += 10f
                 }
-                // 标签
+
                 context.fillStyle(Color(lvl.color))
                 context.font(9f)
                 context.textAlign(TextAlign.RIGHT)
@@ -554,7 +525,6 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
             }
         }
 
-        // 高亮价位
         if (ctx.highlightedPrice > 0 && ctx.highlightedPrice in minP..maxP) {
             val y = py(ctx.highlightedPrice)
             context.strokeStyle(Color(AppColor.WARNING))
@@ -569,13 +539,12 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
             context.fillText("★ ${ctx.highlightedPriceLabel} ${fmt2(ctx.highlightedPrice)}", 4f, y - 4f)
         }
 
-        // 计算MA
         val closes = aggregated.map { it.close }
         fun maAt(index: Int, period: Int): Double? {
             if (index < period - 1) return null
             return closes.subList(index - period + 1, index + 1).average()
         }
-        // 为可见区间准备MA点
+
         val visibleStart = ctx.klineStartIndex
         val ma5Points = mutableListOf<Pair<Float, Float>>()
         val ma10Points = mutableListOf<Pair<Float, Float>>()
@@ -588,19 +557,18 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
             maAt(globalIdx, 20)?.let { ma20Points.add(cx to py(it)) }
         }
 
-        // K线蜡烛
         visible.forEachIndexed { i, k ->
             val cx = step * i + step / 2f
             val up = k.close >= k.open
             val color = if (up) Color(StockColors.UP) else Color(StockColors.DOWN)
-            // 影线
+
             context.strokeStyle(color)
             context.lineWidth(1f)
             context.beginPath()
             context.moveTo(cx, py(k.high))
             context.lineTo(cx, py(k.low))
             context.stroke()
-            // 实体
+
             val yo = py(k.open)
             val yc = py(k.close)
             val top = minOf(yo, yc)
@@ -615,7 +583,6 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
             context.fill()
         }
 
-        // MA线
         if (ctx.klineShowMA) {
             fun drawMALine(points: List<Pair<Float, Float>>, color: Color) {
                 if (points.size < 2) return
@@ -632,7 +599,6 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
             drawMALine(ma20Points, Color(0xFF7B1FA2))
         }
 
-        // 趋势线（自动摆动高/低连线，向右延伸；仅主图价格区）
         if (ctx.klineShowTrend && nVisible >= 5) {
             val trend = computeTrendlines(visible.map { it.high }, visible.map { it.low })
             val chartBottom = padT + chartH
@@ -646,11 +612,10 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                 context.strokeStyle(Color(colorValue)); context.lineWidth(1.2f)
                 context.beginPath(); context.moveTo(x1, yA); context.lineTo(lastX, yB); context.stroke()
             }
-            drawTrend(trend.resistance, 0xFFEF5350)  // 压力线：红
-            drawTrend(trend.support, 0xFF26A69A)     // 支撑线：青绿
+            drawTrend(trend.resistance, 0xFFEF5350)
+            drawTrend(trend.support, 0xFF26A69A)
         }
 
-        // 成交量
         if (ctx.klineShowVolume && volH > 0) {
             val maxVol = visible.maxOf { it.volume }.toFloat().coerceAtLeast(1f)
             context.strokeStyle(Color(AppColor.DIVIDER))
@@ -679,10 +644,9 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
             context.fillText("成交量", width - 2f, volTop - 8f)
         }
 
-        // ============ 副图：MACD / KDJ / RSI（并入主画布，X 轴与主图逐根对齐）============
         if (subOn) {
             val subH = subBottom - subTop
-            // 与量图/主图的分隔线
+
             context.strokeStyle(Color(AppColor.DIVIDER))
             context.lineWidth(1f)
             context.beginPath()
@@ -690,8 +654,6 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
             context.lineTo(width, subTop - 5f)
             context.stroke()
 
-            // 在完整 aggregated 上计算（EMA/窗口预热），再按可见区间切片，与 maAt 同理；
-            // 指标本体经 ctx.*Of() 缓存，只有数据或周期变化才会真正重算
             val subActiveIdx = ctx.crosshair.activeIndex ?: -1
             val subActiveLocal = (subActiveIdx - visibleStart).let { if (it in 0 until nVisible) it else nVisible - 1 }
 
@@ -715,11 +677,11 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                 if (hi <= lo) hi = lo + 1.0
                 fun syToY(v: Double): Float = subTop + subH * ((hi - v) / (hi - lo)).toFloat()
                 val zeroY = syToY(0.0)
-                // 零轴
+
                 context.strokeStyle(Color(AppColor.DIVIDER))
                 context.lineWidth(1f)
                 context.beginPath(); context.moveTo(0f, zeroY); context.lineTo(width, zeroY); context.stroke()
-                // MACD 柱（≥0 红 / <0 绿）
+
                 for (i in 0 until nVisible) {
                     val cx = step * i + step / 2f
                     val h = histV[i]
@@ -743,8 +705,8 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                     }
                     context.stroke()
                 }
-                drawSubLine(difV, AppColor.PRIMARY_SOFT)  // DIF 蓝
-                drawSubLine(deaV, AppColor.WARNING)  // DEA 橙
+                drawSubLine(difV, AppColor.PRIMARY_SOFT)
+                drawSubLine(deaV, AppColor.WARNING)
                 context.fillStyle(Color(AppColor.TEXT_HINT_SOFT)); context.font(9f); context.textAlign(TextAlign.LEFT)
                 val si = subActiveLocal.coerceIn(0, nVisible - 1)
                 context.fillText("MACD(12,26,9)  DIF ${fmt2(difV[si])}  DEA ${fmt2(deaV[si])}  M ${fmt2(histV[si])}", 4f, subTop + 9f)
@@ -759,11 +721,11 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                     r12.add(rsi.rsi12.getOrElse(gi) { 50.0 })
                     r24.add(rsi.rsi24.getOrElse(gi) { 50.0 })
                 }
-                // RSI 天然 0..100 值域，固定刻度便于横向比较
+
                 val lo = 0.0
                 val hi = 100.0
                 fun syToY(v: Double): Float = subTop + subH * ((hi - v) / (hi - lo)).toFloat()
-                // 30 / 70 超买超卖参考虚线
+
                 context.strokeStyle(Color(AppColor.DIVIDER_SOFT)); context.lineWidth(1f)
                 for (ref in listOf(30.0, 70.0)) {
                     val ry = syToY(ref)
@@ -782,9 +744,9 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                     }
                     context.stroke()
                 }
-                drawSubLine(r6, AppColor.PRIMARY_SOFT)   // RSI6 蓝
-                drawSubLine(r12, AppColor.WARNING)  // RSI12 橙
-                drawSubLine(r24, 0xFF7B1FA2)  // RSI24 紫
+                drawSubLine(r6, AppColor.PRIMARY_SOFT)
+                drawSubLine(r12, AppColor.WARNING)
+                drawSubLine(r24, 0xFF7B1FA2)
                 context.fillStyle(Color(AppColor.TEXT_HINT_SOFT)); context.font(9f); context.textAlign(TextAlign.LEFT)
                 val si = subActiveLocal.coerceIn(0, nVisible - 1)
                 context.fillText("RSI(6,12,24)  RSI6 ${fmt2(r6[si])}  RSI12 ${fmt2(r12[si])}  RSI24 ${fmt2(r24[si])}", 4f, subTop + 9f)
@@ -807,7 +769,7 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                 }
                 if (hi <= lo) hi = lo + 1.0
                 fun syToY(v: Double): Float = subTop + subH * ((hi - v) / (hi - lo)).toFloat()
-                // 20 / 80 参考虚线
+
                 context.strokeStyle(Color(AppColor.DIVIDER_SOFT)); context.lineWidth(1f)
                 for (ref in listOf(20.0, 80.0)) {
                     val ry = syToY(ref)
@@ -826,23 +788,21 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                     }
                     context.stroke()
                 }
-                drawSubLine(kV, AppColor.PRIMARY_SOFT)  // K 蓝
-                drawSubLine(dV, AppColor.WARNING)  // D 橙
-                drawSubLine(jV, 0xFF7B1FA2)  // J 紫
+                drawSubLine(kV, AppColor.PRIMARY_SOFT)
+                drawSubLine(dV, AppColor.WARNING)
+                drawSubLine(jV, 0xFF7B1FA2)
                 context.fillStyle(Color(AppColor.TEXT_HINT_SOFT)); context.font(9f); context.textAlign(TextAlign.LEFT)
                 val si = subActiveLocal.coerceIn(0, nVisible - 1)
                 context.fillText("KDJ(9,3,3)  K ${fmt2(kV[si])}  D ${fmt2(dV[si])}  J ${fmt2(jV[si])}", 4f, subTop + 9f)
             }
         }
 
-        // 价格标签
         context.fillStyle(Color(AppColor.TEXT_HINT))
         context.font(10f)
         context.textAlign(TextAlign.LEFT)
         context.fillText(fmt2(maxP), 4f, padT + 9f)
         context.fillText(fmt2(minP), 4f, volTop - 6f)
 
-        // 日期标签
         if (visible.isNotEmpty()) {
             val firstDate = visible.first().tradeDate
             val lastDate = visible.last().tradeDate
@@ -851,14 +811,13 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
             context.fillText(firstDate, 2f, dateY)
             context.textAlign(TextAlign.RIGHT)
             context.fillText(lastDate, width - 2f, dateY)
-            // 中间日期
+
             if (nVisible > 10) {
                 context.textAlign(TextAlign.CENTER)
                 context.fillText(visible[nVisible / 2].tradeDate, width / 2f, dateY)
             }
         }
 
-        // P1: 十字光标 + 区间选择
         val interaction = ctx.crosshair.state
         val showCrosshair = ctx.crosshairX >= 0f && (interaction is InteractionState.Hover || interaction is InteractionState.Locked || interaction is InteractionState.RangeSelect)
 
@@ -868,7 +827,6 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
             val localIdx = activeIdx - ctx.klineStartIndex
             val k = visible.getOrNull(localIdx)
 
-            // 竖直线（虚线）— 副图开启时贯穿主图 + 量图 + 副图
             context.strokeStyle(Color(AppColor.TEXT_GRAY))
             context.lineWidth(1f)
             val vLineBottom = if (subOn) subBottom else volTop
@@ -881,7 +839,6 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                 vx += 8f
             }
 
-            // 水平线（虚线）— 跟随 crosshairY 或收盘价
             val hy = if (ctx.crosshairY in padT..volTop) ctx.crosshairY else (k?.let { py(it.close) } ?: (padT + chartH / 2))
             var hx = 0f
             while (hx < width) {
@@ -892,7 +849,6 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                 hx += 8f
             }
 
-            // 右侧价格标签
             val priceAtY = if (ctx.crosshairY in padT..volTop) {
                 val ratio = 1f - ((ctx.crosshairY - padT) / chartH).coerceIn(0f, 1f)
                 minP + ratio * (maxP - minP)
@@ -913,7 +869,6 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
             context.textAlign(TextAlign.CENTER)
             context.fillText(fmt2(priceAtY), width - priceTagW / 2f, hy + 3f)
 
-            // 底部日期标签
             if (k != null) {
                 val dateTagW = 62f
                 val dateTagX = (cx - dateTagW / 2f).coerceIn(0f, width - dateTagW)
@@ -931,7 +886,6 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                 context.fillText(k.tradeDate, dateTagX + dateTagW / 2f, dateY - 3f)
             }
 
-            // 选中 K线框
             if (k != null && (interaction is InteractionState.Locked || interaction is InteractionState.Hover)) {
                 context.strokeStyle(Color(AppColor.PRIMARY_SOFT))
                 context.lineWidth(1.5f)
@@ -944,7 +898,6 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                 context.stroke()
             }
 
-            // 区间选择遮罩
             if (interaction is InteractionState.RangeSelect) {
                 val startLocal = interaction.startGlobalIdx - ctx.klineStartIndex
                 val endLocal = interaction.endGlobalIdx - ctx.klineStartIndex
@@ -970,7 +923,6 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                 }
             }
 
-            // OHLC Tooltip（顶部浮层）
             if (k != null) {
                 context.fillStyle(Color(0xE622263F))
                 context.beginPath()
@@ -996,7 +948,7 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                     "涨跌 ${fmtSignedPct(pct)} 量${k.volume.toInt()}手 ${if (ctx.klineShowMA) "MA5 ${maAt(activeIdx,5)?.let { fmt2(it) } ?: "-"}" else ""}",
                     4f, 24f
                 )
-                // 与AI价位距离
+
                 if (aiLevels.isNotEmpty()) {
                     val nearest = aiLevels.minByOrNull { abs(it.price - k.close) }
                     nearest?.let {
@@ -1007,7 +959,6 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                 }
             }
 
-            // 区间统计浮层（区间选择时显示）
             ctx.rangeStats?.let { stats ->
                 val statsH = 28f
                 val statsY = padT + 4f
@@ -1028,7 +979,6 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
             }
         }
 
-        // 选中态顶部已显示行情浮层，避免图例覆盖第三行 AI 价位距离。
         if (ctx.klineShowMA && !showCrosshair) {
             context.font(9f)
             context.textAlign(TextAlign.LEFT)
@@ -1044,7 +994,6 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
             }
         }
 
-        // P0: KlineFocus 覆盖层绘制（Range遮罩/Point竖线/Price虚线，4秒淡出）
         val focus = ctx.pendingFocus
         if (focus != null) {
             val alpha = 1f
@@ -1064,7 +1013,7 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                             val x0 = cxOf(lo) - cw / 2
                             val x1 = cxOf(hi) + cw / 2
                             val rectH = volTop - padT
-                            // 填充
+
                             context.beginPath()
                             context.moveTo(x0, padT)
                             context.lineTo(x1, padT)
@@ -1073,7 +1022,7 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
                             context.lineTo(x0, padT)
                             context.fillStyle(withAlpha(focus.colorValue, 0.14f * alpha))
                             context.fill()
-                            // 边框
+
                             context.beginPath()
                             context.moveTo(x0, padT)
                             context.lineTo(x1, padT)

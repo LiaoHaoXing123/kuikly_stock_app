@@ -1,27 +1,16 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-"""指数三表 pipeline 离线测试：用桩 AKShare 数据跑通 抓取→行转换→写入→剪枝 全链路。
-
-不依赖网络（CI/沙箱均可跑）。真实接口的列名以 AKShare 官方文档为准，
-此处桩数据按文档列名构造；若官方改列名，fetch 层的防御式映射会抛错告警而非静默写错。
-
-用法：
-  python data-pipeline/test_index_pipeline.py
-"""
 import os
 import sys
 import sqlite3
 from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import build_stock_db as b  # noqa: E402
-import pandas as pd  # noqa: E402
+import build_stock_db as b
+import pandas as pd
 
 RECENT = [(datetime.now() - timedelta(days=d)).strftime("%Y-%m-%d") for d in (3, 2, 1)]
 
-
 def _spot_df():
-    # 按 stock_zh_index_spot_em 文档列名构造；附一行坏代码验证过滤
+
     return pd.DataFrame([
         {"序号": 1, "代码": "000001", "名称": "上证指数", "最新价": 3800.5, "涨跌幅": 0.40,
          "涨跌额": 15.2, "成交量": 350000000, "成交额": 5e11, "振幅": 0.8,
@@ -37,9 +26,8 @@ def _spot_df():
          "量比": 0.0, "换手率": 0.0},
     ])
 
-
 def _hist_df(dates):
-    # 按 index_zh_a_hist 文档列名构造（成交量单位：手）
+
     return pd.DataFrame([
         {"日期": d, "开盘": 3790.0 + i, "收盘": 3800.0 + i, "最高": 3810.0,
          "最低": 3780.0, "成交量": 350000000, "成交额": 5e11, "振幅": 0.8,
@@ -47,12 +35,10 @@ def _hist_df(dates):
         for i, d in enumerate(dates)
     ])
 
-
 def _conn():
     conn = sqlite3.connect(":memory:")
     b.ensure_schema(conn)
     return conn
-
 
 def test_idx_market_and_symbol():
     assert b.idx_market("000001") == "沪市" and b.idx_symbol("000001") == "sh000001"
@@ -60,17 +46,15 @@ def test_idx_market_and_symbol():
     assert b.idx_market("899050") == "北交所" and b.idx_symbol("899050") == "sh899050"
     assert b.idx_market("000300") == "沪市"
 
-
 def test_push2_rewrite_covers_numbered_mirrors():
     for host in ("push2.eastmoney.com", "48.push2.eastmoney.com",
                  "80.push2.eastmoney.com", "82.push2.eastmoney.com"):
         url = f"https://{host}/api/qt/clist/get?x=1"
         out = b._PUSH2_RE.sub(r"\1push2delay.eastmoney.com", url)
         assert out == "https://push2delay.eastmoney.com/api/qt/clist/get?x=1", out
-    # 非 push2 主机不受影响
+
     other = "https://quote.eastmoney.com/center/hszs.html"
     assert b._PUSH2_RE.sub(r"\1push2delay.eastmoney.com", other) == other
-
 
 def test_index_info_and_realtime_rows():
     conn = _conn()
@@ -95,7 +79,6 @@ def test_index_info_and_realtime_rows():
     finally:
         conn.close()
 
-
 def test_index_kline_main_source():
     conn = _conn()
     try:
@@ -116,7 +99,6 @@ def test_index_kline_main_source():
     finally:
         conn.close()
 
-
 def test_index_kline_tx_fallback_and_range_filter():
     conn = _conn()
     try:
@@ -125,7 +107,6 @@ def test_index_kline_tx_fallback_and_range_filter():
         def _boom(**kw):
             raise RuntimeError("主源挂了")
 
-        # 兜底返回全历史（含过期日期），应被截断到 [start, end]
         old = (datetime.now() - timedelta(days=90)).strftime("%Y-%m-%d")
         b.ak.index_zh_a_hist = _boom
         b.ak.stock_zh_index_daily_tx = lambda **kw: _hist_df([old] + RECENT)
@@ -140,7 +121,6 @@ def test_index_kline_tx_fallback_and_range_filter():
     finally:
         conn.close()
 
-
 def test_normalize_accepts_english_columns():
     df = pd.DataFrame([{"date": "2026-09-01", "open": 1, "close": 2, "high": 3,
                         "low": 0.5, "volume": 100, "amount": 200}])
@@ -148,7 +128,6 @@ def test_normalize_accepts_english_columns():
     assert list(out.columns)[:7] == ["trade_date", "open", "close", "high", "low",
                                     "volume", "amount"]
     assert out.iloc[0]["trade_date"] == "2026-09-01"
-
 
 def test_prune_covers_index_kline():
     conn = _conn()
@@ -165,7 +144,6 @@ def test_prune_covers_index_kline():
         assert cur.fetchone()[0] == 1, "近期指数K线应保留"
     finally:
         conn.close()
-
 
 if __name__ == "__main__":
     fns = [(k, v) for k, v in globals().items() if k.startswith("test_") and callable(v)]

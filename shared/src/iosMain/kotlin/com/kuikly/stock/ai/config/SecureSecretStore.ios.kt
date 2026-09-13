@@ -1,7 +1,5 @@
 @file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
 
-// iOS 安全密钥存储：系统 Keychain（kSecClassGenericPassword），无需额外 entitlement。
-
 package com.kuikly.stock.ai.config
 
 import kotlinx.cinterop.ByteVar
@@ -89,20 +87,20 @@ internal actual object SecureSecretStore {
                 }
             }
         } catch (e: Throwable) {
-            // 删除失败可忽略
+
         }
     }
 
     private fun buildQuery(profileId: String, secret: String? = null): CFDictionaryRef? {
         val query = CFDictionaryCreateMutable(null, 5, null, null) ?: return null
-        // const char * 参数直接传 Kotlin String（自动转 UTF-8 C 字符串）
+
         val service = CFStringCreateWithCString(null, KEYCHAIN_SERVICE, kCFStringEncodingUTF8)
         val account = CFStringCreateWithCString(null, profileId, kCFStringEncodingUTF8)
         CFDictionaryAddValue(query, kSecClass, kSecClassGenericPassword)
         CFDictionaryAddValue(query, kSecAttrService, service)
         CFDictionaryAddValue(query, kSecAttrAccount, account)
         if (secret != null) {
-            // 直接取 UTF-8 字节数组（不含 NUL 结尾），避免 cstr 尾巴的 '\0' 被写进 Keychain
+
             val bytes = secret.encodeToByteArray()
             if (bytes.isNotEmpty()) {
                 val data = bytes.usePinned { pinned ->

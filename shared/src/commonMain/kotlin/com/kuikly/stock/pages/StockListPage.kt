@@ -1,5 +1,3 @@
-// 股票列表页：支持搜索、排序与分页加载。
-
 package com.kuikly.stock.pages
 
 import com.kuikly.stock.base.BasePager
@@ -83,10 +81,8 @@ class StockListPage : BasePager() {
 
     internal var footerRefreshRef: ViewRef<FooterRefreshView>? = null
 
-    /** 按压态：列表项按下的高亮由它驱动，页面唯一一份（单指只可能按一个）。 */
     internal val press = PressState(this)
 
-    /** 下拉刷新触发时不弹 hint 气泡——进度由刷新头自己表达，避免双重反馈。 */
     private var silentLoad = false
 
     internal var searchInput: com.tencent.kuikly.core.views.InputView? = null
@@ -129,8 +125,7 @@ class StockListPage : BasePager() {
 
     override fun pageDidAppear() {
         super.pageDidAppear()
-        // 首屏 loading 在 didInit 里就发起了（那时 body 还没构建，扫光无从谈起）。
-        // 页面真正上屏时补一次：若骨架屏还在，扫光就从这个帧开始转。
+
         skeletonPulse.bump()
     }
 
@@ -138,14 +133,13 @@ class StockListPage : BasePager() {
         startRefresh(silent = false)
     }
 
-    /** 下拉刷新入口：不弹 hint 气泡，进度由刷新头表达。 */
     internal fun refreshByPull() {
         startRefresh(silent = true)
     }
 
     private fun startRefresh(silent: Boolean) {
         if (isLoading) {
-            // 已有请求在跑：立刻收掉刷新头，否则它会一直转
+
             pullRefreshRef?.view?.endRefresh()
             return
         }
@@ -163,14 +157,13 @@ class StockListPage : BasePager() {
         loadStockList(isRefresh = true)
     }
 
-    /** 触底自动加载入口（替代原「加载更多」按钮）。 */
     internal fun loadMoreFromFooter() {
         if (isLoading) return
         if (!hasMore) {
             footerRefreshRef?.view?.endRefresh(FooterRefreshEndState.NONE_MORE_DATA)
             return
         }
-        // 上次失败时不重复推进页码，原地重试同一页
+
         if (!loadError) currentPage++
         loadStockList(isRefresh = false, silent = true)
     }
@@ -236,13 +229,12 @@ class StockListPage : BasePager() {
         if (isRefresh) {
             stockList.clear()
             hasMore = true
-            // 重新拉取时清掉尾部的「没有更多数据」，否则自动加载不会再触发
+
             footerRefreshRef?.view?.resetRefreshState(FooterRefreshState.IDLE)
         }
-        // 骨架屏此刻才真正挂载：刷新的第一件事是清空列表，清空之后骨架才出现。
-        // 时机错了（例如放在 isLoading=true 紧后面）扫光就赶不上首帧。
+
         skeletonPulse.bump()
-        // 刷新头箭头（下拉与点「刷新」都会走到这里）
+
         refreshSpin.loop(REFRESH_SPIN_STEP_MS) { isLoading }
 
         lifecycleScope.launch {
@@ -290,7 +282,6 @@ class StockListPage : BasePager() {
         }
     }
 
-    /** 收掉下拉刷新头与触底加载态，避免指示器一直转。 */
     private fun finishRefreshIndicators() {
         pullRefreshRef?.view?.endRefresh()
         footerRefreshRef?.view?.endRefresh(
@@ -410,19 +401,10 @@ internal fun ViewContainer<*, *>.searchBar(ctx: StockListPage) {
     }
 }
 
-/** 模式 Tab 的单项宽度（dp）。滑块宽度与它一致，百分比位移才能正好跨一格。 */
 private const val MODE_TAB_W = 68f
 
-/** 股票 / 指数两个模式，下标即滑块位移量。 */
 private val MODE_TABS = listOf("股票", "指数")
 
-/**
- * 股票 / 指数切换。
- *
- * 两个 chip 的选中态是底色硬切，切换时视觉上是「灭一盏、亮一盏」；滑块则是一个物体
- * 从左挪到右，用户能直接看出「是在两组数据之间切换」。结构与取色见 [segmentedControl]，
- * 这里的差异只在配色：滑块是白底、选中文字是主色，与 K 线周期那种「主色滑块 + 白字」相反。
- */
 internal fun ViewContainer<*, *>.modeTabBar(ctx: StockListPage) {
     View {
         attr {
@@ -450,19 +432,10 @@ internal fun ViewContainer<*, *>.modeTabBar(ctx: StockListPage) {
     }
 }
 
-/** 排序单格宽度（dp）。滑块宽度与它一致，percentageX 位移才能正好跨一格。 */
 private const val SORT_TAB_W = 54f
 
-/** 排序项固定顺序，下标即滑块位移量。「成交量」3 个字，宽度按它取。 */
 private val SORT_OPTIONS = listOf("默认", "涨幅", "跌幅", "成交量")
 
-/**
- * 排序切换。
- *
- * 四个 chip 各自硬切底色时，切换像「灭一盏、亮一盏」，看不出选中的跑哪去了。
- * 换成和 K 线周期、股票/指数同一套「滑块 + 位移」：一个蓝色滑块在四格间平移，
- * 位移本身就表达「在同一组选项里切换」。结构见 [segmentedControl]。
- */
 internal fun ViewContainer<*, *>.sortBar(ctx: StockListPage) {
     View {
         attr {
@@ -561,7 +534,7 @@ internal fun ViewContainer<*, *>.stockListView(ctx: StockListPage) {
                 stockListItem(ctx, stock)
             }
         }
-        // 触底自动加载：替代原来的「加载更多」按钮
+
         autoLoadFooter(
             bind = { ctx.footerRefreshRef = it },
             label = { loadMoreLabel(ctx.footerState, ctx.hasMore, ctx.isLoading) },
@@ -596,8 +569,7 @@ internal fun ViewContainer<*, *>.stockListItem(
             pressedBg(ctx.press, rowTag, normal = AppColor.SURFACE)
         }
         event {
-            // 按下先给视觉反馈，松手才真的跳转。原来这里什么都没有，
-            // 用户只能靠「松手后页面跳了」反推自己点到了——这就是原型感。
+
             pressFeedback(ctx.press, rowTag)
             click {
                 hapticTick(HapticStyle.Light)
@@ -676,11 +648,6 @@ internal fun ViewContainer<*, *>.stockListItem(
     }
 }
 
-/**
- * 列表首屏骨架：列宽与内边距跟真实行严格一致，先把版式占住。
- * 数据到达时只是「填充」，页面不跳、眼睛不用重新找焦点——
- * 这比一行居中的「加载中...」信息量大得多。
- */
 internal fun ViewContainer<*, *>.stockListLoadingView(ctx: StockListPage) {
     val sweep = ctx.skeletonPulse
     View {
@@ -699,27 +666,26 @@ internal fun ViewContainer<*, *>.stockListLoadingView(ctx: StockListPage) {
                     backgroundColor(AppColor.SURFACE)
                 }
 
-                // 名称（flex）
                 View {
                     attr { flex(1f) }
                     skeletonBlock(height = 15f, w = 92f, sweep = sweep)
                 }
-                // 代码（60）
+
                 View {
                     attr { width(60f) }
                     skeletonBlock(height = 12f, w = 44f, sweep = sweep)
                 }
-                // 最新价（68，右对齐）
+
                 View {
                     attr { width(68f); alignItems(FlexAlign.FLEX_END) }
                     skeletonBlock(height = 16f, w = 50f, sweep = sweep)
                 }
-                // 涨跌额（56，右对齐）
+
                 View {
                     attr { width(56f); alignItems(FlexAlign.FLEX_END) }
                     skeletonBlock(height = 12f, w = 42f, sweep = sweep)
                 }
-                // 涨跌幅（64，右对齐）
+
                 View {
                     attr { width(64f); alignItems(FlexAlign.FLEX_END) }
                     skeletonBlock(height = 12f, w = 46f, sweep = sweep)
@@ -729,16 +695,8 @@ internal fun ViewContainer<*, *>.stockListLoadingView(ctx: StockListPage) {
     }
 }
 
-/** 首屏骨架行数：够铺满一屏即可，多画只是浪费。 */
 private const val SKELETON_ROW_COUNT = 10
 
-/**
- * 空态。
- *
- * 原来只有一行「暂无数据，请尝试其他搜索条件或刷新重试」——把用户丢在一个死胡同里：
- * 知道该做什么，但没有任何可点的东西。现在按当前筛选状态给出对应的**出口按钮**，
- * 让空态也是流程的一部分而不是终点。
- */
 internal fun ViewContainer<*, *>.emptyView(ctx: StockListPage) {
     val filtered = ctx.currentKeyword.isNotEmpty() || ctx.sortOption != "默认"
     View {
@@ -826,13 +784,6 @@ private fun ViewContainer<*, *>.emptyStateButton(
     }
 }
 
-/**
- * 列表错误态。
- *
- * 原来直接把 loadErrorMessage（可能是 "HTTP 500: ..." 或异常 message）当正文摊出来，
- * 标红加粗像报错弹窗——那是给开发者看的。现在分两层：一行给人看的结论，
- * 原始信息降级成灰色小字（可自查、可截图反馈），主按钮仍是重试。
- */
 internal fun ViewContainer<*, *>.loadErrorView(ctx: StockListPage) {
     View {
         attr {

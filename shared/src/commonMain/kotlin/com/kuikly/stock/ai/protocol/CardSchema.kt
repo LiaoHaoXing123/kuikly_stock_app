@@ -1,26 +1,15 @@
 package com.kuikly.stock.ai.protocol
 
-/**
- * 通用卡片协议校验器。
- * - 必填字段缺失/非法 -> 整个对象作废
- * - 可选字段非法      -> 只剥离该字段，对象保留（字段级降级）
- * 聊天 v1 与详情 v2 共用此文件，各自只注册 registry。
- */
 sealed interface FieldRule {
     object Text : FieldRule
     data class Enum(val values: Set<String>) : FieldRule
     data class Num(val min: Double? = null, val max: Double? = null) : FieldRule
     object Code6 : FieldRule
 
-    /** allowed == null 表示只校验 YYYY-MM-DD 格式，不做集合校验 */
     data class DateIn(val allowed: Set<String>?) : FieldRule
 
     data class TextList(val max: Int, val min: Int = 1) : FieldRule
 
-    /**
-     * 对象数组。兼容元素为纯字符串：会把字符串塞进 required 的第一个 key。
-     * 例：signals 兼容 ["纯文本"] -> [{text:"纯文本"}]
-     */
     data class ObjList(
         val required: Map<String, FieldRule>,
         val optional: Map<String, FieldRule> = emptyMap(),
@@ -33,7 +22,7 @@ data class CardSchema(
     val type: String,
     val required: Map<String, FieldRule>,
     val optional: Map<String, FieldRule> = emptyMap(),
-    /** true 时：schema 未定义的字段（除 type）视为协议违规，整卡作废。 */
+
     val strict: Boolean = false,
 )
 
@@ -66,7 +55,7 @@ fun coerce(value: Any?, rule: FieldRule): Any? = when (rule) {
         (value as? String)?.trim()?.takeIf { it in rule.values }
 
     is FieldRule.Num -> {
-        // 协议要求价格等数值字段必须是 JSON number，禁止字符串（"10"、"约10元" 均拒）。
+
         val d: Double? = (value as? Number)?.toDouble()
         d?.takeIf { it.isFinite() }
             ?.takeIf { rule.min == null || it >= rule.min }
@@ -100,9 +89,6 @@ fun coerce(value: Any?, rule: FieldRule): Any? = when (rule) {
     }
 }
 
-/**
- * @return null 表示必填字段缺失，对象作废
- */
 fun validateObject(
     src: Map<String, Any?>,
     required: Map<String, FieldRule>,

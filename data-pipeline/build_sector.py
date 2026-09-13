@@ -1,29 +1,5 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-build_sector.py —— 官方行业板块联动（L1）：东财官方行业板块快照采集。
+# 抓取行业板块与成分股快照。
 
-数据源（已由 probe_sector.py 实测，2026-09-10）：
-  * stock_board_industry_name_em()：496 个官方行业板块，列名
-      排名/板块名称/板块代码(BKxxxx)/最新价/涨跌额/涨跌幅/总市值/换手率/
-      上涨家数/下跌家数/领涨股票/领涨股票-涨跌幅
-      - 涨跌幅为百分数（如 3.2 表示 3.2%）；总市值单位为元
-      - 实时快照（收盘后抓取 = 当日收盘数据），无日期列，用抓取日标注
-  * stock_board_industry_cons_em(symbol=板块名)：成分股，列名
-      序号/代码/名称/最新价/涨跌幅/涨跌额/成交量/成交额/振幅/最高/最低/今开/昨收/换手率/市盈率-动态/市净率
-  * 已知约束：
-      - 板块历史日K stock_board_industry_hist_em 本机不可达（RemoteDisconnected），L1 不依赖
-      - 非法板块名抛 IndexError（需 try/except）
-
-写入 build_stock_db.OUT_DB（stock.db）：
-  sector_board  板块行情快照（board_code PK + fetch_date）
-  sector_member 成分股快照（board_code+code PK + fetch_date），只抓 stock_info 中出现过的行业
-
-质量门：板块列表 >= 50；按库内行业匹配到的板块，成分股覆盖率 >= 80%，否则阻止发布。
-用法（在 data-pipeline 目录，venv）：
-  venv/Scripts/python.exe build_sector.py            # 全量
-  venv/Scripts/python.exe build_sector.py --dry-run  # 只自检 schema
-"""
 import sys
 import time
 import json
@@ -32,19 +8,18 @@ import math
 import sqlite3
 from datetime import datetime, timedelta
 
-# 复用 build_stock_db 的网络补丁（强制直连 + push2delay 改写）与常量
 try:
-    import build_stock_db as bsd  # noqa: E402
+    import build_stock_db as bsd
     OUT_DB = bsd.OUT_DB
     REQUEST_INTERVAL = bsd.REQUEST_INTERVAL
-except Exception as _e:  # pragma: no cover
+except Exception as _e:
     print(f"[FATAL] 无法 import build_stock_db（需要同目录）: {_e}")
     sys.exit(2)
 
 try:
     import akshare as ak
     import pandas as pd
-except Exception as e:  # pragma: no cover
+except Exception as e:
     print(f"[FATAL] 无法 import akshare/pandas: {e}")
     sys.exit(2)
 
@@ -84,7 +59,6 @@ QUALITY_MIN_BOARDS = 50
 QUALITY_MIN_MEMBER_COVERAGE = 0.8
 QUALITY_MAX_AGE_DAYS = 4
 
-
 def _num(v):
     try:
         value = float(v)
@@ -92,13 +66,11 @@ def _num(v):
     except (TypeError, ValueError):
         return None
 
-
 def _int(v):
     try:
         return int(float(v))
     except (TypeError, ValueError):
         return None
-
 
 def _pick(row, *keys):
     for k in keys:
@@ -106,9 +78,8 @@ def _pick(row, *keys):
             return row[k]
     return None
 
-
 def fetch_boards():
-    """板块列表 -> list[dict]。异常时返回空列表。"""
+
     try:
         df = ak.stock_board_industry_name_em()
     except Exception as e:
@@ -137,9 +108,8 @@ def fetch_boards():
         })
     return rows
 
-
 def fetch_members(board_name, retries=2, base_wait=1.0):
-    """单板块成分股 -> list[dict]。非法/失败返回 []。"""
+
     for attempt in range(retries):
         try:
             df = ak.stock_board_industry_cons_em(symbol=board_name)
@@ -165,7 +135,6 @@ def fetch_members(board_name, retries=2, base_wait=1.0):
         return rows
     return []
 
-
 def write_boards(conn, rows, fetch_date):
     if not rows:
         return 0
@@ -189,7 +158,6 @@ def write_boards(conn, rows, fetch_date):
     conn.commit()
     return len(rows)
 
-
 def write_members(conn, rows, fetch_date):
     if not rows:
         return 0
@@ -202,7 +170,6 @@ def write_members(conn, rows, fetch_date):
     """, [(r["board_code"], r["code"], r["name"], r["price"], r["change_percent"], fetch_date) for r in rows])
     conn.commit()
     return len(rows)
-
 
 def write_data_source(conn):
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -217,16 +184,14 @@ def write_data_source(conn):
         """, (table, source, note, ts))
     conn.commit()
 
-
 def prune(conn, fetch_date):
-    """只保留最近 QUALITY_MAX_AGE_DAYS 天的快照。"""
+
     cutoff = (datetime.now() - timedelta(days=QUALITY_MAX_AGE_DAYS)).strftime("%Y-%m-%d")
     cur = conn.cursor()
     n1 = cur.execute("DELETE FROM sector_board WHERE fetch_date < ?", (cutoff,)).rowcount
     n2 = cur.execute("DELETE FROM sector_member WHERE fetch_date < ?", (cutoff,)).rowcount
     conn.commit()
     return n1 + n2
-
 
 def verify(conn, codes, fetch_date):
     cur = conn.cursor()
@@ -242,7 +207,6 @@ def verify(conn, codes, fetch_date):
     for bn, lead, cp, up, down in cur.fetchall():
         print(f"    {bn} {cp}% 领涨 {lead} 涨{up}跌{down}")
     return n_boards, n_members, matched
-
 
 def main():
     ap = argparse.ArgumentParser()
@@ -266,7 +230,6 @@ def main():
         print(f"官方行业板块采集（东财）-> {OUT_DB}  抓取日 {fetch_date}")
         print("=" * 66)
 
-        # 1) 板块列表
         boards = fetch_boards()
         if not boards:
             print("[!] 板块列表为空，无法继续")
@@ -274,7 +237,6 @@ def main():
         write_boards(conn, boards, fetch_date)
         print(f"  板块列表 → {len(boards)} 个")
 
-        # 2) 成分股：只抓库内行业出现过的板块
         cur = conn.cursor()
         industries = [r[0] for r in cur.execute(
             "SELECT DISTINCT industry FROM stock_info WHERE industry IS NOT NULL AND industry <> ''")]
@@ -300,7 +262,6 @@ def main():
         n_boards, n_members, n_matched = verify(conn, None, fetch_date)
         print(f"  剪枝删除 {pruned} 行（保留最近 {QUALITY_MAX_AGE_DAYS} 天快照）")
 
-        # 质量门
         ok_boards = n_boards >= QUALITY_MIN_BOARDS
         ok_members = (covered / max(1, len(matched))) >= QUALITY_MIN_MEMBER_COVERAGE if matched else True
         print(f"\n[质量门] 板块 {n_boards} >= {QUALITY_MIN_BOARDS} | "
@@ -320,7 +281,6 @@ def main():
         print("✅ 板块表构建完成")
     finally:
         conn.close()
-
 
 if __name__ == "__main__":
     main()

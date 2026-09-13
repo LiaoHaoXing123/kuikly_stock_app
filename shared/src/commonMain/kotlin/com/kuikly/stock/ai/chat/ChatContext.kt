@@ -1,6 +1,5 @@
 package com.kuikly.stock.ai.chat
 
-/** Only complete user/assistant turns enter the next request. Latest turns win. */
 internal fun boundedHistory(history: List<Pair<String, String>>, maxChars: Int = 12000, maxTurns: Int = 6): List<Pair<String, String>> {
     val turns = mutableListOf<List<Pair<String, String>>>()
     var user: Pair<String, String>? = null

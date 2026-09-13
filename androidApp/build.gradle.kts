@@ -41,7 +41,6 @@ dependencies {
     implementation("com.github.bumptech.glide:glide:4.12.0")
     annotationProcessor("com.github.bumptech.glide:compiler:4.12.0")
 
-    // 数据更新：WorkManager 定时/兜底下载 GitHub Release 的最新 stock.db
     implementation("androidx.work:work-runtime-ktx:2.9.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1")
 }

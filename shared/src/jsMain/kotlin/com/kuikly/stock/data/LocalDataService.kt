@@ -1,5 +1,3 @@
-// JS 平台的本地数据服务实现。
-
 package com.kuikly.stock.data
 
 import org.w3c.dom.get

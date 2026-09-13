@@ -1,4 +1,4 @@
-// 后台数据更新任务。拉取 Gitee 上的版本文件与本地记录比对，有新数据就下载 stock.db 并替换本地库。
+// 下载并校验行情文件后更新本地数据库。
 
 package com.kuikly.stock.update
 

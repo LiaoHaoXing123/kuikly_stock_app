@@ -1,3 +1,5 @@
+// 根据本地持仓计算集中度和压力情景。
+
 package com.kuikly.stock.risk
 
 internal data class HoldingSnapshot(

@@ -1,5 +1,3 @@
-// 全局异常捕获适配器，接管渲染层的未捕获异常。
-
 package com.kuikly.stock.adapter
 
 import android.util.Log

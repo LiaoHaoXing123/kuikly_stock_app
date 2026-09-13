@@ -82,4 +82,3 @@ class WatchReliabilityTest {
         assertNotNull(HoldingInput.parse("600000", "100", "10"))
     }
 }
-

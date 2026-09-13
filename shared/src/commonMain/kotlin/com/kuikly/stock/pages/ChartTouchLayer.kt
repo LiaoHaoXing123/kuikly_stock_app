@@ -6,7 +6,6 @@ import com.tencent.kuikly.core.base.*
 import com.tencent.kuikly.core.base.event.Event
 import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
 
-/** Stable touch target, independent of the Canvas redraw and indicator selection. */
 private class ChartTouchView(private val native: Boolean) : ViewContainer<ContainerAttr, Event>() {
     override fun createAttr() = ContainerAttr()
     override fun createEvent() = Event()
@@ -23,10 +22,7 @@ internal fun ViewContainer<*, *>.chartTouchLayer(ctx: KlineInteractionHost, minu
 
     fun handle(kind: String, state: String, x: Float, y: Float, scale: Float = 1f) {
         if (minute) {
-            // 分时看不了缩放，但手势语义与 K 线对齐：
-            //   tap         → 锁定（再点同一点取消）
-            //   pan / range → 跟手查看，抬手后保留
-            //   cancel      → 清除
+
             when (kind) {
                 "tap" -> {
                     hapticTick(HapticStyle.Medium)
@@ -65,7 +61,7 @@ internal fun ViewContainer<*, *>.chartTouchLayer(ctx: KlineInteractionHost, minu
                 }
                 "move", "end" -> {
                     if (inspecting) {
-                        // Reset Locked before moving; lock the final candle when the finger lifts.
+
                         ctx.crosshair.reset()
                         ctx.updateCrosshair(x, y)
                         ctx.selectedKlineIndex = ctx.crosshair.activeIndex ?: -1

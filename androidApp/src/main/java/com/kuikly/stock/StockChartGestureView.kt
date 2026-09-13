@@ -7,7 +7,6 @@ import com.tencent.kuikly.core.render.android.expand.component.KRView
 import kotlin.math.abs
 import kotlin.math.hypot
 
-/** Horizontal gestures belong to the chart; vertical gestures remain with its Scroller. */
 class StockChartGestureView(context: Context) : KRView(context) {
     private var callback: ((Any?) -> Unit)? = null
     private var mode = "idle"
@@ -36,8 +35,6 @@ class StockChartGestureView(context: Context) : KRView(context) {
         callback?.invoke(mapOf("kind" to kind, "state" to state, "x" to x / density, "y" to y / density, "scale" to scale))
     }
 
-    // This transparent view owns its gesture stream; bypass the generic pan recognizer,
-    // which captures vertical drags too and has no Android pinch implementation in this SDK.
     override fun dispatchTouchEvent(event: MotionEvent): Boolean = onTouchEvent(event)
 
     override fun onTouchEvent(event: MotionEvent): Boolean {

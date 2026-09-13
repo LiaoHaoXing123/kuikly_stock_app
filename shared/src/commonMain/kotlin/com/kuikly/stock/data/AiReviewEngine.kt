@@ -1,7 +1,3 @@
-// AI 复盘引擎：把「分析历史里的 verdict」与「其后真实日 K」对照，纯本地程序计算，
-// 不调用任何 AI 接口。它的产出是给用户看的战绩卡，所以判定规则必须保守、可解释：
-// 方向判定留 1% 的容错带，中性判定要求波动收敛在 ±3% 内，宁可判「偏差」也不送分。
-
 package com.kuikly.stock.data
 
 import com.kuikly.stock.ai.protocol.VerdictSynthesizer
@@ -10,7 +6,6 @@ import com.kuikly.stock.pages.AIAnalysisData
 import com.kuikly.stock.pages.KLineDataItem
 import kotlin.math.abs
 
-/** 单条历史分析的复盘结果。价位验证字段为 null 表示该维度无法判定（没给价位/还没走出数据）。 */
 data class AiReviewEntry(
     val id: String,
     val generatedAt: Long,
@@ -22,13 +17,13 @@ data class AiReviewEntry(
     val resistance: Double?,
     val target: Double?,
     val stopLoss: Double?,
-    /** 实际基准日：dataDate 当日或其后第一个交易日（分析可能基于当日盘中快照）。 */
+
     val baseDate: String?,
     val basePrice: Double?,
     val elapsedDays: Int,
     val windowDays: Int,
     val latestDate: String?,
-    /** 基准日收盘 → 最新收盘 的涨跌 %。基准后尚无交易日时为 null。 */
+
     val returnPct: Double?,
     val supportHeld: Boolean?,
     val resistanceTouched: Boolean?,
@@ -48,7 +43,7 @@ data class AiReviewEntry(
 
 data class AiReviewSummary(
     val entries: List<AiReviewEntry>,
-    /** 已走出行情、可判方向的条数。 */
+
     val evaluatedCount: Int,
     val directionHitCount: Int,
 ) {
@@ -58,14 +53,10 @@ data class AiReviewSummary(
 
 internal object AiReviewEngine {
 
-    private const val BULL_THRESHOLD = 1.0    // 偏多判定需至少 +1%
-    private const val BEAR_THRESHOLD = -1.0   // 偏空判定需至少 -1%
-    private const val NEUTRAL_BAND = 3.0      // 中性判定需收敛在 ±3% 内
+    private const val BULL_THRESHOLD = 1.0
+    private const val BEAR_THRESHOLD = -1.0
+    private const val NEUTRAL_BAND = 3.0
 
-    /**
-     * 统一的 verdict 还原：新记录直接用落盘的 v2 verdict；旧记录（协议 v1/离线模板/
-     * verdict 持久化之前的历史）从 analysis 文本字段合成。详情页观点条与复盘共用。
-     */
     fun verdictOf(result: AIAnalysisData): AIVerdict? {
         result.verdict?.let { return it }
         return runCatching {
@@ -136,7 +127,6 @@ internal object AiReviewEngine {
         }
     }
 
-    /** 评估窗口（交易日）：与 verdict.horizon 对齐，短线 10 / 中线 20 / 长线 60。 */
     private fun windowDays(horizon: String): Int = when {
         horizon.contains("中") -> 20
         horizon.contains("长") -> 60

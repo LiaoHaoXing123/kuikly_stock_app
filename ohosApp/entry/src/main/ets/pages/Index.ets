@@ -3,13 +3,6 @@ import router from '@ohos.router';
 import { KuiklyViewDelegate } from '../kuikly/KuiklyViewDelegate';
 import globalNativeManager from '../kuikly/MyNativeManager';
 
-/**
- * pushUrl 没有动画入参，转场只能写在页面的 pageTransition。
- * common 侧 Pager.openModule 给同级 Tab 打 transition=fade；下钻不打标。
- *
- * 读的是本实例构造时的 params：出场动画必须用「本页」的标记，不能读栈顶
- * （否则从详情返回时，底下的 Tab 会误用详情页的横切）。
- */
 function readFadeFlag(): boolean {
   try {
     const params = router.getParams() as Record<string, Object>;
@@ -46,10 +39,7 @@ struct Index {
 
   pageTransition() {
     if (this.navFade) {
-      // 同级模块：三段式淡入淡出 —— 出场 90ms → 间隙 30ms → 入场 210ms。
-      // 规格与 Android kr_module_fade_out/in.xml、iOS KRRouterHandler 对齐（common 侧 AppMotion）。
-      // 不能用「新页淡入、旧页保持不透明」的老做法：两页叠着淡在中段会同时看到两份内容，
-      // 版式相近而文案不同，观感就是错位。入口的 delay = 90 + 30，间隙由窗口底色兜住。
+
       PageTransitionEnter({ type: RouteType.Push, duration: 210, delay: 120, curve: Curve.FastOutSlowIn })
         .opacity(0)
       PageTransitionExit({ type: RouteType.Push, duration: 90, curve: Curve.FastOutSlowIn })
@@ -59,8 +49,7 @@ struct Index {
       PageTransitionExit({ type: RouteType.Pop, duration: 90, curve: Curve.FastOutSlowIn })
         .opacity(0)
     } else {
-      // 层级下钻：iOS push/pop 镜像。进入从右滑入、返回从右滑出。
-      // 300ms 对齐 Android kr_slide_*。
+
       PageTransitionEnter({ type: RouteType.Push, duration: 300, curve: Curve.FastOutSlowIn })
         .slide(SlideEffect.Right)
       PageTransitionExit({ type: RouteType.Push, duration: 300, curve: Curve.FastOutSlowIn })

@@ -83,19 +83,15 @@ export class KRBridgeModule extends KuiklyRenderBaseModule {
   private showAlert(params: KRAny, callback: KuiklyRenderCallback) {
   }
 
-  // TODO close page
   private closePage() {
   }
 
-  // TODO open new page
   private openPage() {
   }
 
-  // TODO copy to paste board
   private copyToPasteboard() {
   }
 
-  // TODO open toast
   private toast() {
   }
 
@@ -120,27 +116,18 @@ export class KRBridgeModule extends KuiklyRenderBaseModule {
     return Date.now().toString()
   }
 
-  // TODO format date
   private dateFormatter(params: KRAny): string {
     console.log(`========== ${params}`)
     return "";
   }
 
   private readAssetFile(params: KRAny, callback: KuiklyRenderCallback) {
-    // let startTimeMills = Date.now();
+
     let records = JSON.parse(params as string) as Record<string, string>;
     let assetPath = records["assetPath"];
 
     let context = getContext(this) as common.UIAbilityContext;
-    /*
-    context.resourceManager.getRawFileContent(assetPath, (error: BusinessError, value: Uint8Array) => {
-      let textDecoder: util.TextDecoder = util.TextDecoder.create();
-      let res: string = textDecoder.decodeWithStream(value);
-      callback({
-        "result": JSON.parse(res)
-      });
-    });
-    */
+
     let resDir = context.resourceDir
     let path = resDir + '/' + assetPath
     let assetURI = fileUri.getUriFromPath(path)

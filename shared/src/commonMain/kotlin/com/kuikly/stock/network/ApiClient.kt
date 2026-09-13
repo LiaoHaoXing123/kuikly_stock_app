@@ -1,5 +1,3 @@
-// 全局网络客户端：统一的超时与 JSON 解析配置，AI 与后端请求共用。
-
 package com.kuikly.stock.network
 
 import kotlinx.serialization.json.Json

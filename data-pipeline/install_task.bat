@@ -1,6 +1,5 @@
 @echo off
 chcp 65001 >nul
-REM One-click register daily scheduled task (16:35). Auto-elevates to admin.
 net session >nul 2>&1
 if %errorlevel% neq 0 (
     echo Requesting administrator rights...

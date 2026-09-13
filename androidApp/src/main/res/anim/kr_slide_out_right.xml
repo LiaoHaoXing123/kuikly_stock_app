@@ -1,9 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  返回时当前页出场：整页滑出到右侧，镜像 kr_slide_in_right。
-  系统返回键和 closePage 都走 KuiklyRenderActivity.finish，所以都会用到。
-  时长与 kr_slide_in_left 对齐（450ms）。
--->
+
 <translate xmlns:android="http://schemas.android.com/apk/res/android"
     android:interpolator="@interpolator/kr_emphasized"
     android:duration="450"

@@ -1,5 +1,3 @@
-// JS 平台的网络客户端实现。
-
 package com.kuikly.stock.network
 
 import io.ktor.client.HttpClient

@@ -16,10 +16,10 @@ class FundFlowTest {
     }
 
     @Test fun moneyFormatBoundaries() {
-        // 1 亿边界：9,999 万 -> 万单位，1 亿 -> 亿单位
+
         assertEquals("9999万", fmtMoney(9.999e7))
         assertEquals("1.00亿", fmtMoney(1.0e8))
-        // 1 万边界
+
         assertEquals("9999", fmtMoney(9999.0))
         assertEquals("1万", fmtMoney(1.0004e4))
     }
@@ -37,7 +37,7 @@ class FundFlowTest {
     }
 
     @Test fun stockDetailDataDefaultsFundFlowToNull() {
-        // 旧构造（不含 fundFlow）必须仍可编译/可用 —— 不破坏 iOS/JS/测试
+
         val d = StockDetailData(info = null, realtime = null, kline = null)
         assertEquals(null, d.fundFlow)
     }

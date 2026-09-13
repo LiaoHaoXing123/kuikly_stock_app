@@ -1,5 +1,3 @@
-// 保存全局 Context，供 assets 文件读取使用。
-
 package com.kuikly.stock.data
 
 import android.content.Context

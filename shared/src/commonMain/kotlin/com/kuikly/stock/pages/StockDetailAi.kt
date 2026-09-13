@@ -1,7 +1,3 @@
-// 个股详情页 —— AI 分析相关 UI 与解析。
-// 自 StockDetailPage.kt 拆出：AI 价位/信号解析、立场条、信号卡、分析卡片渲染与 Markdown 导出。
-// pricePill 为该模块私有，仅本文件使用。
-
 package com.kuikly.stock.pages
 
 import com.kuikly.stock.data.StockColors
@@ -47,7 +43,7 @@ internal data class AIPriceLevel(
     val label: String,
     val price: Double,
     val color: Long,
-    val type: String // support, resistance, target, stopLoss
+    val type: String
 )
 
 internal fun parseAIPriceLevels(analysis: AIAnalysisData?): List<AIPriceLevel> {
@@ -56,7 +52,7 @@ internal fun parseAIPriceLevels(analysis: AIAnalysisData?): List<AIPriceLevel> {
     for (card in analysis.cards) {
         val type = card["type"] as? String ?: continue
         if (type != "suggestion_card" && type != "trend_card") continue
-        // 兼容多种字段名
+
         fun addLevel(key: String, label: String, color: Long, t: String) {
             val raw = card[key] ?: return
             val price = when (raw) {
@@ -65,7 +61,7 @@ internal fun parseAIPriceLevels(analysis: AIAnalysisData?): List<AIPriceLevel> {
                 else -> return
             }
             if (price.isFinite() && price > 0) {
-                // 去重
+
                 if (levels.none { it.price == price && it.type == t }) {
                     levels.add(AIPriceLevel(label, price, color, t))
                 }
@@ -77,16 +73,13 @@ internal fun parseAIPriceLevels(analysis: AIAnalysisData?): List<AIPriceLevel> {
         addLevel("resistance_value", "压力位", AppColor.UP_ALT, "resistance")
         addLevel("target_price", "目标价", AppColor.PRIMARY, "target")
         addLevel("stop_loss", "止损价", AppColor.WARNING_TEXT, "stopLoss")
-        // 有些模板用下划线不同
+
         addLevel("target", "目标价", AppColor.PRIMARY, "target")
         addLevel("stop", "止损价", AppColor.WARNING_TEXT, "stopLoss")
     }
     return levels.sortedBy { it.price }
 }
 
-// -----------------------------------------------------------------------------
-// P0-2: 行情区 AI 注解标签 (放置于实时行情涨跌幅右侧)
-// -----------------------------------------------------------------------------
 internal fun ViewContainer<*, *>.aiBiasChip(ctx: StockDetailPage) {
     View {
         attr {
@@ -128,9 +121,6 @@ internal fun ViewContainer<*, *>.aiBiasChip(ctx: StockDetailPage) {
     }
 }
 
-// -----------------------------------------------------------------------------
-// P0-1: K 线顶部嵌入式 AI 观点条（支持折叠展开）
-// -----------------------------------------------------------------------------
 internal fun ViewContainer<*, *>.aiVerdictBar(ctx: StockDetailPage, compact: Boolean = false) {
     val v = ctx.effectiveVerdict
     val loading = ctx.isAnalyzing
@@ -160,7 +150,6 @@ internal fun ViewContainer<*, *>.aiVerdictBar(ctx: StockDetailPage, compact: Boo
             }
         }
 
-        // 第一行
         View {
             attr { height(34f); flexDirectionRow(); alignItemsCenter() }
             when {
@@ -200,7 +189,6 @@ internal fun ViewContainer<*, *>.aiVerdictBar(ctx: StockDetailPage, compact: Boo
             }
         }
 
-        // 展开区
         if (!compact && data != null) {
             Text {
                 attr {
@@ -268,9 +256,6 @@ private fun ViewContainer<*, *>.pricePill(label: String, value: Double, colorVal
     }
 }
 
-// -----------------------------------------------------------------------------
-// P0-3: signal_card v2 渲染（消费对象数组，支持双向联动）
-// -----------------------------------------------------------------------------
 internal fun ViewContainer<*, *>.signalCardV2(ctx: StockDetailPage, card: Map<String, Any?>) {
     val title = card["title"] as? String ?: "技术信号"
     val signals = (card["signals"] as? List<*>)?.mapNotNull { item ->
@@ -424,12 +409,12 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
             notAnalyzedView(ctx)
         }
         velse {
-            // 结构化卡片渲染
+
             vfor({ ObservableList(listOfNotNull(ctx.aiAnalysis).map { Triple(it, ctx.aiExpandedKeys.toList(), ctx.highlightCardType) }.toMutableList()) }) { (analysis, _, _) ->
             View {
                 attr { flexDirectionColumn() }
                 aiEvidencePanel({ ctx.aiAnalysis }) { ctx.focusEvidenceDate(it) }
-                // 按类型分组，固定顺序：趋势、信号、建议、风险、总结
+
                 val orderedTypes = listOf("trend_card", "signal_card", "event_card", "suggestion_card", "level_card", "risk_card", "summary_card")
                 val grouped = analysis.cards.filter { it["type"] != "evidence_card" }.groupBy { it["type"] as? String ?: "unknown" }
                 orderedTypes.forEach { t ->
@@ -437,12 +422,11 @@ internal fun ViewContainer<*, *>.aiAnalysisCards(ctx: StockDetailPage) {
                         renderAIAnalysisCard(ctx, card, "${t}_$idx")
                     }
                 }
-                // 其他未知类型
+
                 grouped.filterKeys { it !in orderedTypes }.values.flatten().forEachIndexed { idx, card ->
                     renderAIAnalysisCard(ctx, card, "other_$idx")
                 }
 
-                // 联动提示
                 View {
                     attr {
                         flexDirectionColumn()
@@ -672,7 +656,6 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
                     }
                 }
 
-                // 价位网格
                 View {
                     attr { flexDirectionColumn(); marginTop(10f) }
                     if (resistance != null) priceLevelRow(ctx, "压力位", resistance, currentPrice, AppColor.UP_ALT, 0)
@@ -702,10 +685,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
             }
         }
         "level_card" -> {
-            // 提示词协议（DetailSchemaV2）里 level_card 是标准类型，但渲染器一直没接，
-            // 于是掉进 else 分支把 Map.toString() 摊在界面上——那串
-            // "{type=level_card, action=观望, ...}" 就是用户看到的「非可视化文字」。
-            // 这里按它的真实语义渲染成：操作倾向 + 关键价位（复用可点击的价位行）。
+
             val action = (card["action"] as? String)?.takeIf { it.isNotBlank() } ?: "观望"
             val target = parseCardPrice(card["target_value"] ?: card["target_price"])
             val stopLoss = parseCardPrice(card["stop_loss_value"] ?: card["stop_loss"])
@@ -878,11 +858,7 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
             }
         }
         else -> {
-            // 未知类型兜底。
-            // 原来这里退化成 card.toString()，界面上会出现
-            // 「{type=level_card, action=观望, target_value=12.08}」这种原始 Map 串——
-            // 既不是给人看的，也把内部契约泄露到了界面上（真实发生过，见 level_card 分支注释）。
-            // 现在只渲染「能读懂的东西」：优先取文本字段，否则按字段名转成人话逐条列。
+
             val readableText = listOf("content", "summary", "text", "note", "description")
                 .firstNotNullOfOrNull { k -> (card[k] as? String)?.takeIf { it.isNotBlank() } }
             val extraFields = card.entries
@@ -922,7 +898,6 @@ internal fun ViewContainer<*, *>.renderAIAnalysisCard(ctx: StockDetailPage, card
     }
 }
 
-/** AI 卡片字段名 → 界面文案。未收录的字段名不展示（宁可少显示，也不把契约字段名摊给用户）。 */
 private val AI_CARD_FIELD_LABELS = mapOf(
     "action" to "操作倾向",
     "target_value" to "目标价",
@@ -944,10 +919,6 @@ private val AI_CARD_FIELD_LABELS = mapOf(
     "end_date" to "结束日期",
 )
 
-/**
- * 把未知卡片的单个字段转成「标签 + 文案」；转不出来就返回 null（该字段不展示）。
- * 只认标量与标量列表——嵌套结构说明这个类型本来就没被支持，硬渲染只会又是一堆符号。
- */
 internal fun aiCardFieldText(key: String, value: Any?): Pair<String, String>? {
     val label = AI_CARD_FIELD_LABELS[key] ?: return null
     val text = when (value) {

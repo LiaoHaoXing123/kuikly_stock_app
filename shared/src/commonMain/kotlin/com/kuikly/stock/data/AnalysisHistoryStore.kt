@@ -5,7 +5,6 @@ import kotlinx.serialization.json.*
 
 internal data class AnalysisSnapshot(val id: String, val kind: String, val result: AIAnalysisData)
 
-/** Bounded local history. The storage boundary is injectable for recovery/write-failure tests. */
 internal class AnalysisHistoryStore(
     private val read: (String) -> String? = ::appPrefsGet,
     private val write: (String, String) -> Unit = ::appPrefsSet,
@@ -48,7 +47,7 @@ internal class AnalysisHistoryStore(
         put("code", r.code); put("name", r.name)
         put("source", r.source); put("generatedAt", r.generatedAt); put("dataDate", r.dataDate)
         put("analysis", toJson(r.analysis)); put("cards", toJson(r.cards))
-        // verdict 必须落盘：AI 复盘要用历史记录当时给出的方向与价位，解码侧缺字段视为旧记录（null）
+
         r.verdict?.let { put("verdict", toJson(verdictMap(it))) }
     }
 

@@ -1,10 +1,5 @@
 package com.kuikly.stock.data
 
-/**
- * 公历日期（无时区）。日历网格、连盈统计都只关心「哪一天」，
- * commonMain 没有 `java.time`，这里用 Howard Hinnant 的 civil/days 互转，
- * 避免各端自己拆字符串。
- */
 internal data class CivilDate(val year: Int, val month: Int, val day: Int) : Comparable<CivilDate> {
 
     val iso: String
@@ -12,7 +7,6 @@ internal data class CivilDate(val year: Int, val month: Int, val day: Int) : Com
             month.toString().padStart(2, '0') + "-" +
             day.toString().padStart(2, '0')
 
-    /** 0=周一 … 6=周日。A 股交易周从周一起，月历也按这个排。 */
     val mondayIndex: Int
         get() {
             val z = toEpochDay()
@@ -37,9 +31,6 @@ internal data class CivilDate(val year: Int, val month: Int, val day: Int) : Com
 
     override fun compareTo(other: CivilDate): Int = toEpochDay().compareTo(other.toEpochDay())
 
-    /**
-     * 相对 1970-01-01 的天数。算法来自 Hinnant，1970-01-01 必须为 0。
-     */
     fun toEpochDay(): Long {
         var y = year
         val m = month

@@ -1,6 +1,6 @@
 <resources>
 
-    <!-- windowBackground 钉成白：转场中两层 Activity 交叠时不要透出黑底。 -->
+
     <style name="AppTheme" parent="Theme.AppCompat.NoActionBar">
         <item name="android:windowBackground">@android:color/white</item>
     </style>

@@ -1,5 +1,3 @@
-// App 入口类，负责应用启动时的全局初始化。
-
 package com.kuikly.stock
 
 import android.app.Activity
@@ -24,7 +22,7 @@ class KRApplication : Application() {
         DataUpdateWorker.schedule(this)
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityDestroyed(activity: Activity) {
-                // 共享的专业图 WebView 与 Activity 绑定，页面壳销毁时一并回收。
+
                 StockKlineWebView.ChartBridgeHolder.evict()
             }
 

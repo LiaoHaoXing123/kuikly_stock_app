@@ -9,7 +9,6 @@ import com.kuikly.stock.data.fmt1
 import com.kuikly.stock.data.fmt2
 import com.kuikly.stock.ui.theme.AppColor
 
-/** Shared Canvas renderer; at most 120 points, no platform chart dependencies. */
 internal fun ViewContainer<*, *>.chartCard(card: Map<String, Any?>) {
     val points = chartPoints(card)
     val title = card["title"] as? String ?: "走势"

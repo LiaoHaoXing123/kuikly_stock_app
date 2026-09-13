@@ -1,6 +1,5 @@
 name: Build (Android + iOS)
 
-# 双端编译门禁：任何 push / PR 都要保证 Android 与 iOS 同时编译通过。
 on:
   push:
   pull_request:
@@ -82,10 +81,6 @@ jobs:
         with:
           python-version: '3.12'
 
-      # iOS / JS 没有 SQLite，指数、官方板块、资金流读的是内置 JSON；
-      # Android 读的是同一批数据的 SQLite 表。这一步把两端口径钉死：
-      # JSON 解码结果必须与 stock.db 的查询逐字段一致，否则两端会给出不同答案。
-      # 只依赖标准库，不需要联网，所以放在每次 push 都跑的构建门禁里。
       - name: Run built-in asset consistency tests
         run: python data-pipeline/test_export_common_assets.py
 

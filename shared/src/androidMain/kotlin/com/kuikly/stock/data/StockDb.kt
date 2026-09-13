@@ -1,5 +1,3 @@
-// 保存全局 Context 并打开本地数据库。
-
 package com.kuikly.stock.data
 
 import android.content.Context
@@ -302,7 +300,7 @@ actual object StockDb {
 
     actual fun fundFlow(code: String, limit: Int): List<FundFlowItem> {
         val db = openDb() ?: return emptyList()
-        // 非必需表：旧库没有 stock_fund_flow 时静默返回空，不阻塞详情页
+
         return try {
             db.rawQuery(
                 """SELECT trade_date,main_net,main_ratio,super_net,big_net,mid_net,small_net,source
@@ -353,7 +351,7 @@ actual object StockDb {
 
     actual fun sectorOfStock(code: String): SectorSnapshot? {
         val db = openDb() ?: return null
-        // 1) 个股所属官方板块：stock_info.industry（东财行业名）与 sector_board.board_name 匹配，取最新快照
+
         val board = db.rawQuery(
             """SELECT b.board_code,b.board_name,b.change_percent,b.leader,b.leader_change,
                       b.total_mv,b.turnover,b.up_count,b.down_count,b.fetch_date
@@ -375,7 +373,7 @@ actual object StockDb {
                 fetchDate = c.getStringOrEmpty("fetch_date"),
             )
         } ?: return null
-        // 2) 板块成分股：该板块最新快照
+
         val members = db.rawQuery(
             """SELECT code,name,price,change_percent FROM sector_member
                WHERE board_code=? AND fetch_date=(SELECT MAX(fetch_date) FROM sector_member WHERE board_code=?)
@@ -532,7 +530,7 @@ actual object StockDb {
             Log.i(TAG, "indexDetail " + code + " -> info=" + (info != null) + " realtime=" + (realtime != null) + " kline=" + kline.size)
             StockDetailData(info = info, realtime = realtime, kline = kline, indicator = null)
         } catch (e: Exception) {
-            // 旧库无指数表时降级为空，由上层决定提示语
+
             Log.w(TAG, "indexDetail " + code + " failed: " + (e.message ?: e.toString()))
             null
         }
@@ -694,9 +692,7 @@ actual object StockDb {
     actual fun latestTradeDate(): String {
         val db = openDb() ?: return ""
         return try {
-            // 与个股详情页同源：都读 stock_daily_kline，全库取 MAX。
-            // 原实现按「自选第一只股票」取值：那只股票若落后一天，首页就整体落后一天
-            // （实测 25 只已到 09-11、其余停在 09-10，首页会显示 09-10）。
+
             db.rawQuery("SELECT MAX(trade_date) AS d FROM stock_daily_kline", null).use { c ->
                 if (c.moveToFirst()) c.getStringOrEmpty("d") else ""
             }

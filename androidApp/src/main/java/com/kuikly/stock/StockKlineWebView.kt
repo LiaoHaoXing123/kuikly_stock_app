@@ -1,3 +1,5 @@
+// 复用图表 WebView，并桥接区间和单根 K 线解读。
+
 package com.kuikly.stock
 
 import android.annotation.SuppressLint
@@ -11,14 +13,6 @@ import com.tencent.kuikly.core.render.android.expand.component.KRView
 import org.json.JSONObject
 import kotlin.math.abs
 
-/**
- * Only packaged chart code is loaded; the bridge carries chart selection, never credentials.
- *
- * 进程内只保留一个共享 WebView：切换专业图/基础图时 Kuikly 会销毁并重建本视图，
- * 若每次都新建并销毁 WebView，旧图销毁会让系统回收 Chromium 渲染进程，紧随其后
- * 创建的新图会白屏（Renderer process crash detected）。共享实例只加载一次引擎，
- * 重建时直接换挂到新视图上，图表状态（画线、视口）也因此得以保留。
- */
 @SuppressLint("SetJavaScriptEnabled")
 class StockKlineWebView(context: Context) : KRView(context) {
     private var disposed = false
@@ -51,9 +45,7 @@ class StockKlineWebView(context: Context) : KRView(context) {
             true
         }
         "chartCommand" -> {
-            // attr 每次重算都会推送一次命令；用 tick 去重，只有新指令才真正执行。
-            // 注意不能用本实例 disposed 判断：详情页 8 秒刷新会销毁重建 MatureChartView，
-            // 图表实际由 ChartBridgeHolder 的共享 WebView 承载（单例），loaded 即可安全执行。
+
             val cmd = propValue.toString()
             if (cmd != lastCommand) {
                 lastCommand = cmd
@@ -74,8 +66,7 @@ class StockKlineWebView(context: Context) : KRView(context) {
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        // Kuikly 切换图型时复用同一实例（只移出/移回视图树，不重跑 init），
-        // 重新入树时需把共享 WebView 重新挂载，否则整块白屏。
+
         if (web.parent !== this) {
             (web.parent as? ViewGroup)?.removeView(web)
             addView(web, FrameLayout.LayoutParams(-1, -1))
@@ -84,7 +75,7 @@ class StockKlineWebView(context: Context) : KRView(context) {
 
     override fun onDestroy() {
         disposed = true; callback = null
-        // 只从本视图摘下；若共享 WebView 已被新实例接管（Kuikly 可能先建新后删旧），不能动它。
+
         if (web.parent === this) removeView(web)
         super.onDestroy()
     }
@@ -134,7 +125,7 @@ class StockKlineWebView(context: Context) : KRView(context) {
                 }
                 false
             }
-            // Inline the pinned bundle: no file-origin permission or runtime CDN access is needed.
+
             val script = context.assets.open("chart/klinecharts-9.8.12.min.js").bufferedReader().use { it.readText() }
             val html = context.assets.open("chart/index.html").bufferedReader().use { it.readText() }
             web.loadDataWithBaseURL("https://chart.local/", html.replace("/* ENGINE_BUNDLE */", script), "text/html", "UTF-8", null)
@@ -142,7 +133,6 @@ class StockKlineWebView(context: Context) : KRView(context) {
             return web
         }
 
-        /** Activity 销毁时回收共享 WebView；downX/downY 只被触摸监听使用，随实例一起释放。 */
         fun evict() {
             shared?.let { w ->
                 w.removeJavascriptInterface("ChartBridge")

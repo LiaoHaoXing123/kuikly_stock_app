@@ -1,4 +1,4 @@
-// 调用工具层：定义 AI 可调用的行情工具（OpenAI 兼容 function-calling schema）， 并把工具调用映射到统一行情仓库 (MarketRepository)。这样提示词不必预注入全部数据， 模型按需取数，且只引用工具真实返回的
+// 为模型提供只读行情查询工具。
 
 package com.kuikly.stock.ai.tool
 
@@ -8,7 +8,6 @@ import com.kuikly.stock.pages.RealtimeQuoteData
 import kotlinx.serialization.json.*
 import kotlinx.serialization.json.buildJsonObject
 
-/** 缺失字段的统一表述：禁止用 0 谎报数值。 */
 private const val NA = "未提供"
 
 object StockTools {

@@ -1,8 +1,3 @@
-// 实时数据源：东财 push2 快照（报价/涨跌/换手量比）+ 腾讯 fqkline 历史日K回补。
-// 腾讯 fqkline 与本地库 stock_daily_kline 同源同口径（前复权、量单位手→股），
-// 回补后的图表与既有数据无缝衔接。push2 为公开无鉴权接口；任何失败都返回 null/空列表，
-// 由调用方回落本地库，绝不把本地数据伪装成实时数据（UI 会标注数据时间与来源）。
-
 package com.kuikly.stock.network
 
 import com.kuikly.stock.data.LiveProvider
@@ -22,7 +17,6 @@ import kotlinx.serialization.json.jsonPrimitive
 
 object MarketLiveProvider : LiveProvider {
 
-    /** 轮询用的轻量客户端：8 秒超时，避免占用 AI 的长超时通道。 */
     private val client: HttpClient by lazy {
         createHttpClient {
             install(HttpTimeout) {
@@ -35,7 +29,6 @@ object MarketLiveProvider : LiveProvider {
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    /** 东财 secid：沪市 6 开头前缀 1，深市/创业板/北交所前缀 0。 */
     private fun secid(code: String): String? {
         if (code.length != 6 || code.any { !it.isDigit() }) return null
         return when (code[0]) {
@@ -45,7 +38,6 @@ object MarketLiveProvider : LiveProvider {
         }
     }
 
-    /** 腾讯行情符号：sh600519 / sz000001。 */
     private fun txSymbol(code: String): String? {
         if (code.length != 6 || code.any { !it.isDigit() }) return null
         return when (code[0]) {
@@ -76,7 +68,7 @@ object MarketLiveProvider : LiveProvider {
 
     override suspend fun realtimeQuote(code: String): RealtimeQuoteData? {
         val sid = secid(code) ?: return null
-        // push2 系主机在部分网络下 TLS 被重置，管道经验：push2delay 全局可达，故双主机回退
+
         val fields = "f43,f44,f45,f46,f47,f48,f50,f51,f52,f60,f163,f167,f116,f117,f168,f169,f170"
         val data = listOf("push2delay", "push2").firstNotNullOfOrNull { host ->
             getText("https://$host.eastmoney.com/api/qt/stock/get" +
@@ -85,10 +77,10 @@ object MarketLiveProvider : LiveProvider {
                 runCatching { json.parseToJsonElement(body).jsonObject["data"]?.jsonObject }.getOrNull()
             }
         } ?: return null
-        val price = data.num("f43") ?: return null   // 停牌等场景 f43 可能为 "-"，视为无实时数据
+        val price = data.num("f43") ?: return null
         return RealtimeQuoteData(
             code = code,
-            name = null,                             // 名称以本地库为准
+            name = null,
             price = price,
             change = data.num("f169"),
             changePercent = data.num("f170"),
@@ -96,7 +88,7 @@ object MarketLiveProvider : LiveProvider {
             preClose = data.num("f60"),
             high = data.num("f44"),
             low = data.num("f45"),
-            // f47 单位为"手"，×100 与本地库"股"的口径对齐
+
             volume = (data.num("f47") ?: 0.0) * 100,
             amount = data.num("f48"),
             peTtm = data.num("f163"),
@@ -111,10 +103,6 @@ object MarketLiveProvider : LiveProvider {
         )
     }
 
-    /**
-     * 个股历史日K：腾讯 fqkline（前复权，约一年）。volume 从"手"换算成"股"，
-     * 与本地库 stock_daily_kline 的单位约定保持一致。
-     */
     suspend fun dailyKline(code: String, limit: Int = 250): List<KLineDataItem> {
         val symbol = txSymbol(code) ?: return emptyList()
         println("[Live] dailyKline v3 $symbol limit=$limit")
@@ -144,7 +132,7 @@ object MarketLiveProvider : LiveProvider {
                     close = p[2].toDoubleOrNull() ?: return@mapNotNull null,
                     high = p[3].toDoubleOrNull() ?: return@mapNotNull null,
                     low = p[4].toDoubleOrNull() ?: return@mapNotNull null,
-                    // 腾讯返回"手"，本地库为"股"
+
                     volume = (p[5].toDoubleOrNull() ?: 0.0) * 100,
                     amount = 0.0,
                 )
@@ -154,21 +142,19 @@ object MarketLiveProvider : LiveProvider {
         }.getOrDefault(emptyList())
     }
 
-    /** UTC+8 无夏令时，直接由 epoch 推导北京时间钟面。 */
     fun beijingClock(): String {
         val total = nowMillis() / 1000 + 8 * 3600
         val secsOfDay = (total % 86_400).toInt()
         val h = secsOfDay / 3600
         val m = (secsOfDay % 3600) / 60
         val s = secsOfDay % 60
-        return "%02d:%02d:%02d".format(h, m, s)
+        return listOf(h, m, s).joinToString(":") { it.toString().padStart(2, '0') }
     }
 
-    /** 是否处于 A 股交易时段（9:15–11:30、13:00–15:00，周一~周五）。 */
     fun isTradingTime(nowMillisLong: Long = nowMillis()): Boolean {
         val total = nowMillisLong / 1000 + 8 * 3600
         val days = total / 86_400
-        val mondayIndex = (((days % 7) + 7 + 3) % 7).toInt()   // 0=周一
+        val mondayIndex = (((days % 7) + 7 + 3) % 7).toInt()
         if (mondayIndex >= 5) return false
         val minutes = (total % 86_400).toInt() / 60
         return (minutes >= 9 * 60 + 15 && minutes <= 11 * 60 + 30) ||

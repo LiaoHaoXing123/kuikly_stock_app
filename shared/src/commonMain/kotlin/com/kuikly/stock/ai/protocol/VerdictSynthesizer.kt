@@ -1,8 +1,5 @@
 package com.kuikly.stock.ai.protocol
 
-/**
- * L2/L3 降级时从旧字段合成 verdict，保证 P0 UI 不空窗。
- */
 object VerdictSynthesizer {
 
     private val BULL = listOf("看多", "偏多", "上涨", "突破", "金叉", "买入", "多头", "走强", "反弹", "放量上攻")
@@ -18,10 +15,6 @@ object VerdictSynthesizer {
         val stopLossValue: Double? = null,
     )
 
-    /**
-     * @param analysis 旧协议宽松 JSON（AIAnalysisData.analysis）
-     * @param numericLevel 复用 DeepSeekApi 里现有的字符串抠数字函数
-     */
     fun fromLegacy(
         analysis: Map<String, Any?>,
         numericLevel: (String?) -> Double?,

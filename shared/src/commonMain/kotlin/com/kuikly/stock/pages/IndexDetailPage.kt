@@ -1,6 +1,3 @@
-// 指数详情页：基础信息、实时点位、日K走势，以及 AI 解读入口。
-// 增强版：K线多周期/缩放/平移/AI价位联动，AI分析卡片化
-
 package com.kuikly.stock.pages
 
 import com.kuikly.stock.ui.component.AI_DOT_STEP_MS
@@ -62,27 +59,19 @@ class IndexDetailPage : BasePager(), KlineInteractionHost {
     internal var chartAnchorY = 0f
     internal var isLoading by observable(true)
 
-    /** 是否正在取数（含静默刷新）。首屏之外不铺骨架屏，所以和 [isLoading] 分开。 */
     internal var refreshing by observable(false)
 
-    /**
-     * 内容重建世代。卡片都是「构建时读一次数据」，静默刷新时靠它驱动重建；
-     * Scroller 留在重建范围之外，滚动位置得以保住。原因详见个股详情页同名字段。
-     */
     internal var detailEpoch by observable(0)
 
-    /** 「最新点位 / 涨跌点 / 涨跌幅」三个数一起滚。 */
     internal val quoteRoll = NumberRoll(this)
     internal var isAnalyzing by observable(false)
 
-    /** 按压态：顶栏可点元素共用。 */
     internal val press = PressState(this)
     internal var loadErrorMessage by observable("")
     internal var dataSourceText by observable("")
     override var selectedKlineIndex by observable(-1)
     override var klineCanvasWidth by observable(0f)
 
-    // K线增强
     internal var klinePeriod by observable("D")
     override var klineVisibleCount by observable(30)
     override var klineStartIndex by observable(0)
@@ -92,7 +81,6 @@ class IndexDetailPage : BasePager(), KlineInteractionHost {
     internal var aiExpandedKeys: ObservableList<String> by observableList()
     internal var aiToast by observable("")
 
-    // --- K线交互状态（与个股页共用 chartTouchLayer / KlineInteractionHost） ---
     override val crosshair = CrosshairController()
     override val nativeChartGestures: Boolean get() = pagerData.params.optBoolean("nativeChartGestures", false)
     internal var crosshairX by observable(-1f)
@@ -138,8 +126,6 @@ class IndexDetailPage : BasePager(), KlineInteractionHost {
                             scrollEnable(true)
                         }
 
-                        // 内容按世代号重建，Scroller 本身不重建 → 静默刷新时滚动位置不变。
-                        // vfor 的 creator 闭包只能产生一个孩子节点，故套一层列容器收拢。
                         vfor({ ObservableList(mutableListOf(ctx.detailEpoch)) }) { _ ->
                             View {
                                 attr {
@@ -161,24 +147,19 @@ class IndexDetailPage : BasePager(), KlineInteractionHost {
 
     override fun pageDidAppear() {
         super.pageDidAppear()
-        // 首屏 loading 在 didInit 里就发起了（那时 body 还没构建）。
-        // 页面真正上屏时补一次：若骨架屏还在，扫光就从这个帧开始转。
+
         skeletonPulse.bump()
-        // 重新上屏时静默刷新一次（首屏那次刷新请求还在跑则自动跳过）
+
         loadIndexDetail()
     }
 
-    /**
-     * 取指数详情。首屏铺整页骨架屏，之后的任何一次拉取都是静默刷新
-     * （页面内容留在原地，只有数字与图形更新）——与个股详情页保持一致。
-     */
     internal fun loadIndexDetail() {
         if (indexCode.isEmpty() || refreshing) return
         val firstLoad = indexDetail == null
         refreshing = true
         if (firstLoad) {
             isLoading = true
-            // 骨架屏刚由 vif 同步挂载，此刻拉起扫光才赶得上首帧
+
             skeletonPulse.bump()
         }
 
@@ -211,10 +192,6 @@ class IndexDetailPage : BasePager(), KlineInteractionHost {
         }
     }
 
-    /**
-     * 先重建内容（新数据落进版式），再滚动数字——顺序不能反，
-     * 否则新视图一出生就是终值，看不到滚动过程。
-     */
     private fun publishQuote(firstLoad: Boolean) {
         val rt = indexDetail?.realtime
         val price = rt?.price
@@ -251,8 +228,7 @@ class IndexDetailPage : BasePager(), KlineInteractionHost {
     internal fun triggerAIAnalysis() {
         if (indexCode.isEmpty() || isAnalyzing) return
         isAnalyzing = true
-        // 三点波浪由协程按步推进（数字/透明度属性动画只在值变化时才会走动画路径，
-        // 而波浪本身就需要不断变化的值），分析结束自动停。
+
         aiDotWave.loop(AI_DOT_STEP_MS) { isAnalyzing }
         lifecycleScope.launch {
             try {
@@ -275,7 +251,6 @@ class IndexDetailPage : BasePager(), KlineInteractionHost {
         }
     }
 
-    // K线逻辑复用个股页聚合函数
     override fun getAggregatedKline(): List<KLineDataItem> {
         val original = indexDetail?.kline ?: return emptyList()
         return when (klinePeriod) {
@@ -296,7 +271,7 @@ class IndexDetailPage : BasePager(), KlineInteractionHost {
     internal fun switchKlinePeriod(period: String) {
         if (klinePeriod == period) return
         klinePeriod = period
-        // 周期已切换，getAggregatedKline() 返回的就是新聚合，无需再算一遍
+
         val newAgg = getAggregatedKline()
         val newTotal = newAgg.size
         klineVisibleCount = when (period) {
@@ -309,7 +284,6 @@ class IndexDetailPage : BasePager(), KlineInteractionHost {
         klineInfoText = if (period == "D") "日K" else if (period == "W") "周K · 自然周聚合" else "月K · 按月聚合"
     }
 
-    /** 缩放/平移动画序号：每次新动画自增，旧动画检测到变化即自行放弃，避免连点打架。 */
     private var chartAnimSeq = 0
 
     internal fun zoomIn() = animateZoom(-5)
@@ -320,7 +294,6 @@ class IndexDetailPage : BasePager(), KlineInteractionHost {
 
     internal fun panRight() = animatePan(+5)
 
-    /** 缩放视口并保持中心 K 线不动，带缓动。 */
     private fun animateZoom(delta: Int) {
         clearChartSelection()
         val total = getAggregatedKline().size
@@ -332,7 +305,6 @@ class IndexDetailPage : BasePager(), KlineInteractionHost {
         animateViewport(newStart, newCount.toFloat())
     }
 
-    /** 平移视口，带缓动。 */
     private fun animatePan(delta: Int) {
         clearChartSelection()
         val total = getAggregatedKline().size
@@ -383,7 +355,6 @@ class IndexDetailPage : BasePager(), KlineInteractionHost {
         clearInteraction()
     }
 
-    // ---- 十字光标 / 区间框选（与个股页一致，供 chartTouchLayer 调用） ----
     override fun updateCrosshair(x: Float, y: Float) {
         crosshairX = x
         crosshairY = y
@@ -454,7 +425,6 @@ class IndexDetailPage : BasePager(), KlineInteractionHost {
         klineInfoText = ""
     }
 
-    /** 指数页无分时图，接口空实现 */
     override fun selectMinuteAtX(x: Float, locked: Boolean) {}
 
     override fun clearMinuteSelection() {}
@@ -571,7 +541,6 @@ internal fun ViewContainer<*, *>.indexNavigationBar(ctx: IndexDetailPage) {
 
         View { attr { flex(1f) } }
 
-        // 手动刷新：静默刷新（不铺骨架屏），刷新期间按钮自身就是进度指示
         View {
             attr {
                 padding(8f, 8f, 8f, 8f)
@@ -677,7 +646,6 @@ internal fun ViewContainer<*, *>.indexRealtimeCard(ctx: IndexDetailPage) {
                 marginBottom(8f)
             }
 
-            // 读滚动器（lambda 内读，才能拿到中间帧），静默刷新时逐帧滚到新值
             val hasPrice = realtime.price != null
             indexQuoteColumn("最新点位",
                 { if (hasPrice) fmt2(ctx.quoteRoll.value(0)) else "-" },
@@ -715,9 +683,6 @@ internal fun ViewContainer<*, *>.indexRealtimeCard(ctx: IndexDetailPage) {
     }
 }
 
-/**
- * 指数页的行情小格。宽度算式比个股页少扣一点（指数卡没有额外涨跌条占位）。
- */
 internal fun ViewContainer<*, *>.indexQuoteItem(
     pageViewWidth: Float,
     label: String,
@@ -1061,7 +1026,7 @@ internal fun ViewContainer<*, *>.indexKlineChartCanvas(ctx: IndexDetailPage, agg
             height(360f)
             marginTop(2f)
         }
-        // 手势统一由外层 chartTouchLayer 处理（点选锁定 / 长按框选 / 平移 / 缩放）
+
     }) { context, width, height ->
         val nTotal = aggregated.size
         val nVisible = visible.size
@@ -1103,7 +1068,6 @@ internal fun ViewContainer<*, *>.indexKlineChartCanvas(ctx: IndexDetailPage, agg
             context.stroke()
         }
 
-        // AI levels
         aiLevels.forEach { lvl ->
             if (lvl.price in minP..maxP) {
                 val y = py(lvl.price)
@@ -1272,7 +1236,6 @@ internal fun ViewContainer<*, *>.indexKlineChartCanvas(ctx: IndexDetailPage, agg
             }
         }
 
-        // 区间框选遮罩（长按拖选）
         (ctx.crosshair.state as? InteractionState.RangeSelect)?.let { rs ->
             val startLocal = rs.startGlobalIdx - ctx.klineStartIndex
             val endLocal = rs.endGlobalIdx - ctx.klineStartIndex
@@ -1294,7 +1257,6 @@ internal fun ViewContainer<*, *>.indexKlineChartCanvas(ctx: IndexDetailPage, agg
             }
         }
 
-        // 区间统计浮层
         ctx.rangeStats?.let { stats ->
             val statsH = 28f
             val statsY = padT + 4f
@@ -1727,7 +1689,6 @@ internal fun ViewContainer<*, *>.indexAnalyzingView(ctx: IndexDetailPage) {
             }
         }
 
-        // 与个股详情页同一套三点波浪（base/Anim.kt），两个页面的等待手感一致
         View { attr { marginTop(12f) } }
         aiDotWaveDots(ctx.aiDotWave, color = AppColor.SUCCESS)
     }
@@ -1861,7 +1822,6 @@ internal fun ViewContainer<*, *>.indexAiToast(ctx: IndexDetailPage) {
     }
 }
 
-/** 指数详情页正文（Scroller 的全部内容）。由 detailEpoch 驱动整段重建。 */
 private fun ViewContainer<*, *>.indexDetailContent(ctx: IndexDetailPage) {
     analysisHistoryPanel(ctx.analysisState) {
         ctx.clearChartSelection()

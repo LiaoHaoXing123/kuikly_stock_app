@@ -1,11 +1,7 @@
+// 按当前快照匹配价格和涨跌幅提醒。
+
 package com.kuikly.stock.data
 
-// 纯 Kotlin 数字格式化：String.format 是 JVM 专属 API，iOS/Native 与 JS 上不存在，
-// 故所有跨平台格式化都走这里。
-// 与 JVM "%.Nf" 逐字一致：从 Double 的二进制位精确展开十进制（m×2^e，e<0 时改写为
-// m×5^k/10^k），再按 HALF_UP 舍入（看第一位被舍去的数字是否 ≥ '5'）。注意不能用
-// “乘 10^N 再 round”的捷径：乘法本身会舍入（如 2.675×100 恰为 267.5），导致与 JVM
-// 差 1（如 2.675 应为 "2.67"）。算法已用 24 组 JVM 教科书用例 + 2000 随机值校验。
 internal fun fmtFixed(v: Double, digits: Int): String {
     if (!v.isFinite()) return v.toString()
     val d = digits.coerceIn(0, 9)

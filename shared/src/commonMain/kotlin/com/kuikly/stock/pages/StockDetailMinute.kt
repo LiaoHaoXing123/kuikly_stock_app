@@ -1,6 +1,3 @@
-// 个股详情页 —— 分时图。
-// 自 StockDetailPage.kt 拆出：分时画布、均线、分时摘要与加载/空态。
-
 package com.kuikly.stock.pages
 
 import com.kuikly.stock.data.StockColors
@@ -78,7 +75,7 @@ internal fun ViewContainer<*, *>.minuteCardContent(ctx: StockDetailPage, data: L
 
         detailAction("重试分时") { ctx.loadMinuteQuote() }
         vif({ loading }) {
-            // 骨架高度跟真实画布一致（开成交量时 260f，否则 200f），数据到达只填充不跳版
+
             minuteLoadingSkeleton(ctx)
         }
         velseif({ error.isNotEmpty() || data.isNullOrEmpty() }) {
@@ -99,7 +96,7 @@ internal fun ViewContainer<*, *>.minuteCardContent(ctx: StockDetailPage, data: L
             }
         }
         velse {
-            // 控制条
+
             View {
                 attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginBottom(6f) }
                 View {
@@ -150,7 +147,7 @@ internal fun ViewContainer<*, *>.minuteCardContent(ctx: StockDetailPage, data: L
                         event { click { ctx.clearMinuteSelection() } }
                         Text {
                             attr {
-                                // 区分「跟手查看」与「已锁定」，让分时的手势语义与 K 线一致
+
                                 text(if (ctx.minuteLocked) "已锁定 · 清除" else "跟手查看中")
                                 fontSize(10f)
                                 color(AppColor.TEXT_GRAY)
@@ -166,7 +163,6 @@ internal fun ViewContainer<*, *>.minuteCardContent(ctx: StockDetailPage, data: L
             }
             minuteSummary(ctx, data!!)
 
-            // AI价位在分时上的图例
             vfor({ ObservableList(listOfNotNull(ctx.aiAnalysis).toMutableList()) }) { analysis ->
                 View {
                     attr { flexDirectionRow(); flexWrapWrap(); marginTop(8f) }
@@ -210,11 +206,6 @@ internal fun ViewContainer<*, *>.minuteCardContent(ctx: StockDetailPage, data: L
     }
 }
 
-/**
- * 分时加载骨架：控制条 + 画布 + 摘要两行。
- *
- * 画布高度与 [minuteChartCanvas] 严格一致，这样数据到达时卡片不会长高/变矮。
- */
 internal fun ViewContainer<*, *>.minuteLoadingSkeleton(ctx: StockDetailPage) {
     val sweep = ctx.skeletonPulse
     View {
@@ -266,7 +257,7 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
         var minP = (prices + avgs + aiLevels.map { it.price } + listOfNotNull(ctx.highlightedPrice.takeIf { it > 0 })).minOrNull() ?: 0.0
         var maxP = (prices + avgs + aiLevels.map { it.price } + listOfNotNull(ctx.highlightedPrice.takeIf { it > 0 })).maxOrNull() ?: 1.0
         if (maxP <= minP) maxP = minP + 1.0
-        // 以昨收为中心对称，涨跌视觉对称（分时图惯例）；仍包含所有价位点
+
         if (preClose > 0.0) {
             val half = maxOf(maxP - preClose, preClose - minP).coerceAtLeast(1e-6)
             minP = preClose - half
@@ -280,7 +271,6 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
         fun py(p: Double): Float = padT + chartH * ((maxP - p) / (maxP - minP)).toFloat()
         fun px(i: Int): Float = if (n <= 1) 0f else (width * i / (n - 1).toFloat())
 
-        // 网格
         context.strokeStyle(Color(AppColor.BG_SOFT))
         context.lineWidth(1f)
         for (i in 0..3) {
@@ -290,7 +280,7 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
             context.lineTo(width, gy)
             context.stroke()
         }
-        // 垂直分割（上午/下午）
+
         if (n > 120) {
             val midX = width * 0.5f
             context.strokeStyle(Color(AppColor.DIVIDER_SOFT))
@@ -300,7 +290,6 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
             context.stroke()
         }
 
-        // 昨收基准 + 涨跌区域填充（伪渐变：逐段低透明度四边形，段中价≥昨收红 / 否则绿）
         val baseY = py(preClose)
         if (preClose > 0.0) {
             for (i in 0 until n - 1) {
@@ -318,7 +307,7 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
                 context.closePath()
                 context.fill()
             }
-            // 昨收虚线（灰）+ 右侧标签
+
             context.strokeStyle(Color(AppColor.TEXT_HINT))
             context.lineWidth(1f)
             var bx = 0f
@@ -335,7 +324,6 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
             context.fillText("昨收 ${fmt2(preClose)}", width - 2f, baseY - 2f)
         }
 
-        // AI价位虚线
         aiLevels.forEach { lvl ->
             if (lvl.price in minP..maxP) {
                 val y = py(lvl.price)
@@ -356,7 +344,6 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
             }
         }
 
-        // 高亮价位
         if (ctx.highlightedPrice > 0 && ctx.highlightedPrice in minP..maxP) {
             val y = py(ctx.highlightedPrice)
             context.strokeStyle(Color(AppColor.WARNING))
@@ -367,7 +354,6 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
             context.stroke()
         }
 
-        // 分时价格线
         context.strokeStyle(Color(AppColor.PRIMARY_SOFT))
         context.lineWidth(1.5f)
         context.beginPath()
@@ -378,7 +364,6 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
         }
         context.stroke()
 
-        // 均线
         if (ctx.minuteShowAvg && avgs.isNotEmpty()) {
             context.strokeStyle(Color(AppColor.WARNING))
             context.lineWidth(1f)
@@ -398,7 +383,6 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
             context.stroke()
         }
 
-        // 成交量
         if (ctx.minuteShowVolume && volH > 0) {
             val vols = data.map { it.volume ?: 0.0 }
             val maxVol = vols.maxOrNull()?.toFloat()?.coerceAtLeast(1f) ?: 1f
@@ -419,7 +403,6 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
             }
         }
 
-        // 价格标签
         context.fillStyle(Color(AppColor.TEXT_HINT))
         context.font(9f)
         context.textAlign(TextAlign.LEFT)
@@ -428,7 +411,6 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
         context.textAlign(TextAlign.RIGHT)
         context.fillText(fmt2(data.last().price), width - 2f, padT + 8f)
 
-        // 时间标签
         context.font(9f)
         context.fillStyle(Color(AppColor.TEXT_HINT))
         context.textAlign(TextAlign.LEFT)
@@ -438,7 +420,6 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
         context.textAlign(TextAlign.RIGHT)
         context.fillText(data.last().time, width - 2f, dateY)
 
-        // 选中十字
         val sel = ctx.selectedMinuteIndex
         if (sel >= 0 && sel < n) {
             val p = data[sel]
@@ -462,7 +443,7 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
                 context.stroke()
                 hx += 7f
             }
-            // 点
+
             context.fillStyle(Color(AppColor.PRIMARY_SOFT))
             context.beginPath()
             context.moveTo(cx - 3f, cy)
@@ -471,7 +452,6 @@ internal fun ViewContainer<*, *>.minuteChartCanvas(ctx: StockDetailPage, data: L
             context.closePath()
             context.fill()
 
-            // tooltip
             context.fillStyle(Color(0xE622263F))
             context.beginPath()
             context.moveTo(0f, 0f)

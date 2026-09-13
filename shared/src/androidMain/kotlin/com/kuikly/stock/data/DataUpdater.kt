@@ -1,5 +1,3 @@
-// Android 平台的手动刷新实现。失败时抛异常，由界面区分无更新和失败两种情况。
-
 package com.kuikly.stock.data
 
 import android.content.Context

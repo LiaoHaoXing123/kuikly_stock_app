@@ -1,10 +1,3 @@
-// 通用反馈件：状态条、选择 chip、区块标题、空状态面板。
-//
-// 这些是「每个页面都要写一遍、写法还都不一样」的东西。收敛之后：
-//   - 文案层级（标题 18 / 说明 11）只在一个地方定义；
-//   - 空状态的按钮自带 44dp 热区与按压缩放，不会有的页面能点、有的页面点不动；
-//   - 提示条的语义色统一走 AppColor，不再出现「同一个错误提示三种红」。
-
 package com.kuikly.stock.ui.component
 
 import com.kuikly.stock.ui.theme.AppColor
@@ -23,12 +16,6 @@ import com.tencent.kuikly.core.pager.Pager
 import com.tencent.kuikly.core.views.Text
 import com.tencent.kuikly.core.views.View
 
-/**
- * 一行状态提示。`message` 为空时整块不渲染。
- *
- * 传 lambda 而不是 String，是为了让它订阅页面上的 observable：
- * 值一变整块自己重跑，调用点不用再写 `vif`。
- */
 internal fun ViewContainer<*, *>.statusFeedback(message: () -> String, isError: () -> Boolean = { false }) {
     vif({ message().isNotEmpty() }) {
         View {
@@ -50,7 +37,6 @@ internal fun ViewContainer<*, *>.statusFeedback(message: () -> String, isError: 
     }
 }
 
-/** 单选 chip。选中态用主色实底，未选中是主色浅底。 */
 internal fun ViewContainer<*, *>.selectionChip(label: String, selected: () -> Boolean, action: () -> Unit) {
     View {
         attr {
@@ -77,16 +63,6 @@ internal fun ViewContainer<*, *>.selectionChip(label: String, selected: () -> Bo
     }
 }
 
-/**
- * 区块标题：一行主标题 +（可选）一行说明。
- *
- * 首页、风险中心、详情页的各个分区都用它，标题轻重因此不会再各页不一。
- *
- * @param note     说明文字；空串则不渲染第二行
- * @param size     主标题字号。大分区用默认的 [AppFont.HEAD]，子分区可降到 [AppFont.TITLE]
- * @param marginLeft 需要与页面主内容对齐时用（例如卡片区整体左移 4dp）
- * @param onClick    非空时整块标题变为可点击（带无障碍按钮语义），用于区块标题即入口的场景
- */
 internal fun ViewContainer<*, *>.sectionHeader(
     title: String,
     note: String = "",
@@ -117,12 +93,6 @@ internal fun ViewContainer<*, *>.sectionHeader(
     }
 }
 
-/**
- * 空状态面板：白底卡片 + 居中标题/说明 +（可选）主按钮。
- *
- * 给 [press] 才会带按压反馈；不给就是一个静态面板（用于「纯提示、无出口」的场景）。
- * 按钮点击时顺手 `releaseAll()`，防止 touchUp 丢失后按钮卡在按下态。
- */
 internal fun ViewContainer<*, *>.emptyStatePanel(
     title: String,
     message: String,
@@ -185,16 +155,6 @@ internal fun ViewContainer<*, *>.emptyStatePanel(
     }
 }
 
-/**
- * 顶部居中提示浮层（Toast 风格）：绝对定位顶部、半透明底色、白字、点击整块关闭。
- *
- * 详情页 AI 提示 / 列表页提示 / AI 页错误提示三处原来是同一份结构各写一遍
- * （绝对定位 + maxWidth + 半透明底 + 圆角 + 白字），收敛成一个组件。
- *
- * 底色传 token（如 [AppColor.PRIMARY]），组件内用 [themeTint] 叠 90% alpha：
- * 切主题后取到的是当前色板对应色，不会出现旧色板穿帮。
- * 	ext 为空时整块不渲染；点击浮层任意位置触发 [onDismiss]。
- */
 internal fun ViewContainer<*, *>.topToast(
     ctx: Pager,
     text: () -> String,

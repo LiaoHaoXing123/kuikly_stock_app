@@ -1,26 +1,5 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-build_fund_flow.py —— P3 步骤② L1：日级主力资金流采集（新浪主源 + 东财降级）。
+# 抓取个股资金流并写入行情库。
 
-数据源（已实测验证，2026-09-09）：
-  * 新浪 MoneyFlow.ssl_qsfx_zjlrqs（主源，稳定可用）：
-      - 参数 daima={sh|sz|bj}{code}，返回 JSON 数组
-      - 仅主力档：r0_net（主力净流入-净额，单位=元）、r0_ratio（主力净占比，小数）
-      - 非法代码返回 []；最新日期=当日
-  * 东方财富 stock_individual_fund_flow（降级源，五档齐全）：
-      - 通过 akshare 调用；本机短时高频请求会被 WAF 临时封禁（RemoteDisconnected）
-      - 能连则写入五档（超大/大/中/小），失败只告警并标注新浪主力档
-
-写入 build_stock_db.OUT_DB（stock.db）的 stock_fund_flow 表：
-  code, trade_date, main_net(元), main_ratio(%), 五档可空列, source
-质量门：覆盖率 >= 80% 且最新日期不早于最近交易日 - 3 天，否则阻止发布。
-
-用法（在 data-pipeline 目录，venv）：
-  venv/Scripts/python.exe build_fund_flow.py            # 全量采集（默认 KLINE_CODES）
-  venv/Scripts/python.exe build_fund_flow.py --codes 600519,000001
-  venv/Scripts/python.exe build_fund_flow.py --dry-run  # 只自检 schema，不拉网络
-"""
 import os
 import re
 import sys
@@ -34,18 +13,17 @@ import urllib.parse
 from datetime import datetime, timedelta
 from pathlib import Path
 
-# 复用 build_stock_db 的网络补丁（强制直连 + push2delay 改写）与常量
 try:
-    import build_stock_db as bsd  # noqa: E402
+    import build_stock_db as bsd
     OUT_DB = bsd.OUT_DB
     PRUNE_DAYS = bsd.PRUNE_DAYS
     KLINE_CODES = bsd.code_list("KLINE_CODES", bsd.DEFAULT_KLINE)
     REQUEST_INTERVAL = bsd.REQUEST_INTERVAL
-except Exception as _e:  # pragma: no cover
+except Exception as _e:
     print(f"[FATAL] 无法 import build_stock_db（需要同目录）: {_e}")
     sys.exit(2)
 
-import pandas as pd  # noqa: E402
+import pandas as pd
 
 SINA_URL = "https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/MoneyFlow.ssl_qsfx_zjlrqs"
 SINA_HEADERS = {
@@ -72,23 +50,20 @@ SRC_NOTE = {
     "stock_fund_flow": "日级主力资金流：r0_net 元 / r0_ratio 百分数；五档列仅东财通道可用时填充",
 }
 
-QUALITY_MIN_COVERAGE = 0.8   # 覆盖率低于 80% 阻止发布
-QUALITY_MAX_AGE_DAYS = 4     # 最新日期距今天数超过 4 天视为时效异常（周末/节假日放宽）
-
+QUALITY_MIN_COVERAGE = 0.8
+QUALITY_MAX_AGE_DAYS = 4
 
 def _try_import_akshare():
     try:
-        import akshare as ak  # noqa: F401
+        import akshare as ak
         return ak
     except Exception:
         return None
 
-
 _AK = _try_import_akshare()
 
-
 def fetch_sina(code, retries=3, base_wait=1.0):
-    """新浪主力资金流（主源）。返回 list[dict] 或 []（非法代码）。带指数退避重试。"""
+
     market = _market_of(code)
     params = urllib.parse.urlencode({
         "page": "1", "num": "60", "sort": "opendate", "asc": "0",
@@ -110,17 +85,15 @@ def fetch_sina(code, retries=3, base_wait=1.0):
                 time.sleep(base_wait * (2 ** attempt))
     raise last_err
 
-
 def _market_of(code):
-    """独立市场判定（备胎，避免依赖 build_stock_db 内部符号）。"""
+
     c = str(code)
     if c.startswith(("4", "8")):
         return "bj"
     return "sh" if c.startswith(("6", "9", "5")) else "sz"
 
-
 def sina_rows(code, data):
-    """新浪 JSON -> 行元组。r0_ratio 是小数（如 -0.1573）→ 存百分数（-15.73）。"""
+
     rows = []
     for item in data:
         try:
@@ -138,9 +111,8 @@ def sina_rows(code, data):
             continue
     return rows
 
-
 def fetch_em(code):
-    """东财五档资金流（降级源，软失败）。返回 DataFrame 或 None。"""
+
     if _AK is None:
         return None
     try:
@@ -149,9 +121,8 @@ def fetch_em(code):
     except Exception:
         return None
 
-
 def em_rows(code, df):
-    """东财 DataFrame -> 行元组（五档齐全）。列名见 akshare：日期/主力净流入-净额/-净占比/超大单..."""
+
     src = "东财(五档)"
     rows = []
     for _, r in df.iterrows():
@@ -159,7 +130,7 @@ def em_rows(code, df):
             d = str(r["日期"]).strip()
             if len(d) != 10:
                 continue
-            # 列名用模糊匹配（akshare 版本间有差异）
+
             def pick(*keys):
                 for k in keys:
                     if k in r:
@@ -185,14 +156,12 @@ def em_rows(code, df):
             continue
     return rows
 
-
 def _num(v):
     try:
         value = float(v)
         return value if math.isfinite(value) else None
     except (TypeError, ValueError):
         return None
-
 
 def write_fund_flow(conn, rows):
     if not rows:
@@ -214,14 +183,12 @@ def write_fund_flow(conn, rows):
     conn.commit()
     return len(rows)
 
-
 def prune(conn):
     cutoff = (datetime.now() - timedelta(days=PRUNE_DAYS)).strftime("%Y-%m-%d")
     cur = conn.cursor()
     cur.execute("DELETE FROM stock_fund_flow WHERE trade_date < ?", (cutoff,))
     conn.commit()
     return cur.rowcount
-
 
 def write_data_source(conn):
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -233,7 +200,6 @@ def write_data_source(conn):
             source=excluded.source, note=excluded.note, fetched_at=excluded.fetched_at
     """, ("stock_fund_flow", SRC["stock_fund_flow"], SRC_NOTE["stock_fund_flow"], ts))
     conn.commit()
-
 
 def verify(conn, codes):
     cur = conn.cursor()
@@ -247,7 +213,6 @@ def verify(conn, codes):
     for s, n in cur.fetchall():
         print(f"  来源: {s} = {n} 行")
     return n_codes, n_rows, latest
-
 
 def main():
     ap = argparse.ArgumentParser()
@@ -290,7 +255,6 @@ def main():
             except Exception as e:
                 print(f"  [{i}/{len(codes)}] {code} 新浪 ✗ {type(e).__name__}: {str(e)[:60]}")
 
-            # 东财降级：只补五档，失败静默（WAF 封禁时保持新浪主力档）
             if not args.no_em:
                 try:
                     df = fetch_em(code)
@@ -310,8 +274,6 @@ def main():
         print(f"  剪枝删除 {pruned} 行（保留最近 {PRUNE_DAYS} 天）")
         print(f"  东财五档命中 {em_hits}/{len(codes)}")
 
-        # 质量门
-        # 按请求代码逐只校验，不能用库内其他代码或一只新数据掩盖缺失/过期。
         coverage, age = requested_coverage(conn, codes)
         ok = coverage >= QUALITY_MIN_COVERAGE
         print(f"\n[质量门] 覆盖率 {coverage * 100:.1f}% (>= {QUALITY_MIN_COVERAGE * 100:.0f}%) | "
@@ -329,7 +291,6 @@ def main():
     finally:
         conn.close()
 
-
 def requested_coverage(conn, codes, today=None):
     today = today or datetime.now()
     codes = set(codes)
@@ -344,7 +305,6 @@ def requested_coverage(conn, codes, today=None):
         except (TypeError, ValueError):
             ages.append(999)
     return valid / max(1, len(codes)), max(ages, default=999)
-
 
 if __name__ == "__main__":
     main()

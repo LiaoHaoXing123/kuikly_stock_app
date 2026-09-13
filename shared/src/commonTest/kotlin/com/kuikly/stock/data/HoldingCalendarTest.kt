@@ -14,9 +14,9 @@ class CivilDateTest {
     }
 
     @Test fun knownWeekdays() {
-        assertEquals(0, CivilDate(2024, 1, 1).mondayIndex) // 周一
-        assertEquals(3, CivilDate(1970, 1, 1).mondayIndex) // 周四
-        assertEquals(4, CivilDate(2026, 9, 11).mondayIndex) // 周五
+        assertEquals(0, CivilDate(2024, 1, 1).mondayIndex)
+        assertEquals(3, CivilDate(1970, 1, 1).mondayIndex)
+        assertEquals(4, CivilDate(2026, 9, 11).mondayIndex)
     }
 
     @Test fun parseAndLeapFebruary() {

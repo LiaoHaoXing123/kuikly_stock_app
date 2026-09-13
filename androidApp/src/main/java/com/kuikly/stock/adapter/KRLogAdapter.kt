@@ -1,5 +1,3 @@
-// 日志适配器，把 Kuikly 框架的日志输出到 Android 的 Log 系统。
-
 package com.kuikly.stock.adapter
 
 import android.util.Log

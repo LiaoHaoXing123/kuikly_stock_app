@@ -26,15 +26,15 @@ kotlin {
     js(IR) {
         browser {
             webpackTask {
-                outputFileName = "nativevue2.js" // 最后输出的名字
+                outputFileName = "nativevue2.js"
             }
 
             commonWebpackConfig {
-                output?.library = null // 不导出全局对象，只导出必要的入口函数
-                devtool = "source-map" // 不使用默认的 eval 执行方式构建出 source-map，而是构建单独的 sourceMap 文件
+                output?.library = null
+                devtool = "source-map"
             }
         }
-        binaries.executable() //将kotlin.js与kotlin代码打包成一份可直接运行的js文件
+        binaries.executable()
     }
 
     iosX64()
@@ -62,13 +62,13 @@ kotlin {
                 implementation("io.ktor:ktor-client-core:2.3.0")
                 implementation("io.ktor:ktor-client-content-negotiation:2.3.0")
                 implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.0")
-                // 日志插件（跨平台，含 JS）
+
                 implementation("io.ktor:ktor-client-logging:2.3.0")
-                // kotlinx-serialization 运行时（Kotlin 2.1 配套版本；依赖 serialization 编译插件生成代码）
+
                 implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
                 implementation("com.tencent.kuikly-open:core:${Version.getKuiklyVersion()}")
                 implementation("com.tencent.kuikly-open:core-annotations:${Version.getKuiklyVersion()}")
-                // 聊天 Markdown 渲染（Kuikly-contrib/KuiklyMarkdown；组件要求宿主提供 coroutines-core 与 serialization-json）
+
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1")
                 implementation("com.tencent.kuiklybase:KuiklyMarkdown:1.0.6-2.1.21")
 
@@ -82,9 +82,9 @@ kotlin {
         val androidMain by getting {
             dependencies {
                 api("com.tencent.kuikly-open:core-render-android:${Version.getKuiklyVersion()}")
-                // Android 上使用 OkHttp 引擎，比 CIO 在真机网络环境下更稳定
+
                 implementation("io.ktor:ktor-client-okhttp:2.3.0")
-                // 提供 Dispatchers.Main：协程里更新 Kuikly 响应式状态必须在主线程
+
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4")
             }
         }
@@ -98,7 +98,7 @@ kotlin {
             iosArm64Main.dependsOn(this)
             iosSimulatorArm64Main.dependsOn(this)
             dependencies {
-                // iOS/Native 引擎
+
                 implementation("io.ktor:ktor-client-darwin:2.3.0")
             }
         }
@@ -112,10 +112,9 @@ kotlin {
             iosSimulatorArm64Test.dependsOn(this)
         }
 
-        // JS 目标（h5App / miniApp 使用）
         val jsMain by getting {
             dependencies {
-                // ⚠️ CIO 不支持 JS，JS 平台必须用 ktor-client-js
+
                 implementation("io.ktor:ktor-client-js:2.3.0")
             }
         }
@@ -163,8 +162,7 @@ android {
             assets.srcDirs("src/commonMain/assets")
         }
     }
-    // stock.db 必须未压缩存储，否则 Android AssetManager.openFd() 拿不到文件描述符
-    // （压缩资产 openFd 抛异常），导致 initStockDb 拷贝失败。App 离线查库依赖此配置。
+
     androidResources {
         noCompress += "db"
     }
@@ -184,13 +182,11 @@ fun getLinkerArgs(): List<String> {
     return listOf()
 }
 
-// Kuikly 插件配置
 configure<KuiklyConfig> {
-    // JS 产物配置
+
     js {
-        // 构建产物名，与 KMM 插件 webpackTask#outputFileName 一致
+
         outputName("nativevue2")
-        // 可选：分包构建时的页面列表，如果为空则构建全部页面
-        // addSplitPage("route","home")
+
     }
 }

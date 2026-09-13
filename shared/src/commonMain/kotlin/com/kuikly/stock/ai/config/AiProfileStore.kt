@@ -1,3 +1,5 @@
+// 管理 AI 服务配置；密钥由平台安全存储单独保存。
+
 package com.kuikly.stock.ai.config
 
 import com.kuikly.stock.data.appPrefsGet

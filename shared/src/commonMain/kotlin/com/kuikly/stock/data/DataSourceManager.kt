@@ -1,5 +1,3 @@
-// 数据源开关管理器。在线模式 AI 直连真实模型，离线模式回退本地模板回答。
-
 package com.kuikly.stock.data
 
 object DataSourceManager {

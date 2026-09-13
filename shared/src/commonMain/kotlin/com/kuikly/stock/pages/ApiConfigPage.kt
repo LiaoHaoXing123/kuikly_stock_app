@@ -112,7 +112,7 @@ class ApiConfigPage : BasePager() {
     }
 
     internal fun edit(profile: AiProviderProfile?) {
-        // 先销毁编辑器区域，延迟一帧后重建，确保 Input 组件用新值初始化
+
         showEditor = false
         lifecycleScope.launch {
             delay(150)
@@ -143,7 +143,7 @@ class ApiConfigPage : BasePager() {
             if (editKey.isNotBlank()) SecureSecretStore.put(profile.id, editKey.trim())
             if (old == null) AiProfileStore.setActive(profile.id)
         }.onSuccess {
-            // 保存成功后先销毁编辑器区域，延迟一帧后用 edit(null) 重建，确保输入框全部清空
+
             showEditor = false
             statusMessage = "配置已安全保存"
             statusIsError = false

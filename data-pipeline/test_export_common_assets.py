@@ -1,24 +1,12 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-"""内置 JSON 资产一致性单测：JSON 解码结果必须与 Android 的 SQLite 查询逐字段吻合。
+# 从 SQLite 导出 iOS 和 Web 使用的同口径快照。
 
-背景：iOS / JS 没有 SQLite，指数、官方板块、资金流走的是 data-pipeline/export_common_assets.py
-导出的内置 JSON。一旦导出脚本和 Android 侧查询口径漂移，两个平台就会给出不同结果——
-这类问题只在 iOS/JS 上暴露，CI 的编译通过也发现不了，所以用单测把它钉住。
-
-不依赖网络；只需要 shared/src/commonMain/assets/stock.db 与三个导出产物。
-
-用法：
-  python data-pipeline/test_export_common_assets.py
-  pytest data-pipeline/test_export_common_assets.py     # CI 用
-"""
 import json
 import os
 import sqlite3
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import export_common_assets as ex  # noqa: E402
+import export_common_assets as ex
 
 ASSETS = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "..", "shared", "src", "commonMain", "assets"
@@ -26,20 +14,17 @@ ASSETS = os.path.join(
 DB = os.path.join(ASSETS, "stock.db")
 SAMPLE_CODES = ["600519", "000001", "600036", "002594", "601318", "300750", "000002", "300124"]
 
-
 def _conn():
     con = sqlite3.connect(DB)
     con.row_factory = sqlite3.Row
     return con
 
-
 def _load(name):
     with open(os.path.join(ASSETS, name), encoding="utf-8") as f:
         return json.load(f)
 
-
 def test_index_rows_match_sqlite():
-    """indexDetail / listIndices 的数据源：index_info LEFT JOIN index_realtime，按 code 升序。"""
+
     con = _conn()
     try:
         sql = con.execute(
@@ -60,14 +45,12 @@ def test_index_rows_match_sqlite():
                   "high", "low", "volume", "amount"):
             assert j[k] == s[k], f"{s['code']}.{k} 不一致"
 
-
 def test_index_asset_is_fresh():
-    """落盘的 index_list.json 必须与当前 stock.db 同步（防止忘记重跑导出）。"""
+
     assert _load("index_list.json") == _load_export(ex.export_index)
 
-
 def test_sector_board_mapping_matches_join():
-    """stock_board 是 Android `stock_info.industry = sector_board.board_name` JOIN 的固化结果。"""
+
     con = _conn()
     try:
         rows = con.execute(
@@ -87,12 +70,11 @@ def test_sector_board_mapping_matches_join():
         expect[code] = r["board_code"]
 
     assert payload["stock_board"] == expect, "个股 -> 板块映射与 JOIN 不一致"
-    # 板块只导出被映射引用到的那些
+
     assert {b["board_code"] for b in payload["boards"]} == set(expect.values())
 
-
 def test_sector_members_match_sqlite():
-    """成分股：每个板块取最新 fetch_date 的一期，顺序按 code 升序。"""
+
     con = _conn()
     try:
         payload = ex.export_sector(con)
@@ -109,13 +91,11 @@ def test_sector_members_match_sqlite():
     finally:
         con.close()
 
-
 def test_sector_asset_matches_export():
     assert _load("sector_list.json") == _load_export(ex.export_sector)
 
-
 def test_fund_flow_matches_sqlite():
-    """资金流：与 Android 的 `ORDER BY trade_date DESC LIMIT ?` 同序同值。"""
+
     con = _conn()
     try:
         payload = ex.export_fund_flow(con)
@@ -132,13 +112,11 @@ def test_fund_flow_matches_sqlite():
     finally:
         con.close()
 
-
 def test_fund_flow_asset_matches_export():
     assert _load("fundflow_list.json") == _load_export(ex.export_fund_flow)
 
-
 def test_sector_code_for_known_stocks():
-    """抽样：这几个票在两端都必须命中同一个板块（历史上因 industry 词表漂移而错位）。"""
+
     payload = _load("sector_list.json")
     con = _conn()
     try:
@@ -154,14 +132,12 @@ def test_sector_code_for_known_stocks():
     finally:
         con.close()
 
-
 def _load_export(fn):
     con = _conn()
     try:
         return fn(con)
     finally:
         con.close()
-
 
 if __name__ == "__main__":
     failures = 0

@@ -1,5 +1,3 @@
-// 数据仓库层：统一调度本地数据库与网络接口，对页面屏蔽数据来源细节。
-
 package com.kuikly.stock.data
 
 import com.kuikly.stock.ai.chat.*
@@ -91,7 +89,7 @@ object StockRepository {
         val allMentioned = (mentioned + mentionedIndices).take(4)
         val result = chatImpl(message, allMentioned, context, onText, onStage)
         val compare = runCatching { CompareCards.maybeBuild(message) }.getOrNull().orEmpty()
-        // Render charts only from our own price history, never from generated prices.
+
         val requestedCharts = result.cards.orEmpty().filter { it["type"] == "chart_card" }
         val wantsChart = listOf("走势", "趋势", "图", "K线", "k线", "成交量").any { it in message }
         val codes = (requestedCharts.mapNotNull { it["code"] as? String } +

@@ -26,18 +26,18 @@ class IndexMatcherTest {
     }
 
     @Test fun shortNameWithContextHits() {
-        // "上证"本身是语境词，去后缀简称可命中
+
         assertEquals("000001", matchIndexCandidates("上证涨了", candidates).single().code)
     }
 
     @Test fun shortNameWithoutContextDoesNotHit() {
-        // "银行"无指数语境时不得命中"银行指数"
+
         val cands = candidates + IndexCandidate("399999", "银行指数")
         assertTrue(matchIndexCandidates("银行股怎么样", cands).isEmpty())
     }
 
     @Test fun codeWithoutContextMisses() {
-        // 无指数语境时 000001 默认走个股，指数侧不命中
+
         assertTrue(matchIndexCandidates("000001怎么样", candidates).isEmpty())
     }
 

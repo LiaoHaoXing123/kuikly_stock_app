@@ -47,12 +47,12 @@ class AiReviewEngineTest {
         assertEquals("偏多", entry.bias)
         assertEquals(4, entry.elapsedDays)
         assertEquals(10.0, entry.basePrice!!, 1e-9)
-        assertEquals(16.0, entry.returnPct!!, 1e-9) // (11.6-10)/10
+        assertEquals(16.0, entry.returnPct!!, 1e-9)
         assertEquals(true, entry.directionHit)
         assertEquals(true, entry.supportHeld)
         assertEquals(true, entry.targetReached)
         assertEquals(false, entry.stopHit)
-        assertEquals(false, entry.expired) // 4 < 10
+        assertEquals(false, entry.expired)
         assertEquals("进行中", entry.status)
         assertEquals(1, summary.evaluatedCount)
         assertEquals(1, summary.directionHitCount)

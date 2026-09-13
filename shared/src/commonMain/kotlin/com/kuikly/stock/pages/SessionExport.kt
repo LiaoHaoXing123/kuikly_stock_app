@@ -7,12 +7,6 @@ import com.kuikly.stock.data.fmtSignedPct
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 
-/**
- * 聊天会话导出：Markdown（人阅读/分享）+ JSON（完整备份）。
- * 纯函数，无平台依赖，便于单测。
- */
-
-/** 导出文件名前缀：去掉路径非法字符与空白，限长 24，兜底 "chat"。 */
 internal fun exportFileBase(title: String): String {
     val clean = title.replace(Regex("[\\\\/:*?\"<>|\\s\\x00-\\x1F]+"), "").trim().take(24)
     return if (clean.isEmpty()) "chat" else clean
@@ -88,7 +82,7 @@ internal fun summarizeCard(card: Map<String, Any?>): String {
         "stock_card", "index_card" -> {
             val label = if (type == "index_card") "指数" else "个股"
             val unit = if (type == "index_card") "点" else "元"
-            // 卡片协议里 price / change_percent 可能是数字也可能是字符串（如 "+0.68%"、"-"），两种都接受
+
             val priceStr = num("price")?.let { fmt2(it) }
                 ?: (card["price"] as? String)?.takeIf { it.isNotBlank() && it != "-" }
             val price = priceStr?.let { " 现价 $it$unit" }.orEmpty()

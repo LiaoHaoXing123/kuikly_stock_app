@@ -1,11 +1,8 @@
 name: Daily stock data build (AkShare -> SQLite stock.db)
 
-# 每天 07:30 UTC（= 北京 15:30，A股收盘后）的周一~周五运行，构建最新行情库并发布到
-# GitHub Release 滚动 tag "data-latest"。非交易日拉到的 latest_trade_date 仍是上一交易日，
-# App 据此判断无更新而跳过，自愈。
 on:
   schedule:
-    # 每天 08:30 UTC = 北京 16:30（收盘后留足数据回落时间，确保取到当日收盘）
+
     - cron: '30 8 * * 1-5'
   push:
     branches: [main]
@@ -40,9 +37,6 @@ jobs:
       - name: Build stock.db + version.json
         run: python data-pipeline/build_stock_db.py
 
-      # 公司事件（分红除权/财报披露）写入同一个 stock.db；漏跑这一步会导致
-      # 发布库缺 stock_dividend/stock_earnings 表，详情页事件卡与 AI 事件工具全部空转。
-      # 容错：事件拉取失败不阻断行情发布（ensure_schema 仍会建好表，端上表现为"未收录"）。
       - name: Build company events (dividend + earnings)
         run: python data-pipeline/build_events.py
         continue-on-error: true
@@ -50,8 +44,6 @@ jobs:
       - name: Run data quality gate tests
         run: python data-pipeline/test_quality_gate.py
 
-      # iOS / JS 用的内置 JSON 资产由 stock.db 导出。这里对新库跑一遍导出 + 一致性校验，
-      # 确保换了数据源以后导出链路仍然可用（产物本身不提交，需本地重跑后随构建更新）。
       - name: Export built-in JSON assets (smoke test)
         run: |
           python data-pipeline/export_common_assets.py

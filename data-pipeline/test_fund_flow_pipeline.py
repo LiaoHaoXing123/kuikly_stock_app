@@ -3,7 +3,6 @@ import unittest
 from datetime import datetime
 import build_fund_flow as f
 
-
 class FundFlowPipelineTest(unittest.TestCase):
     def test_unrelated_and_stale_rows_do_not_count_as_coverage(self):
         conn = sqlite3.connect(":memory:")
@@ -23,7 +22,6 @@ class FundFlowPipelineTest(unittest.TestCase):
     def test_ratio_conversion_keeps_negative_sign(self):
         row = f.sina_rows("000001", [{"opendate": "2026-09-09", "r0_net": "-123", "r0_ratio": "-0.1573"}])[0]
         self.assertEqual((-123.0, -15.73), row[2:4])
-
 
 if __name__ == "__main__":
     unittest.main()

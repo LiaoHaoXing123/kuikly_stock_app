@@ -1,11 +1,11 @@
-# data-pipeline — 行情数据自动构建（方案A）
+# data-pipeline — 行情数据自动构建
 
 本项目让 App 每天自动拿到最新 A 股行情，而无需重装 APK。
 
 ## 链路
 
 ```
-GitHub Actions（每天 07:30 UTC = 北京 15:30，周一~五）
+GitHub Actions（每天 08:30 UTC = 北京 16:30，周一~五）
         │  build_stock_db.py：AKShare 抓数 -> SQLite stock.db（九张表：6 个股 + 3 指数）
         │  只保留最近 30 天（K线/分时/指标/指数K线自动剪枝），并标注每张表的数据来源
         ▼

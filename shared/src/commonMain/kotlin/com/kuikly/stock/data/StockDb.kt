@@ -1,5 +1,3 @@
-// 数据库查询接口声明与结果类型，各平台提供实现。
-
 package com.kuikly.stock.data
 
 import com.kuikly.stock.pages.FundFlowItem
@@ -47,23 +45,10 @@ expect object StockDb {
 
     fun dataSources(): List<Pair<String, String>>
 
-    /**
-     * 全库最新交易日（YYYY-MM-DD），取不到返回空串。
-     *
-     * 「数据到哪一天了」只允许有一个答案：口径就是个股详情页用的那张日线表
-     * （Android：`stock_daily_kline`；JSON 资产：`stock_kline.json`），取全库最大值。
-     * 首页、我的页都读它，避免出现「首页说 09-10、个股说 09-11」这种
-     * 同一份数据两个日期的情况。
-     *
-     * 注：单只个股的日期仍以它自己的日线为准——库里各股更新进度可能不一致
-     * （实测同一时刻 25 只到 09-11、其余停在 09-10），全库最大值代表「数据最新到哪天」。
-     */
     fun latestTradeDate(): String
 
-    /** 除权除息事件（按日期升序）。表不存在时返回空列表。 */
     fun dividendEvents(code: String): List<CalendarEventMark>
 
-    /** 财报披露事件（按日期升序）。表不存在时返回空列表。 */
     fun earningsEvents(code: String): List<CalendarEventMark>
 }
 

@@ -26,6 +26,7 @@ internal actual object SecureSecretStore {
         return try {
             decrypt(envelope)
         } catch (_: Throwable) {
+            // 密钥失效时移除不可解密记录，等待重新配置。
             prefs.edit().remove(storageKey).apply()
             null
         }

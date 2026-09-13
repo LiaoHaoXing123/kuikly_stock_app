@@ -1,5 +1,3 @@
-// iOS 行情库：无 SQLite，委托给包内置 JSON 实现（见 JsonBackedStockDb）。
-
 package com.kuikly.stock.data
 
 import com.kuikly.stock.pages.IndicatorData

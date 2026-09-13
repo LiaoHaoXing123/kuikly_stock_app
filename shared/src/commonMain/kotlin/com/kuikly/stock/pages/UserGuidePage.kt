@@ -24,11 +24,6 @@ import com.kuikly.stock.ui.component.openModule
 import com.kuikly.stock.ui.component.pageTitleBar
 import com.kuikly.stock.ui.theme.AppColor
 
-/**
- * 内置使用指南：功能介绍、提问示例、常见问题。内容均为静态文本，
- * 每个章节可折叠；所有功能描述必须与实际实现一致，改功能时同步改这里。
- * 章节内容与 docs/使用指南.md 保持一致（14 章节，2026-09-13）。
- */
 @Page(AppRoutes.GUIDE)
 class UserGuidePage : BasePager() {
     internal var expanded: ObservableList<String> by observableList()
@@ -410,7 +405,6 @@ private fun ViewContainer<*, *>.guideStep(num: String, text: String) {
     }
 }
 
-/** 轻量表格：表头 + 数据行，各列按权重自动换行，适合指南中的对照表。 */
 private fun ViewContainer<*, *>.guideTable(headers: List<String>, rows: List<List<String>>) {
     View {
         attr {
@@ -419,7 +413,7 @@ private fun ViewContainer<*, *>.guideTable(headers: List<String>, rows: List<Lis
             borderRadius(12f)
             backgroundColor(AppColor.BG)
         }
-        // 表头
+
         View {
             attr { flexDirectionRow(); padding(bottom = 6f) }
             headers.forEach { h ->
@@ -435,7 +429,7 @@ private fun ViewContainer<*, *>.guideTable(headers: List<String>, rows: List<Lis
                 }
             }
         }
-        // 数据行
+
         rows.forEachIndexed { idx, row ->
             View {
                 attr {
@@ -471,10 +465,6 @@ private fun ViewContainer<*, *>.guideNote(text: String) {
     }
 }
 
-/**
- * 指南配图：以 9:20 竖屏比例渲染成居中的手机截图缩略图（assets/guide 下打包），
- * 下方可附一行说明文字。圆角 + 描边保证深浅主题下都可辨识。
- */
 private fun ViewContainer<*, *>.guideImage(asset: String, caption: String? = null) {
     View {
         attr {

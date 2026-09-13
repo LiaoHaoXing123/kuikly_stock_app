@@ -1,8 +1,3 @@
-// 统一行情仓库：AI 工具、分析提示词与详情页共用同一取数入口。
-// 每份快照携带数据时间与来源；缺失字段一律 null（调用方显示"未提供"），禁止用 0 谎报。
-// 实时层接入点：实现 LiveProvider 并注册到 liveProvider，页面与 AI 自动同步受益；
-// 未注册时全部回落本地库，不会把本地数据误标成实时。
-
 package com.kuikly.stock.data
 
 import com.kuikly.stock.pages.FundFlowItem
@@ -14,12 +9,10 @@ import com.kuikly.stock.pages.RealtimeQuoteData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** 实时数据提供者。返回 null 表示该股当前无实时数据，调用方回落本地库。 */
 interface LiveProvider {
     suspend fun realtimeQuote(code: String): RealtimeQuoteData?
 }
 
-/** 单只股票的行情快照：数据 + 出处。 */
 data class QuoteSnapshot(
     val code: String,
     val name: String?,
@@ -28,7 +21,6 @@ data class QuoteSnapshot(
     val source: String,
 )
 
-/** 公司事件快照：按最新交易日区分未发生/已发生；covered=false 表示事件库未收录该股。 */
 data class EventsSnapshot(
     val code: String,
     val asOf: String,
@@ -39,7 +31,6 @@ data class EventsSnapshot(
 
 object MarketRepository {
 
-    /** 实时层接入点；未注册（默认）时全部回落本地库。 */
     var liveProvider: LiveProvider? = null
 
     suspend fun stockQuote(code: String): QuoteSnapshot = withContext(Dispatchers.Default) {

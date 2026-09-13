@@ -20,7 +20,7 @@ class IndicatorSeriesTest {
         assertEquals(closes.size, macd.dif.size)
         assertEquals(closes.size, macd.dea.size)
         assertEquals(closes.size, macd.hist.size)
-        // EMA(常数)=常数 → dif=0、dea=0、hist=0
+
         assertEquals(0.0, macd.dif.last(), 1e-9)
         assertEquals(0.0, macd.dea.last(), 1e-9)
         assertEquals(0.0, macd.hist.last(), 1e-9)
@@ -30,7 +30,7 @@ class IndicatorSeriesTest {
         val closes = List(30) { 10.0 }
         val kdj = computeKDJ(closes, closes, closes)
         assertEquals(closes.size, kdj.k.size)
-        // 高=低 → RSV=50 → K=D=50、J=50
+
         assertEquals(50.0, kdj.k.last(), 1e-9)
         assertEquals(50.0, kdj.d.last(), 1e-9)
         assertEquals(50.0, kdj.j.last(), 1e-9)
@@ -39,7 +39,7 @@ class IndicatorSeriesTest {
     @Test fun risingPriceGivesPositiveDifAndFiniteHist() {
         val closes = (1..30).map { it.toDouble() }
         val macd = computeMACD(closes)
-        // 上升趋势：快线高于慢线 → DIF>0
+
         assertTrue(macd.dif.last() > 0.0, "expected positive DIF, got ${macd.dif.last()}")
         assertTrue(macd.hist.all { it.isFinite() })
         assertTrue(macd.dea.all { it.isFinite() })
@@ -48,17 +48,17 @@ class IndicatorSeriesTest {
     @Test fun risingPricePushesKdjHigh() {
         val closes = (1..30).map { it.toDouble() }
         val kdj = computeKDJ(closes, closes, closes)
-        // 收盘持续接近窗口高点 → K 上行、显著高于起点与 50
+
         assertTrue(kdj.k.last() > kdj.k.first(), "K should rise: ${kdj.k.first()} -> ${kdj.k.last()}")
         assertTrue(kdj.k.last() > 50.0)
         assertTrue(kdj.k.all { it.isFinite() } && kdj.d.all { it.isFinite() } && kdj.j.all { it.isFinite() })
     }
 
     @Test fun highLowWindowDrivesRsvBetweenExtremes() {
-        // close 落在窗口高低之间时 K 应处于 (0,100) 且随收盘位置合理变化
+
         val highs = List(15) { 12.0 }
         val lows = List(15) { 8.0 }
-        val closes = List(15) { 10.0 } // 恰在高低中点 → RSV=50
+        val closes = List(15) { 10.0 }
         val kdj = computeKDJ(highs, lows, closes)
         assertEquals(50.0, kdj.k.last(), 1e-9)
         assertEquals(50.0, kdj.d.last(), 1e-9)
@@ -73,7 +73,7 @@ class IndicatorSeriesTest {
         val closes = List(30) { 10.0 }
         val rsi = computeRSI(closes)
         assertEquals(closes.size, rsi.rsi6.size)
-        // 无波动 → gain=loss=0 → RSI=50（中性）
+
         assertEquals(50.0, rsi.rsi6.last(), 1e-9)
         assertEquals(50.0, rsi.rsi12.last(), 1e-9)
         assertEquals(50.0, rsi.rsi24.last(), 1e-9)
@@ -82,7 +82,7 @@ class IndicatorSeriesTest {
     @Test fun risingPricePushesRsiToHundred() {
         val closes = (1..30).map { it.toDouble() }
         val rsi = computeRSI(closes)
-        // 单调上涨 → 无下跌 → RSI 触顶 100
+
         assertEquals(100.0, rsi.rsi6.last(), 1e-9)
         assertTrue(rsi.rsi6.all { it in 0.0..100.0 })
         assertTrue(rsi.rsi12.all { it.isFinite() } && rsi.rsi24.all { it.isFinite() })
@@ -91,7 +91,7 @@ class IndicatorSeriesTest {
     @Test fun fallingPricePushesRsiToZero() {
         val closes = (1..30).map { (31 - it).toDouble() }
         val rsi = computeRSI(closes)
-        // 单调下跌 → 无上涨 → RSI 触底 0
+
         assertEquals(0.0, rsi.rsi6.last(), 1e-9)
         assertTrue(rsi.rsi6.all { it in 0.0..100.0 })
     }
@@ -106,7 +106,7 @@ class IndicatorSeriesTest {
         val highs = listOf(1.0, 5.0, 2.0, 4.0, 1.0, 3.0, 0.5)
         val t = computeTrendlines(highs, highs, window = 1)
         val r = t.resistance!!
-        // 最近两个摆动高（4.0@3 → 3.0@5）向右下 → 斜率为负
+
         assertTrue(r.x2 > r.x1)
         assertTrue(r.y2 < r.y1, "resistance should fall: ${r.y1} -> ${r.y2}")
     }
@@ -115,13 +115,13 @@ class IndicatorSeriesTest {
         val lows = listOf(9.0, 1.0, 8.0, 2.0, 9.0, 3.0, 9.0)
         val t = computeTrendlines(lows, lows, window = 1)
         val s = t.support!!
-        // 最近两个摆动低（2.0@3 → 3.0@5）向右上 → 斜率为正
+
         assertTrue(s.x2 > s.x1)
         assertTrue(s.y2 > s.y1, "support should rise: ${s.y1} -> ${s.y2}")
     }
 
     @Test fun trendlineValueAtExtrapolatesLinearly() {
-        val line = TrendLine(0, 10.0, 10, 20.0) // 斜率 1.0
+        val line = TrendLine(0, 10.0, 10, 20.0)
         assertEquals(25.0, line.valueAt(15), 1e-9)
         assertEquals(10.0, line.valueAt(0), 1e-9)
     }

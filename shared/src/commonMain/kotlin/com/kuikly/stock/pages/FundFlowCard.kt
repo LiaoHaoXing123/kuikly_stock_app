@@ -40,7 +40,7 @@ internal fun ViewContainer<*, *>.fundFlowCard(ctx: StockDetailPage) {
                 }
             }
             vfor({ ObservableList(mutableListOf(ctx.fundFlowDays to ctx.selectedFundDate)) }) { (days, selected) ->
-                // Kuikly requires exactly one root view for each reactive list item.
+
                 View {
                 val flows = fundWindow(all, days)
                 val maxNet = flows.maxOfOrNull { abs(it.mainNet) }?.coerceAtLeast(1.0) ?: 1.0

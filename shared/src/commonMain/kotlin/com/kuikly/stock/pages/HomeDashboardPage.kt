@@ -48,17 +48,12 @@ class HomeDashboardPage : BasePager() {
     internal var headline by observable("正在整理今日市场…")
     internal var summary by observable("本页只读取本地行情，不会自动调用付费 AI。")
     internal var marketLabel by observable("数据准备中")
-    /**
-     * 盘面广度（上涨/下跌/平盘家数）。用 [NumberRoll] 而不是普通 observable：
-     * 刷新时这三个数字原地变化，滚一下才看得出「数据换了一批」。
-     * 详情页的最新价做不到这件事——见 NumberRoll 的注释。
-     */
+
     internal val breadthRoll = NumberRoll(
         this,
         initialText = "上涨 --  ·  下跌 --  ·  平盘 --",
     ) { v -> "上涨 ${v[0].toInt()}  ·  下跌 ${v[1].toInt()}  ·  平盘 ${v[2].toInt()}" }
 
-    /** 自选仓的「N 个信号 · M 个提醒」，同样滚一下。 */
     internal val watchRoll = NumberRoll(
         this,
         initialText = "0 个信号 · 0 个提醒",
@@ -87,12 +82,12 @@ class HomeDashboardPage : BasePager() {
 
     internal fun reload(force: Boolean) {
         if (refreshing) {
-            // 已有请求在跑：立刻收掉刷新头，否则它会一直转
+
             pullRefreshRef?.view?.endRefresh()
             return
         }
         refreshing = true
-        // 刷新头箭头开始转（结束由 refreshing 变 false 自然停）
+
         refreshSpin.loop(REFRESH_SPIN_STEP_MS) { refreshing }
         refreshMessage = ""
         lifecycleScope.launch {
@@ -116,12 +111,10 @@ class HomeDashboardPage : BasePager() {
         }
     }
 
-    /** 下拉刷新入口：下拉即视为用户主动要最新数据，走 force 路径。 */
     internal fun reloadByPull() {
         reload(force = true)
     }
 
-    /** 主动刷新成功后短暂提示，期间若有新消息则以新消息为准。 */
     private fun autoDismiss(message: String) {
         if (message.isEmpty()) return
         lifecycleScope.launch {
@@ -150,7 +143,7 @@ class HomeDashboardPage : BasePager() {
     }
 
     internal fun open(route: String) {
-        // 首页入口卡里既有底部 Tab 模块也有非 Tab 页面，由 openModule 按目的地挑转场
+
         openModule(route)
     }
 
@@ -292,11 +285,6 @@ private fun ViewContainer<*, *>.marketBriefCard(ctx: HomeDashboardPage) {
     }
 }
 
-/**
- * 首页区块标题。样式来自共享的 [sectionHeader]——「18f 加粗标题 + 11f 灰色说明」
- * 这套层级在首页、风险中心是同一件事，各写一份迟早会漂。
- * [onClick] 非空时区块标题变为入口（如「今日关注」→ 自选仓）。
- */
 private fun ViewContainer<*, *>.sectionTitle(
     title: String,
     note: String,
@@ -311,14 +299,14 @@ private fun ViewContainer<*, *>.researchGrid(ctx: HomeDashboardPage) {
             flexDirectionColumn()
             accessibility("研究工作台，四个入口")
         }
-        // 第一行：AI研究室 + 组合风险
+
         View {
             attr { flexDirectionRow(); marginBottom(12f) }
             researchModule(ctx, "AI 研究室", { "带本地行情上下文提问" }, "AI", { AppColor.PRIMARY_BG_LIGHT }, { AppColor.PRIMARY }, AppRoutes.CHAT)
             View { attr { width(12f) } }
             researchModule(ctx, "组合风险", { "仓位、行业与回撤" }, "盾", { AppColor.WARNING_BG }, { AppColor.WARNING_TEXT }, AppRoutes.RISK)
         }
-        // 第二行：全市场 + 自选仓
+
         View {
             attr { flexDirectionRow(); marginBottom(12f) }
             researchModule(ctx, "全市场", { "搜索与涨跌幅排序" }, "势", { AppColor.SUCCESS_BG }, { AppColor.SUCCESS }, AppRoutes.MARKET)

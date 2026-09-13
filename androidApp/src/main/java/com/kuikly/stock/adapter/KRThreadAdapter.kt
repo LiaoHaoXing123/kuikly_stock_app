@@ -1,5 +1,3 @@
-// 线程适配器，为 Kuikly 框架提供主线程与子线程的调度能力。
-
 package com.kuikly.stock.adapter
 
 import com.tencent.kuikly.core.render.android.adapter.IKRThreadAdapter

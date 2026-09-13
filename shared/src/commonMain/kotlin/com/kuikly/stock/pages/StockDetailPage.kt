@@ -1,5 +1,4 @@
-// 个股详情页：基础信息、实时行情、技术指标、分时与五档盘口，以及 AI 分析入口。
-// 增强版：K线多周期/缩放/平移/MA/AI价位联动，AI分析卡片化与K线深度融合
+// 组装个股行情、图表与 AI 分析页面。
 
 package com.kuikly.stock.pages
 
@@ -67,23 +66,10 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
     internal var chartAnchorY = 0f
     internal var isLoading by observable(true)
 
-    /**
-     * 是否正在取数（含静默刷新）。首屏之外不再铺骨架屏，但需要一个可见的「在刷新」信号，
-     * 所以和 [isLoading] 分开：isLoading 只管首屏骨架。
-     */
     internal var refreshing by observable(false)
 
-    /**
-     * 内容重建世代。
-     *
-     * 详情页的卡片都是「构建时读一次数据」，数据变了不会自己更新；原来靠
-     * isLoading 翻转把整页换成骨架屏、再换回来，顺带重建了内容。
-     * 静默刷新不能再用这一招（会把页面清空），所以改由这个世代号驱动
-     * Scroller 内部的内容重建：Scroller 本身留在重建范围之外，滚动位置得以保住。
-     */
     internal var detailEpoch by observable(0)
 
-    /** 行情卡「最新价 / 涨跌额 / 涨跌幅」三个数一起滚。 */
     internal val quoteRoll = NumberRoll(this)
 
     internal var isAnalyzing by observable(false)
@@ -108,20 +94,12 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
     internal var sectorExpanded by observable(false)
     internal var sectorAscending by observable(false)
 
-    /** 按压态：导航栏按钮等可点元素的按下高亮由它驱动，页面唯一一份。 */
     internal val press = PressState(this)
 
-    /**
-     * 同业卡与官方板块卡的信息高度重叠（都是「同行业个股相对强弱」），同屏展示会互相稀释。
-     * 因此二者降级互斥：官方板块快照可用时以它为准，同业卡让位；
-     * 官方板块缺失（无 sector_board 数据 / 该行业未收录）时才回退到本地同业样本卡。
-     * 注意：industryPeers() 的数据仍照常拉取，DeepSeekApi 的行业上下文依赖它。
-     */
     internal val industryCardVisible: Boolean
         get() = industrySnapshot != null && sectorSnapshot == null
 
-    // --- K线增强状态 ---
-    internal var klinePeriod by observable("D") // D=日 W=周 M=月
+    internal var klinePeriod by observable("D")
     override var klineVisibleCount by observable(30)
     override var klineStartIndex by observable(0)
     internal var klineShowMA by observable(true)
@@ -132,43 +110,36 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
     internal var klineToolsExpanded by observable(false)
     internal var matureChartEnabled by observable(true)
     internal val matureChartAvailable get() = pagerData.params.optBoolean("matureChart", false)
-    internal var klineSubIndicator by observable("none") // none / macd / kdj / rsi，副图指标，默认关闭
-    internal var klineShowTrend by observable(false) // 自动趋势线（支撑/压力）叠加，默认关闭
+    internal var klineSubIndicator by observable("none")
+    internal var klineShowTrend by observable(false)
 
-    // --- 实时层（LiveProvider 轮询）状态 ---
-    internal var liveStatusText by observable("")   // 非空时行情卡副标题显示此文案（实时/暂停）
+    internal var liveStatusText by observable("")
     internal var livePaused by observable(false)
     private var liveRunning = false
     private var liveBackfilled = false
 
-    // --- P1 K线交互状态 ---
     override val crosshair = CrosshairController()
     override val nativeChartGestures: Boolean get() = pagerData.params.optBoolean("nativeChartGestures", false)
-    internal var crosshairX by observable(-1f)  // 当前十字光标 x 像素（-1=不显示）
-    internal var crosshairY by observable(-1f)  // 当前十字光标 y 像素
-    internal var rangeStats: RangeStats? by observable(null)  // 区间统计结果
-    internal var isRangeSelecting by observable(false)  // 是否正在框选区间
+    internal var crosshairX by observable(-1f)
+    internal var crosshairY by observable(-1f)
+    internal var rangeStats: RangeStats? by observable(null)
+    internal var isRangeSelecting by observable(false)
 
-    // --- 分时增强 ---
     internal var selectedMinuteIndex by observable(-1)
     internal var minuteCanvasWidth by observable(0f)
     internal var minuteShowAvg by observable(true)
     internal var minuteInfoText by observable("")
     internal var minuteShowVolume by observable(true)
 
-    // 分时选点是否已「锁定」：拖动跟手时为 false，点击/抬手后为 true
     internal var minuteLocked by observable(false)
 
-    // --- 盘口增强 ---
     internal var orderBookHighlightPrice by observable(0.0)
-    internal var orderBookMode by observable("list") // list / depth
+    internal var orderBookMode by observable("list")
 
-    // --- AI卡片交互 ---
     internal var aiExpandedKeys: ObservableList<String> by observableList()
     internal var aiCardHighlightKey by observable("")
-    internal var reviewExpanded by observable(false) // AI 复盘卡明细展开态
+    internal var reviewExpanded by observable(false)
 
-    // --- P0 AI联动状态 ---
     internal var pendingFocus: KlineFocus? by observable(null)
     internal var klineVisibleRange: Pair<String, String>? by observable(null)
     internal var verdictExpanded by observable(false)
@@ -179,8 +150,6 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
     internal val klineFocusState = KlineFocusState()
     private var focusVersion = 0
 
-    // --- 提醒确认弹窗 ---
-    /** 显隐 + 入场动画绑在一起，避免「只改显隐、弹窗停在透明态」。 */
     internal val alertOverlay = Overlay(this)
     internal var pendingAlertCode by observable("")
     internal var pendingAlertName by observable("")
@@ -202,11 +171,6 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         }
     }
 
-    /**
-     * 实时轮询：详情页存续期间拉取东财 push2 快照，价格三件套走 NumberRoll 原地滚动，
-     * 不做整页重建（每 8 秒重建会把滚动位置和专业图状态打掉）。
-     * 失败连续两次进入"更新暂停"，显示最近有效数据；恢复后自动继续。
-     */
     private fun startLiveLoop() {
         MarketRepository.liveProvider = MarketLiveProvider
         if (liveRunning) return
@@ -215,8 +179,7 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
             var fails = 0
             while (liveRunning && stockCode.isNotEmpty()) {
                 val codeAtStart = stockCode
-                // 历史回补：腾讯 fqkline 约一年（与本地库同源同口径）。
-                // 放在轮询循环里等本地详情就绪后重试，避免与首次加载竞态。
+
                 if (!liveBackfilled && !refreshing && stockDetail != null && (stockDetail?.kline?.size ?: 0) < 60) {
                     val hist = runCatching { MarketLiveProvider.dailyKline(codeAtStart, 250) }.getOrDefault(emptyList())
                     println("[Live] backfill ${codeAtStart}: ${hist.size} bars")
@@ -225,7 +188,7 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
                         val merged = stockDetail?.copy(kline = hist)
                         if (merged != null) {
                             stockDetail = merged
-                            // 视口按当前周期重置，与 switchKlinePeriod 的语义保持一致
+
                             klineVisibleCount = when (klinePeriod) {
                                 "W" -> 26
                                 "M" -> 12
@@ -255,8 +218,7 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
                         liveStatusText = "实时更新暂停 · 保留最近有效数据（${MarketLiveProvider.beijingClock()}）"
                     }
                 }
-                // 交易时段 8 秒一拍；非时段降频到 60 秒（盘后价基本不动，仅保持数据新鲜度标记）。
-                // 分片等待：停轮询后 1 秒内退出，不拖尾。
+
                 val wait = if (MarketLiveProvider.isTradingTime()) 8_000 else 60_000
                 repeat(wait / 1_000) {
                     if (!liveRunning) return@launch
@@ -268,18 +230,16 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
 
     override fun pageDidAppear() {
         super.pageDidAppear()
-        // 首屏那次 loading 在 didInit 里就发起了（那时 body 还没构建，扫光无从谈起）。
-        // 页面真正上屏时补一次：若骨架屏还在，扫光就从这个帧开始转。
+
         skeletonPulse.bump()
-        // 重新上屏时静默刷新一次：这是详情页唯一自然的刷新时机。
-        // 首屏之后不再铺骨架屏，用户看不到页面被清空，只有数字在动。
+
         loadStockDetail()
         startLiveLoop()
     }
 
     override fun pageDidDisappear() {
         super.pageDidDisappear()
-        // 离开详情页即停轮询：旧页面不再发请求，也不会覆盖新股票的数据
+
         liveRunning = false
     }
 
@@ -320,10 +280,6 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
                             scrollEnable(true)
                         }
 
-                        // 内容按世代号重建：卡片都是「构建时读一次数据」，刷新后必须重建
-                        // 才会显示新值。Scroller 本身留在重建范围之外，滚动位置就不会被重置。
-                        // 注意 vfor 的 creator 闭包**只能产生一个孩子节点**（框架会校验），
-                        // 所以这里套一层列容器把整页正文收成一个节点。
                         vfor({ ObservableList(mutableListOf(ctx.detailEpoch)) }) { _ ->
                             View {
                                 attr {
@@ -347,25 +303,18 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         }
     }
 
-    /**
-     * 取详情数据。
-     *
-     * 首屏（还没有数据）铺整页骨架屏；之后的任何一次拉取都是**静默刷新**——
-     * 页面内容留在原地，只有数字与图形更新。这样价格才有「原地变化」的机会，
-     * 否则每次刷新都会把承载数字的视图换成骨架屏再重建，补间无从谈起。
-     */
     internal fun loadStockDetail() {
         if (stockCode.isEmpty() || refreshing) return
         val firstLoad = stockDetail == null
         refreshing = true
         if (firstLoad) {
             isLoading = true
-            // 整页骨架屏刚由 vif 同步挂载，此刻拉起扫光才赶得上首帧
+
             skeletonPulse.bump()
         }
 
         lifecycleScope.launch {
-            val startedAt = System.currentTimeMillis()
+            val startedAt = nowMillis()
             try {
                 val data = StockRepository.loadStockDetail(stockCode)
                 delay(0)
@@ -375,7 +324,7 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
                     liveBackfilled = history.size >= 60
                     industrySnapshot = runCatching { com.kuikly.stock.data.StockDb.industryPeers(stockCode) }.getOrNull()
                     sectorSnapshot = runCatching { com.kuikly.stock.data.StockDb.sectorOfStock(stockCode) }.getOrNull()
-                    // 初始化K线视口
+
                     val total = getAggregatedKline().size
                     klineVisibleCount = (when (klinePeriod) { "W" -> 26; "M" -> 12; else -> 30 }).coerceAtMost(total)
                     klineStartIndex = (total - klineVisibleCount).coerceAtLeast(0)
@@ -391,7 +340,7 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
                 stockDetail = null
                 loadErrorMessage = e.message ?: "数据加载失败"
             } finally {
-                // 首屏骨架保证最短展示：本地数据秒载时也不让骨架"一闪而过"
+
                 if (firstLoad) ensureSkeletonVisible(startedAt)
                 isLoading = false
                 refreshing = false
@@ -399,12 +348,6 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         }
     }
 
-    /**
-     * 把行情卡的内容推到最新：先重建内容（让新数据落到版式里），再滚动数字。
-     *
-     * 顺序不能反。重建时新视图先读到滚动器里的**旧值**，随后逐帧滚到新值——
-     * 这正是补间能看见的原因；先滚再重建的话，新视图一出生就是终值，看不到过程。
-     */
     private fun publishQuote(firstLoad: Boolean) {
         val rt = stockDetail?.realtime
         val price = rt?.price
@@ -444,7 +387,7 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
     internal fun triggerAIAnalysis() {
         if (stockCode.isEmpty() || isAnalyzing) return
         isAnalyzing = true
-        // 三个点的波浪由协程按步推进，分析结束自动停（实现见 base/Anim.kt）
+
         aiDotWave.loop(AI_DOT_STEP_MS) { isAnalyzing }
         lifecycleScope.launch {
             try {
@@ -452,7 +395,7 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
                 delay(0)
                 clearHighlight()
                 analysisState.accept(result)
-                // 自动高亮第一个关键价位
+
                 val levels = parseAIPriceLevels(result)
                 if (levels.isNotEmpty()) {
                     highlightedPrice = levels.first().price
@@ -468,11 +411,9 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         }
     }
 
-    /** 统一：无论 v2/v1/离线/旧历史记录，UI 永远拿得到一个 verdict */
     internal val effectiveVerdict: AIVerdict?
         get() = aiAnalysis?.let { com.kuikly.stock.data.AiReviewEngine.verdictOf(it) }
 
-    /** 统一联动入口：滚至 K 线并高亮目标 */
     internal fun focusKline(f: KlineFocus) {
         clearInteraction()
         pendingFocus = f
@@ -499,7 +440,7 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         detailScrollerRef?.view?.setContentOffset(0f, (aiSectionY - 12f).coerceAtLeast(0f), true)
         if (highlight != null) {
             highlightCardType = highlight
-            // 1.2秒后清除高亮
+
             lifecycleScope.launch {
                 kotlinx.coroutines.delay(1200)
                 highlightCardType = null
@@ -515,7 +456,7 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         minuteError = ""
         skeletonPulse.bump()
         lifecycleScope.launch {
-            val startedAt = System.currentTimeMillis()
+            val startedAt = nowMillis()
             try {
                 val data = StockRepository.loadMinute(stockCode)
                 delay(0)
@@ -538,7 +479,7 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         orderBookError = ""
         skeletonPulse.bump()
         lifecycleScope.launch {
-            val startedAt = System.currentTimeMillis()
+            val startedAt = nowMillis()
             try {
                 val data = StockRepository.loadOrderBook(stockCode)
                 delay(0)
@@ -554,13 +495,11 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         }
     }
 
-    // --- K线周期与视口逻辑 ---
-
     internal fun switchKlinePeriod(period: String) {
         if (klinePeriod == period) return
         clearInteraction()
         klinePeriod = period
-        // 切换周期后重置视口
+
         val aggregated = getAggregatedKline()
         val total = aggregated.size
         klineVisibleCount = when (period) {
@@ -575,8 +514,7 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
 
     override fun getAggregatedKline(): List<KLineDataItem> {
         val original = stockDetail?.kline ?: return emptyList()
-        // 周/月聚合每次都新建整段列表，而 Canvas 绘制回调每帧都要取（getVisibleKline 内部还会再取一次），
-        // 所以按「源列表实例 + 周期」记忆化：行情重新加载时 stockDetail.kline 换成新实例，缓存自然失效。
+
         if (aggCacheSource === original && aggCachePeriod == klinePeriod) return aggCacheValue
         val agg = when (klinePeriod) {
             "W" -> aggregateToWeekly(original)
@@ -588,18 +526,6 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         aggCacheValue = agg
         return agg
     }
-
-    // ------------------------------------------------------------------
-    // 派生结果缓存
-    //
-    // 下面这些派生物只依赖输入数据、与视口无关，但都产生在每帧执行的绘制回调里。
-    // 按「输入实例」记忆化，把「每帧重算 + 每帧分配」降为「数据变化时才算」。
-    // 全部用引用相等（===）做键：数据刷新时上游整体换新实例，缓存即自动失效，
-    // 不需要额外的失效通知，也就不会出现「缓存没清掉显示旧值」这类问题。
-    //
-    // 规模说明：当前单只股票 20~400 根 K 线，单次重算本身只有微秒级，
-    // 这里省下的主要是绘制线程上的重复分配（GC 压力），不是墙钟时间。
-    // ------------------------------------------------------------------
 
     private var aggCacheSource: List<KLineDataItem>? = null
     private var aggCachePeriod: String? = null
@@ -619,13 +545,11 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         }
     }
 
-    /** 副图 MACD：同一份聚合结果只算一次。 */
     internal fun macdOf(agg: List<KLineDataItem>): MacdSeries {
         resetIndicatorCacheIfNeeded(agg)
         return indCacheMacd ?: computeMACD(agg.map { it.close }).also { indCacheMacd = it }
     }
 
-    /** 副图 KDJ：同一份聚合结果只算一次。 */
     internal fun kdjOf(agg: List<KLineDataItem>): KdjSeries {
         resetIndicatorCacheIfNeeded(agg)
         return indCacheKdj ?: computeKDJ(
@@ -633,7 +557,6 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         ).also { indCacheKdj = it }
     }
 
-    /** 副图 RSI：同一份聚合结果只算一次。 */
     internal fun rsiOf(agg: List<KLineDataItem>): RsiSeries {
         resetIndicatorCacheIfNeeded(agg)
         return indCacheRsi ?: computeRSI(agg.map { it.close }).also { indCacheRsi = it }
@@ -644,7 +567,6 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
     private var trendCacheCount = -1
     private var trendCacheValue: TrendLines = TrendLines(null, null)
 
-    /** 趋势线只依赖可见区间；键为「聚合实例 + 视口起止」，缩放平移之外不动它就是命中。 */
     internal fun trendLinesOf(
         agg: List<KLineDataItem>,
         start: Int,
@@ -667,7 +589,6 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
     private var aiLevelsResolved = false
     private var aiLevelsCache: List<AIPriceLevel> = emptyList()
 
-    /** AI 价位线：解析要遍历 cards 并兼容多种字段名，同样按 analysis 实例缓存。 */
     internal fun aiPriceLevels(): List<AIPriceLevel> {
         val analysis = aiAnalysis
         if (aiLevelsResolved && aiLevelsSource === analysis) return aiLevelsCache
@@ -685,7 +606,6 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         return if (start >= end) emptyList() else agg.subList(start, end)
     }
 
-    /** 缩放/平移动画序号：每次新动画自增，旧动画检测到变化即自行放弃，避免连点打架。 */
     private var chartAnimSeq = 0
 
     internal fun zoomIn() = animateZoom(-5)
@@ -696,7 +616,6 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
 
     internal fun panRight() = animatePan(+5)
 
-    /** 缩放视口并保持中心 K 线不动，带缓动。 */
     private fun animateZoom(delta: Int) {
         clearChartSelection()
         val total = getAggregatedKline().size
@@ -708,7 +627,6 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         animateViewport(newStart, newCount.toFloat())
     }
 
-    /** 平移视口，带缓动。 */
     private fun animatePan(delta: Int) {
         clearChartSelection()
         val total = getAggregatedKline().size
@@ -731,7 +649,6 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         }
     }
 
-    /** P1: 以指定 x 像素为锚点缩放 */
     internal fun zoomAtX(anchorX: Float, factor: Float) {
         clearChartSelection()
         val agg = getAggregatedKline()
@@ -747,7 +664,6 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         klineStartIndex = newStart
     }
 
-    /** P1: 拖拽平移，deltaX 为像素位移 */
     internal fun panByPixel(deltaX: Float) {
         if (klineCanvasWidth <= 0f || klineVisibleCount <= 0) return
         val deltaIdx = (deltaX / klineCanvasWidth * klineVisibleCount).toInt()
@@ -757,7 +673,6 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         }
     }
 
-    /** P1: 更新十字光标位置并计算统计 */
     override fun updateCrosshair(x: Float, y: Float) {
         crosshairX = x
         crosshairY = y
@@ -772,7 +687,6 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         }
     }
 
-    /** P1: 点击十字光标（锁定/解锁） */
     override fun tapCrosshair(x: Float) {
         val agg = getAggregatedKline()
         if (agg.isEmpty() || klineCanvasWidth <= 0f) return
@@ -787,7 +701,6 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         }
     }
 
-    /** P1: 开始区间选择 */
     override fun beginRangeSelect(x: Float) {
         val agg = getAggregatedKline()
         if (agg.isEmpty() || klineCanvasWidth <= 0f) return
@@ -797,7 +710,6 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         crosshairX = x
     }
 
-    /** P1: 更新区间选择 */
     override fun updateRangeSelect(x: Float) {
         if (!isRangeSelecting) return
         val agg = getAggregatedKline()
@@ -811,7 +723,6 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         }
     }
 
-    /** P1: 结束区间选择 */
     override fun endRangeSelect() {
         crosshair.onRangeEnd()
         isRangeSelecting = false
@@ -821,7 +732,6 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         }
     }
 
-    /** P1: 清除所有交互状态 */
     override fun clearInteraction() {
         crosshair.reset()
         crosshairX = -1f
@@ -832,13 +742,6 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         klineInfoText = ""
     }
 
-    /**
-     * 重置 K 线视口：回到该周期默认可见根数，并平移到最新一根。
-     *
-     * 之前只把 startIndex 移回最新、保留用户缩放级别，缩放过的图表「重置」后
-     * 还是放大状态，和预期不符。现在连可见根数一起恢复（D:30 / W:26 / M:12，
-     * 与切周期时的默认视口一致），并清除选中/高亮/画线交互状态。
-     */
     internal fun resetView() {
         clearChartSelection()
         val total = getAggregatedKline().size
@@ -857,10 +760,8 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         highlightedPriceLabel = ""
     }
 
-    /** 专业图重置指令序号：自增一次 = 通知 WebView 图表重置视口一次（见 MatureKlineChart）。 */
     internal var chartResetTick by observable(0)
 
-    /** 统一重置入口：专业图走 WebView 指令，基础图走本地视口恢复。 */
     internal fun resetKline() {
         if (matureChartAvailable && matureChartEnabled) {
             chartResetTick++
@@ -889,7 +790,7 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         val visibleIndex = chartHitIndex(x, klineCanvasWidth, visibleCount)
         val globalIndex = (klineStartIndex + visibleIndex).coerceIn(0, agg.size - 1)
         selectedKlineIndex = globalIndex
-        // 更新信息文本
+
         val k = agg.getOrNull(globalIndex)
         if (k != null) {
             val changePct = if (k.open != 0.0) (k.close - k.open) / k.open * 100.0 else 0.0
@@ -944,7 +845,7 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         highlightedPrice = price
         highlightedPriceLabel = label
         scrollToChart()
-        // 轻提示
+
         aiErrorNotice = "已在K线标注 $label ¥${fmt2(price)}"
         lifecycleScope.launch {
             delay(2000)
@@ -958,12 +859,11 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         orderBookHighlightPrice = 0.0
     }
 
-    // 分时交互
     override fun selectMinuteAtX(x: Float, locked: Boolean) {
         val data = minuteData ?: return
         if (data.isEmpty() || minuteCanvasWidth <= 0f) return
         val idx = ((x / minuteCanvasWidth) * data.size).toInt().coerceIn(0, data.size - 1)
-        // 点击已锁定的同一点 → 取消选中（与 K 线十字光标的心智一致）
+
         if (locked && minuteLocked && idx == selectedMinuteIndex) {
             clearMinuteSelection()
             return
@@ -975,7 +875,7 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
             val avgText = point.avgPrice?.let { " 均${fmt2(it)}" } ?: ""
             val volText = point.volume?.let { " 量${it.toInt()}" } ?: ""
             minuteInfoText = "${point.time} 价${fmt2(point.price)}$avgText$volText"
-            // 联动到K线：把分时价标到K线
+
             highlightedPrice = point.price
             highlightedPriceLabel = "分时 ${point.time}"
         }
@@ -996,7 +896,6 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         minuteLocked = false
     }
 
-    // 盘口交互
     internal fun highlightOrderBookPrice(price: Double, label: String) {
         if (price <= 0 || !price.isFinite()) return
         orderBookHighlightPrice = price
@@ -1017,7 +916,6 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         prepareAlertFromDetail(0, price)
     }
 
-    // AI卡片展开/收起
     internal fun toggleAISection(key: String) {
         val cur = aiExpandedKeys.toList()
         aiExpandedKeys.clear()
@@ -1030,7 +928,6 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
 
     internal fun isAIExpanded(key: String): Boolean = aiExpandedKeys.contains(key)
 
-    // 提醒
     internal fun prepareAlertFromDetail(type: Int, value: Double) {
         if (stockCode.isBlank() || !value.isFinite() || value <= 0.0) {
             aiErrorNotice = "当前没有可用的精确价位"
@@ -1048,7 +945,6 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
         alertOverlay.show()
     }
 
-    /** 关闭确认弹窗（卸载与入场脉冲归位由 Overlay 一并处理）。 */
     internal fun dismissAlertConfirm() {
         alertOverlay.hide()
     }
@@ -1073,7 +969,6 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
     }
 }
 
-/** 详情页正文（Scroller 的全部内容）。由 detailEpoch 驱动整段重建。 */
 private fun ViewContainer<*, *>.detailContent(ctx: StockDetailPage) {
     realtimeCard(ctx)
     industryCard(ctx)

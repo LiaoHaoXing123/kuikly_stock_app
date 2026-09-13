@@ -1,5 +1,3 @@
-// 创建 Android 平台的网络客户端，底层使用 OkHttp。
-
 package com.kuikly.stock.network
 
 import io.ktor.client.HttpClient

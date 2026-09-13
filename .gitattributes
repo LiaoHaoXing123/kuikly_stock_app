@@ -11,6 +11,13 @@
 *.json text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
+*.py text eol=lf
+*.swift text eol=lf
+*.m text eol=lf
+*.h text eol=lf
+*.ts text eol=lf
+*.ets text eol=lf
+*.cpp text eol=lf
 
 # Treat binary files as-is
 *.png binary
@@ -24,5 +31,4 @@
 *.dex binary
 *.class binary
 
-# Large media files tracked via Git LFS (exceed GitHub 100MB limit)
-*.mp4 filter=lfs diff=lfs merge=lfs -text
+*.mp4 binary

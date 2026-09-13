@@ -1,4 +1,4 @@
-// AI 聊天主页：会话管理、消息列表、卡片渲染与手动刷新数据都在这里。
+// 管理聊天会话、流式响应与结果卡片。
 
 package com.kuikly.stock.pages
 
@@ -81,23 +81,12 @@ class ChatMainPage : BasePager() {
 
     internal var activeTitle by observable("AI 智能助手")
 
-    /**
-     * 会话抽屉。用 [drawerState] 建而不是 `Overlay(this)`：
-     * 抽屉是滑动退场，比弹窗淡出慢，卸载时机要跟着变（见 Drawer.kt）。
-     */
     internal val drawerOverlay = drawerState(this)
 
     internal var quickQuestion by observable("")
 
-    /** 按压态容器。抽屉里的按钮、空状态推荐问题都要它（见 Interaction.kt）。 */
     internal val press = PressState(this)
 
-    /**
-     * 空状态推荐问题。
-     *
-     * 从本地行情取一只股票生成第一条，其余是通用问题。
-     * 比只列「我能做什么」更容易上手——用户不用先想清楚怎么问。
-     */
     internal val recommendedQuestions: ObservableList<String> by observableList()
 
     internal var isThinking by observable(false)
@@ -136,7 +125,6 @@ class ChatMainPage : BasePager() {
         inputText = message.retryQuestion
         sendMessage()
     }
-
 
     internal var aiErrorNotice by observable("")
 
@@ -324,7 +312,7 @@ class ChatMainPage : BasePager() {
             }
             delay(0)
             quickQuestion = if (name.isNullOrBlank()) "请帮我分析一只股票" else "请帮我分析$name"
-            // 推荐问题跟着行情一起刷新：第一条锚定用户当前能看到的一只股票
+
             val qs = mutableListOf<String>()
             if (!name.isNullOrBlank()) qs.add("请帮我分析$name 近期走势")
             qs.add("今天大盘整体怎么样")
@@ -335,7 +323,6 @@ class ChatMainPage : BasePager() {
         }
     }
 
-    /** 点推荐问题时只填入输入框、不直接发送：用户多半想先改两个字再问。 */
     internal fun fillQuestion(question: String) {
         inputText = question
         inputRef.view?.setText(question)
@@ -510,13 +497,10 @@ class ChatMainPage : BasePager() {
     private fun exportTarget(): ChatSession? {
         val id = if (exportTargetId.isNotEmpty()) exportTargetId else sessionOpsTargetId
         val s = sessions.firstOrNull { it.id == id } ?: return null
-        // 导出当前会话时带上内存中最新的消息（含正在进行的回复）。
+
         return if (id == activeSessionId) s.copy(messages = messages.toList()) else s
     }
 
-    /**
-     * 执行导出：0 分享 Markdown，1 保存 .md 到下载文件夹，2 复制 Markdown 全文，3 分享 JSON（备份）。
-     */
     internal fun performExport(kind: Int) {
         val target = exportTarget()
         exportOverlay.hide()
@@ -584,9 +568,6 @@ class ChatMainPage : BasePager() {
         }
     }
 
-    /**
-     * 空状态「最近对话」的数据源：置顶优先，其次按更新时间；还没问过话的空会话不算历史。
-     */
     internal fun recentSessions(limit: Int = RECENT_PREVIEW_MAX): List<ChatSession> =
         sessions.asSequence()
             .filter { it.messages.isNotEmpty() }
@@ -594,7 +575,6 @@ class ChatMainPage : BasePager() {
             .take(limit)
             .toList()
 
-    /** 上面那份列表的内容指纹，给 `vbind` 判断要不要重建（只比 id 会漏掉重命名）。 */
     internal fun recentSessionsKey(): String =
         recentSessions().joinToString("|") { it.id + "#" + it.title + "#" + it.updatedAt }
 
@@ -730,10 +710,6 @@ class ChatMainPage : BasePager() {
         }
     }
 
-    /**
-     * 流式 Markdown 块增量同步（手动 diff：core 2.7.0 没有 diffUpdate）。
-     * 常见情况只有追加新块或末块变化，走增量分支避免全量重建。
-     */
     internal fun syncStreamBlocks(text: String) {
         val newBlocks = streamState.update(text) ?: return
         if (newBlocks.isEmpty()) {
@@ -758,7 +734,7 @@ class ChatMainPage : BasePager() {
 
     internal fun toggleEvidence(key: String) {
         expandedEvidenceKey = if (expandedEvidenceKey == key) "" else key
-        // vfor 列表项不追踪页面级 observable：原位替换消息项，触发列表重渲染
+
         val idx = messages.indexOfFirst { m ->
             m.cards?.any { c ->
                 c["type"] == "conclusion_card" &&
@@ -1610,12 +1586,6 @@ internal fun ViewContainer<*, *>.unknownCard(card: Map<String, Any?>) {
     }
 }
 
-/**
- * 空状态：标题 + 推荐问题。
- *
- * 原先只有「AI 智能助手」+ 4 条能力清单，等于让用户自己把能力翻译成一个能问出口的问题。
- * 现在直接把可点的问题摆出来，点一下填进输入框。
- */
 internal fun ViewContainer<*, *>.welcomeHint(ctx: ChatMainPage) {
     View {
         attr {
@@ -1657,8 +1627,6 @@ internal fun ViewContainer<*, *>.welcomeHint(ctx: ChatMainPage) {
             }
         }
 
-        // 最近对话：没有历史整块不出现。派生列表用 vbind 按内容指纹重建——
-        // vfor 只吃 ObservableList，而这里是「排序 + 截断」的结果，没有对应的 observable。
         vbind({ ctx.recentSessionsKey() }) {
             val recent = ctx.recentSessions()
             if (recent.isNotEmpty()) {
@@ -1676,7 +1644,6 @@ internal fun ViewContainer<*, *>.welcomeHint(ctx: ChatMainPage) {
     }
 }
 
-/** 空状态里的分组小标题（「可以这样问」「最近对话」）。 */
 private fun ViewContainer<*, *>.welcomeSectionLabel(title: String) {
     Text {
         attr {
@@ -1689,7 +1656,6 @@ private fun ViewContainer<*, *>.welcomeSectionLabel(title: String) {
     }
 }
 
-/** 空状态里的一条推荐问题。点了只填输入框，见 [ChatMainPage.fillQuestion]。 */
 internal fun ViewContainer<*, *>.welcomeSuggestion(ctx: ChatMainPage, question: String) {
     entryCard(
         press = ctx.press,
@@ -1700,7 +1666,6 @@ internal fun ViewContainer<*, *>.welcomeSuggestion(ctx: ChatMainPage, question: 
     )
 }
 
-/** 空状态「最近对话」里的一条：标题 + 「多久之前 · 几条消息」，点了直接进那条会话。 */
 internal fun ViewContainer<*, *>.welcomeRecentItem(ctx: ChatMainPage, s: ChatSession) {
     val title = s.title.ifBlank { "新对话" }
     val meta = relativeTimeLabel(s.updatedAt, nowMillis()) + " · " + s.messages.size + " 条消息"
@@ -1715,7 +1680,6 @@ internal fun ViewContainer<*, *>.welcomeRecentItem(ctx: ChatMainPage, s: ChatSes
     )
 }
 
-
 internal fun ViewContainer<*, *>.inputArea(ctx: ChatMainPage) {
     View {
         attr {
@@ -1727,8 +1691,6 @@ internal fun ViewContainer<*, *>.inputArea(ctx: ChatMainPage) {
             quoteBar(ctx)
         }
 
-        // 快捷提问只在空状态下出现：有对话之后用户已经在自己的上下文里，
-        // 再顶一条示例问题既占地方又容易误触。「新建对话」已收进抽屉。
         vif({ ctx.messages.isEmpty() && ctx.quickQuestion.isNotEmpty() }) {
             View {
                 attr { padding(left = 12f, top = 6f, right = 12f, bottom = 2f) }
@@ -1749,7 +1711,6 @@ internal fun ViewContainer<*, *>.inputArea(ctx: ChatMainPage) {
                 }
             }
         }
-
 
         View {
             attr {
@@ -1824,15 +1785,6 @@ internal fun ViewContainer<*, *>.inputArea(ctx: ChatMainPage) {
     }
 }
 
-/**
- * 会话抽屉：从左侧滑入的历史对话列表。
- *
- * 用 [sideDrawer] 而不是手写 Overlay：抽屉是「从屏幕外滑进来的一块面板」，
- * 用缩放表达会让人以为它是浮在当前页上方的弹窗，和「点右上角拉开历史」对不上。
- *
- * 这里是**单纯的历史入口**——数据源 / 在线模式 / 连接检测已迁到「我的」页。
- * 那些是低频设置，用户想找时会去设置页；挤在抽屉里会把会话列表压到屏幕下半截。
- */
 internal fun ViewContainer<*, *>.drawer(ctx: ChatMainPage) {
     sideDrawer(
         drawer = ctx.drawerOverlay,
@@ -1859,7 +1811,6 @@ internal fun ViewContainer<*, *>.drawer(ctx: ChatMainPage) {
             }
         }
 
-        // 「新建对话」从输入栏搬到这里：它属于「会话管理」，和历史列表是一类动作
         View {
             attr { padding(left = 12f, top = 10f, right = 12f, bottom = 2f) }
             View {
@@ -1920,7 +1871,6 @@ internal fun ViewContainer<*, *>.drawer(ctx: ChatMainPage) {
         }
     }
 }
-
 
 internal fun ViewContainer<*, *>.drawerSessionItem(ctx: ChatMainPage, s: ChatSession) {
     View {
@@ -2364,5 +2314,4 @@ data class ChatSession(
     val pinned: Boolean = false
 )
 
-/** 空状态「最近对话」最多展示几条。 */
 private const val RECENT_PREVIEW_MAX = 3

@@ -1,4 +1,4 @@
-// DeepSeek 接口封装。行情数据从本地 SQLite 组装进提示词，模型只负责分析生成。
+// 调用 OpenAI 兼容接口，解析分析结果并提供降级内容。
 
 package com.kuikly.stock.network
 
@@ -149,7 +149,7 @@ object DeepSeekApi {
                 config = config,
                 messages = listOf("user" to "只回复 OK"),
                 tools = null,
-                // 预算给足：推理型模型（如 deepseek-flash）会先消耗 token 生成思考链
+
                 maxTokens = 512,
             )
             val message = postChat(config, body)
@@ -174,7 +174,6 @@ object DeepSeekApi {
         }
     }
 
-    /** 推理型模型把输出放在 reasoning_content；测试连接时视为有效响应。 */
     private fun extractReasoning(m: JsonObject): String? =
         (m["reasoning_content"] as? kotlinx.serialization.json.JsonPrimitive)?.content
 
@@ -185,13 +184,11 @@ object DeepSeekApi {
         val generatedAt = nowMillis()
         val dataDate = detail.kline?.lastOrNull()?.tradeDate ?: detail.indicator?.tradeDate.orEmpty()
 
-        // ---------- L1: 严格 v2 ----------
         parseAnalysisV2(raw, detail, klineDates, generatedAt, dataDate)?.let {
             println("[AI] v2 ok, degraded=${it.degraded}, note=${it.validateNote}")
             return it
         }
 
-        // ---------- L2: 旧宽松协议 ----------
         runCatching { parseLegacyAnalysis(raw, detail, generatedAt, dataDate) }
             .getOrNull()
             ?.let { legacy ->
@@ -205,7 +202,6 @@ object DeepSeekApi {
                 )
             }
 
-        // ---------- L3: 抛出异常让 StockRepository 走离线模板 ----------
         println("[AI] v2/legacy 解析失败 rawLen=${raw.length} head=${raw.take(160)} tail=${raw.takeLast(160)}")
         throw IllegalStateException("AI 返回的分析不完整，请重试")
     }
@@ -256,15 +252,13 @@ object DeepSeekApi {
             report = report,
             maxCards = DetailProtocolV2.MAX_CARDS,
         )
-        // 同类型只保留第一张
+
         cards = cards.distinctBy { it["type"] }
 
         if (cards.isEmpty()) return null
 
-        // 保留固定的"数据来源"卡
         cards = cards + sourceFooterCard(dataDate)
 
-        // 兼容：analysis 字段仍填充，供历史记录/搜索等旧逻辑使用
         val flat = linkedMapOf<String, Any?>(
             "trend" to (cards.firstOrNull { it["type"] == "trend_card" }?.get("content")),
             "summary" to (cards.firstOrNull { it["type"] == "summary_card" }?.get("summary")),
@@ -487,7 +481,6 @@ $eventsText
         return listOf("system" to system, "user" to user)
     }
 
-    /** 公司事件（分红除权/财报披露），区分未发生与已发生；未收录时明确告知模型不得臆断。 */
     private fun buildEventsText(code: String): String {
         val snap = com.kuikly.stock.data.MarketRepository.events(code)
         if (!snap.covered) {
@@ -509,7 +502,6 @@ $eventsText
         }
     }
 
-    /** 近 20 日技术指标序列；序列不可用时退回详情自带的最新一条。 */
     private fun buildIndicatorSeriesText(code: String, latest: IndicatorData?): String {        val series: List<IndicatorData> = runCatching { StockDb.indicators(code, 20) }.getOrDefault(emptyList())
         val rows = if (series.isNotEmpty()) series else listOfNotNull(latest)
         if (rows.isEmpty()) return "（暂无技术指标数据）"
@@ -525,7 +517,6 @@ $eventsText
         }
     }
 
-    /** 当日分时摘要：每 30 分钟采样 + 关键统计。无分钟数据（iOS/JS 资产平台）时给出占位说明。 */
     private fun buildMinuteSummaryText(code: String): String {
         val points: List<MinutePoint> = runCatching { StockDb.minute(code) }.getOrDefault(emptyList())
         if (points.isEmpty()) return "（无当日分时数据）"
@@ -547,7 +538,6 @@ $eventsText
         }
     }
 
-    /** 五档盘口 + 委比。无盘口数据时给出占位说明。 */
     private fun buildOrderBookText(code: String): String {
         val book: OrderBookData? = runCatching { StockDb.orderBook(code) }.getOrNull()
         if (book == null || (book.bids.isEmpty() && book.asks.isEmpty())) return "（无盘口数据）"
@@ -740,7 +730,6 @@ return keywords.any { message.contains(it) }
 
 private fun fmt(v: Double?): String = if (v == null) "-" else fmt3(v)
 
-/** 净占比保留 1 位小数（-15.7）。纯 Kotlin 实现，跨平台可用。 */
 private fun fmtRatio1(v: Double): String = com.kuikly.stock.data.fmt1(v)
 
 private fun parseJsonObjectLoose(raw: String): Map<String, Any?> {

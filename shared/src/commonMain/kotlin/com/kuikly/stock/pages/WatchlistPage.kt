@@ -1,5 +1,6 @@
 package com.kuikly.stock.pages
 
+import com.kuikly.stock.data.nowMillis
 import com.kuikly.stock.base.BasePager
 import com.kuikly.stock.ui.component.MountPulse
 import com.kuikly.stock.ui.component.NumberRoll
@@ -61,13 +62,8 @@ class WatchlistPage : BasePager() {
 
     internal var isLoading by observable(false)
 
-    /**
-     * 持仓总览的四个数字（市值 / 盈亏 / 盈亏率 / 今日盈亏），刷新时滚动过渡。
-     * 共用一组动画值，分别展示在市值、累计盈亏、今日盈亏区域。
-     */
     internal val summaryRoll = NumberRoll(this)
 
-    /** 编辑弹窗：显隐 + 入场动画绑在一起。 */
     internal val editOverlay = Overlay(this)
     internal var editCode by observable("")
     internal var editName by observable("")
@@ -82,7 +78,6 @@ class WatchlistPage : BasePager() {
 
     internal var pullState by observable(RefreshViewState.IDLE)
 
-    /** 按压态：空态出口按钮与保存按钮共用，页面唯一一份。 */
     internal val press = PressState(this)
 
     internal var pullRefreshRef: ViewRef<RefreshView>? = null
@@ -94,11 +89,7 @@ class WatchlistPage : BasePager() {
 
     override fun pageDidAppear() {
         super.pageDidAppear()
-        // 首屏 loading 在 didInit 就发起了（那时 body 还没构建，扫光无从谈起），这里补一次：
-        //   - 已在加载中：reload() 会早退、不 bump，所以手动补一次，让扫光跟上骨架屏；
-        //   - 已加载完：reload() 重新取数，它内部会 bump。
-        // 两条路径都保证同一帧只写一次 observable——写两次的话两次属性会合并提交，
-        // 第二次的目标值等于当前值，原生动画器就没有位移可插值了（扫光静默失效）。
+
         val stillLoading = isLoading
         reload()
         if (stillLoading) skeletonPulse.bump()
@@ -155,17 +146,17 @@ class WatchlistPage : BasePager() {
 
     internal fun reload(showFeedback: Boolean = false) {
         if (isLoading) {
-            // 已有请求在跑：立刻收掉刷新头，否则它会一直转
+
             pullRefreshRef?.view?.endRefresh()
             return
         }
         isLoading = true
-        // 骨架屏刚由 vif 同步挂载，此刻拉起扫光才赶得上首帧
+
         skeletonPulse.bump()
-        // 刷新头箭头开始转
+
         refreshSpin.loop(REFRESH_SPIN_STEP_MS) { isLoading }
         lifecycleScope.launch {
-            val startedAt = System.currentTimeMillis()
+            val startedAt = nowMillis()
             try {
                 val built = pageResult {
                     HoldingCalendar.syncQuietly()
@@ -184,7 +175,7 @@ class WatchlistPage : BasePager() {
             } catch (e: Throwable) {
                 saveMessage = "刷新失败，请重试"
             } finally {
-                // 骨架屏保证最短展示：本地数据秒载时也不让骨架"一闪而过"
+
                 ensureSkeletonVisible(startedAt)
                 isLoading = false
                 pullRefreshRef?.view?.endRefresh()
@@ -232,7 +223,6 @@ class WatchlistPage : BasePager() {
         )
     }
 
-    /** 汇总为 [市值, 浮动盈亏, 盈亏率%, 今日盈亏]；格式化交给 [summaryRoll]。 */
     private fun summarize(items: List<WatchRowData>): DoubleArray {
         var mv = 0.0
         var today = 0.0
@@ -252,8 +242,7 @@ class WatchlistPage : BasePager() {
     internal fun openEdit(row: WatchRowData) {
         editCode = row.code
         editName = row.name
-        // 仅关注（未设持仓）时不再灌 "0" / "0.00" 占位——那是用户要先删掉才能填的「默认底字」。
-        // 留空即可，输入框自己的 placeholder 会给提示；保存时 saveEdit 把空当作「仅关注」处理。
+
         editSharesText = if (row.shares > 0.0) trimNum(row.shares) else ""
         editCostText = if (row.cost > 0.0) fmt2(row.cost) else ""
         editStartDateText = WatchStore.find(row.code)?.startDate.orEmpty()
@@ -265,14 +254,12 @@ class WatchlistPage : BasePager() {
         editOverlay.show()
     }
 
-    /** 关闭编辑弹窗（卸载与入场脉冲归位由 Overlay 一并处理）。 */
     internal fun dismissEdit() {
         editOverlay.hide()
     }
 
     internal fun saveEdit() {
-        // 空输入 = 仅关注（不持仓）。HoldingInput.parse 只认数字，所以把空归一成 "0" 走 clear 分支，
-        // 用户就不必为了「只关注不持仓」而手动敲 0 / 0.00。
+
         val sharesForParse = editSharesText.trim().ifEmpty { "0" }
         val costForParse = editCostText.trim().ifEmpty { "0" }
         val input = HoldingInput.parse(editCode, sharesForParse, costForParse, allowClear = true)
@@ -434,12 +421,6 @@ internal fun ViewContainer<*, *>.watchSummary(ctx: WatchlistPage) {
     }
 }
 
-/**
- * 自选列表首屏骨架：卡片外边距、内边距、行高与 [watchlistRow] 对齐。
- *
- * 原来的实现是一行居中的「加载中...」，数据到达前后版式完全不同，
- * 页面会整块跳一下——列表越长越明显。
- */
 internal fun ViewContainer<*, *>.watchlistLoadingView(ctx: WatchlistPage) {
     val sweep = ctx.skeletonPulse
     View {
@@ -454,7 +435,6 @@ internal fun ViewContainer<*, *>.watchlistLoadingView(ctx: WatchlistPage) {
     }
 }
 
-/** 骨架行数：够铺满一屏即可。 */
 private const val WATCH_SKELETON_ROWS = 6
 
 private fun ViewContainer<*, *>.watchlistSkeletonRow(sweep: MountPulse) {
@@ -467,7 +447,6 @@ private fun ViewContainer<*, *>.watchlistSkeletonRow(sweep: MountPulse) {
             borderRadius(10f)
         }
 
-        // 名称 / 代码 / 最新价 / 涨跌幅
         View {
             attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
             View {
@@ -481,7 +460,6 @@ private fun ViewContainer<*, *>.watchlistSkeletonRow(sweep: MountPulse) {
             skeletonBlock(height = 12f, w = 48f, sweep = sweep)
         }
 
-        // 持仓/关注说明行
         View {
             attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginTop(8f) }
             skeletonBlock(height = 11f, w = 96f, sweep = sweep)
@@ -497,7 +475,6 @@ private fun ViewContainer<*, *>.watchlistSkeletonRow(sweep: MountPulse) {
             }
         }
 
-        // 操作行
         View {
             attr { flexDirectionRow(); alignItems(FlexAlign.CENTER) }
             skeletonBlock(height = 24f, w = 110f, radius = 14f, sweep = sweep)
@@ -507,12 +484,6 @@ private fun ViewContainer<*, *>.watchlistSkeletonRow(sweep: MountPulse) {
     }
 }
 
-/**
- * 空态。
- *
- * 原来只有标题 + 一句「在个股行情页标题栏点 ☆」——用户读完知道该怎么做了，
- * 但**当前屏幕上没有任何可点的东西**，只能自己退回行情页。这里直接给出出口。
- */
 internal fun ViewContainer<*, *>.watchlistEmptyView(ctx: WatchlistPage) {
     View {
         attr {
@@ -592,14 +563,7 @@ private const val WATCH_EMPTY_CTA_TAG = "watchlist_empty_cta"
 private const val WATCH_SAVE_TAG = "watchlist_dialog_save"
 private const val WATCH_CANCEL_TAG = "watchlist_dialog_cancel"
 
-/**
- * 提醒类型的五个选项。
- *
- * 顺序即下标：`editAlertType` 用 -1 表示「不新增」，所以选中的下标是 `type + 1`。
- * -1 是一个真实取值而不是「未选」，不要把它也塞进列表。
- */
 private val ALERT_TYPE_OPTIONS = listOf("不新增", "价格≥", "价格≤", "涨幅≥", "跌幅≥")
-
 
 internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowData) {
     View {
@@ -774,13 +738,13 @@ internal fun ViewContainer<*, *>.watchEditDialog(ctx: WatchlistPage) {
         View {
             attr {
                 overlayEnterExit(ctx.editOverlay)
-                // 定宽居中白卡片：内容不能直接铺在半透明遮罩上、顶到屏幕两边。
+
                 width((ctx.pagerData.pageViewWidth - 48f).coerceIn(280f, 360f))
                 backgroundColor(AppColor.SURFACE)
                 borderRadius(AppRadius.LG)
                 padding(AppSpace.AIRY)
             }
-            // 消费点击，阻止冒泡到遮罩——否则点输入框/卡片空白处都会触发 dismiss，弹窗一点就关。
+
             event { click { } }
 
             Text {

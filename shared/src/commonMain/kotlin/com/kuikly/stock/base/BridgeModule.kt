@@ -1,5 +1,3 @@
-// 通用桥接模块，向 JS 层暴露页面导航等基础能力。
-
 package com.kuikly.stock.base
 
 import com.tencent.kuikly.core.base.toInt
@@ -76,12 +74,6 @@ internal class BridgeModule : Module() {
         callNativeMethod("toast", methodArgs, null)
     }
 
-    /**
-     * 触觉反馈。style 取 light / medium / heavy（见 [com.kuikly.stock.base.HapticStyle]）。
-     *
-     * 原生实现：Android = KRBridgeModule.vibrate()，iOS = HRBridgeModule 的 -vibrate:。
-     * JS 无原生实现时调用为空操作，调用方不需要分支判断。
-     */
     fun vibrate(style: String) {
         val methodArgs = JSONObject()
         methodArgs.put("style", style)

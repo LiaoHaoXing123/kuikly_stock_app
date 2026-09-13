@@ -72,7 +72,7 @@ class ChatProtocolTest {
         val result = decodeChatReply("""{"version":1,"text":"回答","cards":[{"type":"stock_card","code":"000001","name":"平安银行","price":"10","change_percent":"1%"},{"type":"risk_card","content":"研究参考","html":"injected"}],"suggestions":[]}""")
         assertTrue(result.cards.isNullOrEmpty())
         assertNotNull(result.errorNotice)
-        assertFalse(result.failed) // The valid text can still enter subsequent context.
+        assertFalse(result.failed)
     }
     @Test fun fencedAndSurroundedJsonStillParses() {
         val fenced = decodeChatReply("```json\n{\"version\":1,\"text\":\"回答\",\"cards\":[],\"suggestions\":[]}\n```")

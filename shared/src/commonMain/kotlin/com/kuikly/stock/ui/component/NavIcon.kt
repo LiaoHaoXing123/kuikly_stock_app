@@ -8,7 +8,6 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
 
-/** One 24dp grid and stroke weight for all five navigation icons. */
 internal fun ViewContainer<*, *>.navIcon(route: String, selected: Boolean) {
     Canvas({ attr { size(24f, 24f) } }) { context, _, _ ->
         context.strokeStyle(Color(if (selected) AppColor.PRIMARY else AppColor.TEXT_SUB))

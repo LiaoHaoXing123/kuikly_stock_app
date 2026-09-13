@@ -2,9 +2,6 @@ package com.kuikly.stock.pages
 import com.kuikly.stock.data.StockColors
 import com.kuikly.stock.ui.theme.AppColor
 
-/**
- * 详情页与 K 线图统一联动动作
- */
 sealed interface KlineFocus {
     val label: String
     val colorValue: Long
@@ -35,26 +32,17 @@ fun directionColorValue(direction: String?): Long = when (direction) {
     else -> AppColor.NEUTRAL
 }
 
-/**
- * K线组件焦点状态。外部设置 focus 时更新可视区间并重绘；
- * draw 末尾调用绘制覆盖层，focus 非空时定时重绘直到淡出。
- */
 class KlineFocusState {
     var focus: KlineFocus? = null
     var focusSetAt: Long = 0L
     var visibleStartIdx: Int = 0
-    var visibleEndIdx: Int = 0  // exclusive
+    var visibleEndIdx: Int = 0
 
     fun clearIfExpired(now: Long, ttlMs: Long = 4_000L) {
         if (focus != null && now - focusSetAt > ttlMs) focus = null
     }
 }
 
-/**
- * 给定 focus，计算需要调整到的可视区间 [startIdx, endIdx)。
- * @param dates 全量K线日期（升序）
- * @param minBars 缩放后至少显示的根数
- */
 fun computeVisibleRangeFor(
     focus: KlineFocus,
     dates: List<String>,

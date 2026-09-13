@@ -1,10 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  Material 的 accelerate 曲线：cubic-bezier(0.4, 0.0, 1.0, 1.0)。
-  「离场」用它——起步慢、末端快，物体像是被抽走；而入场用 decelerate（kr_decelerate）
-  才有「稳稳落位」的观感。两者方向相反不是笔误。
-  目前只被 kr_module_fade_out（Tab 切换的出场段）使用。
--->
+
 <pathInterpolator xmlns:android="http://schemas.android.com/apk/res/android"
     android:controlX1="0.4"
     android:controlY1="0.0"

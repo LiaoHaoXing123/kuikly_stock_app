@@ -40,7 +40,6 @@ internal fun decodeChatReply(raw: String): ChatResult {
     if (suggestions.size > 3 || suggestions.any { it !is JsonPrimitive || !it.isString || it.content.length !in 1..160 })
         throw ChatProtocolException("AI 回复超出协议限制")
 
-    // 用共享校验层替代原 validCard，支持字段级降级
     val report = ValidateReport()
     val validCards = validateCards(
         raw = cards.map { it.toNativeValue() },
@@ -61,7 +60,6 @@ internal fun decodeChatReply(raw: String): ChatResult {
     )
 }
 
-/** Strip markdown fences and surrounding prose so a single imperfect reply can still parse. */
 internal fun extractJsonBody(raw: String): String {
     var s = raw.trim()
     val fence = "```"
@@ -106,7 +104,6 @@ private fun validCard(card: JsonObject): Boolean {
     }
 }
 
-/** Also used for persisted cards; preserve nested arrays instead of flattening them. */
 internal fun JsonElement.toNativeValue(): Any? = when (this) {
     JsonNull -> null
     is JsonObject -> mapValues { it.value.toNativeValue() }
@@ -114,7 +111,6 @@ internal fun JsonElement.toNativeValue(): Any? = when (this) {
     is JsonPrimitive -> if (isString) content else booleanOrNull ?: doubleOrNull
 }
 
-/** Read only the top-level text string, including an unfinished escaped string. */
 internal fun partialReplyText(raw: String): String {
     var depth = 0
     var i = 0

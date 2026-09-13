@@ -20,8 +20,8 @@ class SectorSnapshotTest {
         val snap = SectorSnapshot(board(), listOf(
             SectorMemberItem("600001", "甲", 10.0, 4.0),
             SectorMemberItem("600002", "乙", 11.0, -2.0),
-            SectorMemberItem("600003", "坏价", 0.0, 20.0),      // 价格 0 → 过滤
-            SectorMemberItem("600004", "无涨跌", 9.0, null),     // 涨跌幅 null → 过滤
+            SectorMemberItem("600003", "坏价", 0.0, 20.0),
+            SectorMemberItem("600004", "无涨跌", 9.0, null),
         ))
         assertEquals(2, snap.current.size)
         assertEquals(1.0, snap.average)

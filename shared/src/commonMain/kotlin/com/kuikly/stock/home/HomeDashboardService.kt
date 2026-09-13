@@ -123,13 +123,9 @@ internal object HomeDashboardService {
                 if (price >= ma5) "$name 站上 MA5" else "$name 位于 MA5 下方"
             }
         }.getOrDefault(emptyList())
-        // 数据日期走全库唯一口径：日线表里最新的交易日，和个股详情页读的是同一张表。
-        // 原实现是「拿自选列表第一只股票的日期当全市场日期」，于是同一个库出现两个日期：
-        // 实测该库 25 只已更新到 09-11、其余停在 09-10，首页取到万科A(09-10)、
-        // 用户在看平安银行(09-11)，就对不上了；自选为空时还会退化成「待更新」。
+
         val dataDate = runCatching { StockDb.latestTradeDate() }.getOrNull().orEmpty()
 
-        // 卡片计数：自选仓总数（每只都在监控信号）+ 已启用的价格提醒总数（含未触发的）
         val watchTotal = runCatching { WatchStore.list().size }.getOrDefault(0)
         val alertTotal = runCatching { WatchStore.alerts().count { it.enabled } }.getOrDefault(0)
 

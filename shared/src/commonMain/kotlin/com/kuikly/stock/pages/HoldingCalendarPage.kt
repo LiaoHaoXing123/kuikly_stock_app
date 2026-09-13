@@ -67,13 +67,10 @@ import com.kuikly.stock.ui.theme.AppColor
 
 internal data class CalendarWeekRow(val key: String, val days: List<CalendarCellVm>)
 
-/** 单日最多画几个事件圆点，超出的折成 +N。 */
 private const val DAY_EVENT_DOT_MAX = 3
 
-/** 切月横滑的位移量，单位是月历网格自身宽度的比例。 */
 private const val MONTH_SLIDE_RATIO = 0.14f
 
-/** 切月动画时长。滑出与滑入共用一条曲线，合计两段。 */
 private const val MONTH_SLIDE_MS = 150
 
 private val MONTH_SLIDE_ANIM: Animation = Animation.easeOut(MONTH_SLIDE_MS / 1000f)
@@ -83,21 +80,17 @@ class HoldingCalendarPage : BasePager() {
 
     internal var loading by observable(false)
 
-    /** 下拉刷新头的当前状态（见 Refresh.kt）。 */
     internal var pullState by observable(RefreshViewState.IDLE)
 
-    /** 刷新头引用。取数结束（含早退与失败）都要用它 endRefresh()，否则指示器一直转。 */
     internal var pullRefreshRef: ViewRef<RefreshView>? = null
     internal var hasHoldings by observable(false)
     internal var monthTitle by observable("盈亏日历")
     internal var subtitle by observable("结合当前持仓，算出每天盈亏")
-    /** 切月位移的起点，写入不带动画：用它把内容瞬移到对侧，再交给 [monthReveal] 滑进来。 */
+
     private var monthSlideBase by observable(0f)
 
-    /** 切月进场进度：0 = 贴在侧边且透明，1 = 落位。动画挂在这个 observable 上。 */
     internal var monthReveal by observable(1f)
 
-    /** 切月动画进行中，期间忽略重复点击。 */
     private var monthSliding = false
 
     internal var viewYear by observable(2026)
@@ -145,7 +138,7 @@ class HoldingCalendarPage : BasePager() {
                 pageTitleBar(ctx, "盈亏日历", ctx.subtitle, { ctx.loading }) { ctx.reload() }
                 Scroller {
                     attr { flex(1f); flexDirectionColumn(); scrollEnable(true); padding(left = 16f, right = 16f, bottom = 24f) }
-                    // 必须是 Scroller 的第一个子视图：RefreshView 取 Scroller 用的是 parent.parent
+
                     pullToRefresh(
                         bind = { ctx.pullRefreshRef = it },
                         label = { pullRefreshLabel(ctx.pullState, ctx.loading) },
@@ -193,18 +186,17 @@ class HoldingCalendarPage : BasePager() {
 
     internal fun reload() {
         if (loading) {
-            // 已有请求在跑：立刻收掉刷新头，否则它会一直转
+
             pullRefreshRef?.view?.endRefresh()
             return
         }
         loading = true
-        // 刷新头箭头开始转；结束由 loading 翻 false 自然停（不能用 repeatForever，见 Motion.kt）
+
         refreshSpin.loop(REFRESH_SPIN_STEP_MS) { loading }
         lifecycleScope.launch {
             try {
                 val pack = pageResult {
-                    // 用当前持仓 + 日线收盘价历史补齐最近的交易日，让用户能看到「上一天亏了多少」，
-                    // 而不是只有接入当天一个格子。按起始日期与当前配置重新计算。
+
                     HoldingCalendar.backfillQuietly()
                     Triple(
                         HoldingCalendar.days(),
@@ -214,7 +206,7 @@ class HoldingCalendarPage : BasePager() {
                 }
                 cached = pack.first
                 hasHoldings = pack.second
-                // 读取当前持仓的除权/财报事件，独立于盈亏快照显示
+
                 val evtMap = HashMap<String, MutableList<CalendarEventMark>>()
                 for (h in WatchStore.list()) {
                     if (h.shares <= 0.0 || !h.shares.isFinite()) continue
@@ -255,12 +247,6 @@ class HoldingCalendarPage : BasePager() {
         }
     }
 
-    /**
-     * 切月：旧内容朝 delta 方向滑出淡出，换好月份后新内容从对侧滑入。
-     *
-     * 两段共用 [monthReveal] 一条动画，靠 [monthSlideBase] 的「无动画写入」换边——
-     * 换边那一刻 opacity 正好是 0，位移跳变看不见。
-     */
     internal fun shiftMonth(delta: Int) {
         val next = CivilDate(viewYear, viewMonth, 1).plusMonths(delta).startOfMonth()
         if (next < minMonth || next > maxMonth) return
@@ -406,7 +392,7 @@ private fun ViewContainer<*, *>.calendarStats(ctx: HoldingCalendarPage) {
             marginTop(14f)
             padding(16f)
             borderRadius(18f)
-            // 纯色深蓝压在浅蓝页底上边界太硬，改成右下角略微提亮的斜向渐变
+
             backgroundLinearGradient(
                 Direction.TO_BOTTOM_RIGHT,
                 ColorStop(Color(AppColor.INK_PANEL), 0f),

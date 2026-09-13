@@ -87,7 +87,7 @@ internal open class WatchRepository(
         return runCatching {
             saveAlerts(cur)
             if (alerts().none { it == rule }) return@runCatching false
-            // Every rule needs a visible management entry, including rules created from detail/chat.
+
             if (!isWatched(rule.code)) updateHolding(WatchHolding(rule.code, rule.name))
             isWatched(rule.code)
         }.getOrDefault(false)

@@ -1,7 +1,3 @@
-// 个股详情页 —— 导航、基础信息与实时行情卡片。
-// 自 StockDetailPage.kt 拆出：顶栏、公司信息、实时行情、盘口数据源脚注、技术指标卡。
-// fmtInd 为该模块私有，仅本文件使用。
-
 package com.kuikly.stock.pages
 
 import com.kuikly.stock.data.StockColors
@@ -106,7 +102,6 @@ internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
 
         View { attr { flex(1f) } }
 
-        // 手动刷新入口：静默刷新（不铺骨架屏），刷新期间按钮自身就是进度指示
         View {
             attr {
                 padding(8f, 8f, 8f, 8f)
@@ -185,7 +180,6 @@ internal fun ViewContainer<*, *>.detailNavigationBar(ctx: StockDetailPage) {
     }
 }
 
-/** 详情页顶栏可点元素的按压标识。 */
 private const val NAV_BACK_TAG = "detail_nav_back"
 private const val NAV_REFRESH_TAG = "detail_nav_refresh"
 private const val NAV_WATCH_TAG = "detail_nav_watch"
@@ -283,7 +277,7 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
 
         Text {
             attr {
-                // 实时层生效时展示实时状态（含更新暂停），否则回落本地库的时间戳
+
                 text(
                     if (ctx.liveStatusText.isNotEmpty()) {
                         (if (ctx.livePaused) "⚠ " else "") + ctx.liveStatusText
@@ -301,8 +295,6 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
                 marginBottom(8f)
             }
 
-            // 这三个数是详情页的「主数字」，读的是页面的滚动器——静默刷新时逐帧滚到新值。
-            // 读操作必须发生在 attr 块里（lambda 内），否则拿不到中间帧。
             val hasPrice = realtime.price != null
             quoteColumn(ctx, "最新价",
                 { if (hasPrice) fmt2(ctx.quoteRoll.value(0)) else "-" },
@@ -340,7 +332,6 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
             stockQuoteItem(ctx, "市净率", realtime.pb, "")
         }
 
-        // 换手率/量比/市值：stock_realtime 已落库但此前未展示；JSON 资产平台全为 null，整行隐藏
         vif({ realtime.turnoverRate != null || realtime.volumeRatio != null ||
             realtime.totalMarketCap != null || realtime.circulateMarketCap != null }) {
             View {
@@ -359,16 +350,6 @@ internal fun ViewContainer<*, *>.realtimeCard(ctx: StockDetailPage) {
     }
 }
 
-/**
- * 行情卡的一个数值列。
- *
- * [value] 是 lambda 而不是字符串：详情页支持静默刷新，数值要能在**同一个视图上**
- * 逐帧变化（价格滚动），所以取值必须发生在 attr 块里。传字符串的话值会被钉死在构建那一刻。
- */
-/**
- * 个股页的行情小格：宽度按「卡片左右外边距 24 + 内边距 32」从屏宽里扣，留出浮点取整余量。
- * 视觉部分走共享的 [quoteItem]。
- */
 internal fun ViewContainer<*, *>.stockQuoteItem(
     ctx: StockDetailPage,
     label: String,
@@ -540,7 +521,6 @@ internal fun ViewContainer<*, *>.indicatorItem(label: String, value: Double?) {
 
 private fun fmtInd(v: Double?): String = if (v == null) "-" else fmt3(v)
 
-/** 元 -> 万/亿 人类可读格式（1.2亿 / 3456万 / 890元）。AI 证据与 UI 共用。 */
 internal fun fmtMoney(v: Double): String {
     val abs = kotlin.math.abs(v)
     return when {

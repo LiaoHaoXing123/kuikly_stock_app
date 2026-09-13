@@ -2,9 +2,9 @@
 
 > 一套 Kotlin 代码，多端运行的 A 股（沪深）行情研究工具。基于腾讯 **Kuikly** 跨平台原生渲染框架开发，行情数据全部落在本地，主打「离线可用、本地分析」；K 线 / 分时图由 Kuikly Canvas 自主渲染，并内置可自由配置的 AI 研究助手。
 
-![演示视频](演示视频.mp4)
+https://github.com/user-attachments/assets/23088982-636d-4207-836d-b153984626b7
 
-> 📹 上方为完整演示视频（约 5 分钟，仓库内以 Git LFS 存储）。各功能详细介绍见 [`docs/使用指南.md`](docs/使用指南.md)。
+> 完整演示约 18 分钟，可直接在上方播放，也可[打开视频](https://github.com/user-attachments/assets/23088982-636d-4207-836d-b153984626b7)。各功能详细介绍见 [`docs/使用指南.md`](docs/使用指南.md)。
 
 ---
 
@@ -105,7 +105,7 @@
 ┌─────────────────────────────────────────────────────────┐
 │                    宿主层（各端壳工程）                    │
 │   androidApp（Android / WorkManager）  iosApp（iOS /     │
-│   CocoaPods）  ohosApp（HarmonyOS）  h5App / miniApp（JS）│
+│   CocoaPods）  ohosApp（HarmonyOS）                       │
 └───────────────┬─────────────────────────────────────────┘
                 │ Kuikly 原生渲染引擎（跨端 UI + 事件桥接）
 ┌───────────────▼─────────────────────────────────────────┐
@@ -141,8 +141,7 @@
 | --- | --- | --- |
 | Android | `androidApp/` | ✅ 主力验证平台（真机 / 模拟器） |
 | iOS | `iosApp/`（CocoaPods + shared framework） | ✅ CI 编译门禁通过 |
-| Web (H5) | `h5App/`（shared JS 目标） | ✅ `:shared:compileKotlinJs` 编译通过 |
-| 小程序 | `miniApp/` | 🚧 基于 JS 产物，工程预留 |
+| Web (H5) | `shared/src/jsMain/` | 共享 JS 目标；仓库暂不包含 H5 宿主工程 |
 | HarmonyOS | `ohosApp/` | 🚧 原生壳工程（ArkTS 桥接） |
 
 > CI（`.github/workflows/build.yml`）对 Android（assembleDebug + compileKotlinJs）与 iOS（Kotlin 三架构编译 + Xcode 模拟器构建）做双端编译门禁。
@@ -219,7 +218,6 @@ kuikly_stock_app/
 │       └── common/guide/      # App 内置使用指南配图
 ├── iosApp/                    # iOS 宿主（Xcode 工程 + CocoaPods + Kuikly 桥接）
 ├── ohosApp/                   # HarmonyOS 宿主（ArkTS + NAPI 桥接）
-├── h5App/  miniApp/           # Web / 小程序宿主（shared JS 产物）
 ├── shared/                    # ★ KMP 共享层：全部业务逻辑与页面
 │   ├── build.gradle.kts       # Android / iOS(3 架构) / JS 多目标配置
 │   └── src/
@@ -235,11 +233,10 @@ kuikly_stock_app/
 │       ├── androidMain/ iosMain/ jsMain/   # 平台实现（存储/网络/剪贴板…）
 │       └── commonTest/                # 跨平台单元测试
 ├── data-pipeline/             # Python 数据管道（AKShare 抓数/建库/导出/测试）
-├── static_server/             # 本地静态资源服务（Koa，调试用）
-├── docs/                      # 使用指南、演示脚本、开发计划、QA 报告
+├── docs/                      # 使用指南与功能配图
 ├── .github/workflows/         # CI/CD（双端编译门禁 + 每日数据构建发布）
 ├── buildSrc/  gradle/         # 构建配置
-└── 演示视频.mp4               # 完整演示视频（Git LFS）
+└── README.md                  # 项目说明与完整演示视频
 ```
 
 ---
@@ -247,7 +244,7 @@ kuikly_stock_app/
 ## 8. 快速开始
 
 ### 8.1 环境要求
-- JDK 17、Android SDK（compileSdk 34 / minSdk 21）、Gradle 8.5（wrapper 自带）
+- JDK 17、Android SDK（compileSdk 34 / minSdk 23）、Gradle 8.5（wrapper 自带）
 - iOS 构建需 macOS + Xcode + CocoaPods
 - 数据管道需 Python 3.12 + `pip install -r data-pipeline/requirements.txt`
 
@@ -313,10 +310,6 @@ python build_stock_db.py             # 全量构建（需联网 + akshare）
 | 文档 | 说明 |
 | --- | --- |
 | [`docs/使用指南.md`](docs/使用指南.md) | 详细使用指南（功能入口、操作步骤、常见问题） |
-| [`docs/演示视频脚本.md`](docs/演示视频脚本.md) | 演示视频分镜脚本（8 段，约 5 分 40 秒） |
-| [`docs/feat-p0-chart-ux-progress.md`](docs/feat-p0-chart-ux-progress.md) | 图表 UX 迭代记录 |
-| [`docs/plan/`](docs/plan/) | 功能开发计划（指数、iOS、Markdown 集成等） |
-| [`docs/qa/`](docs/qa/) | QA 报告 |
 | [`data-pipeline/README.md`](data-pipeline/README.md) | 数据管道详细说明 |
 
 ---

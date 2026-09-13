@@ -1,9 +1,3 @@
-// 「我的」页：配置、数据来源与隐私说明。
-//
-// 这里同时承接了原先塞在 AI 页会话抽屉底部的「数据来源（开发者选项）」。
-// 数据源切换、AI 连接检测、手动刷新数据都属于**设置**：用户在设置页找它们，
-// 比在聊天抽屉里翻到下半屏去找要自然；腾出来的抽屉空间留给会话列表。
-
 package com.kuikly.stock.pages
 
 import com.kuikly.stock.base.BasePager
@@ -61,16 +55,9 @@ class ProfilePage : BasePager() {
     internal var refreshIsError by observable(false)
     internal var refreshMessage by observable("")
 
-    // --- 数据来源（原 AI 会话抽屉里的开发者选项）---
     internal var devModeOnline by observable(DataSourceManager.isOnline)
     internal var modeSwitchNotice by observable("")
 
-    /**
-     * 当前是否深色。**必须是 observable**：`segmentedControl` 的 `selectedIndex` 是
-     * 在 attr 块里求值的，只有 observable 变化才会把那块重跑、滑块才会跟着移。
-     *
-     * 它只是「本页对主题的看法」这份缓存，事实来源仍然是 [ThemeManager.mode]。
-     */
     internal var themeIsDark by observable(ThemeManager.isDark)
     internal val statusOverlay = Overlay(this)
     internal val aiStatusLines: ObservableList<String> by observableList()
@@ -88,13 +75,6 @@ class ProfilePage : BasePager() {
         reloadStatus()
     }
 
-    /**
-     * 从本地偏好恢复数据源模式。
-     *
-     * 原先这段只在 AI 页的 `viewDidLoad` 里。数据源模式是**应用级**状态，
-     * 「谁先被打开谁负责恢复」会漏：先逛「我的」再进 AI 的话，恢复逻辑还没跑。
-     * 两个入口各恢复一次是幂等的（后跑的与当前值相同），但不再依赖页面打开顺序。
-     */
     private fun restoreDataSourceMode() {
         val saved = runCatching {
             acquireModule<SharedPreferencesModule>(SharedPreferencesModule.MODULE_NAME)
@@ -139,7 +119,6 @@ class ProfilePage : BasePager() {
         }
     }
 
-    /** 切换数据源。切换是全局副作用，所以要马上落盘，重启后仍是这个模式。 */
     internal fun selectMode(online: Boolean) {
         DataSourceManager.setMode(
             if (online) DataSourceManager.Mode.ONLINE else DataSourceManager.Mode.OFFLINE
@@ -159,19 +138,11 @@ class ProfilePage : BasePager() {
         }
     }
 
-    /**
-     * 切换明/暗。
-     *
-     * 改模式、落盘、本页重画三件事都在 `setTheme` 里（读和写必须同一处，
-     * 否则会出现「写 A 键读 B 键」这种不报错的 bug）；这里只把本页缓存同步一下，
-     * 让滑块的位置立刻跟上。
-     */
     internal fun selectTheme(dark: Boolean) {
         setTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT)
         themeIsDark = ThemeManager.isDark
     }
 
-    /** 检测 AI 服务连通性，结果逐行弹在对话框里（多行是为了把排查步骤也带上）。 */
     internal fun runAiStatusCheck() {
         aiStatusLines.clear()
         aiStatusLines.add("正在检测…（最多 30 秒）")
@@ -302,7 +273,6 @@ private fun ViewContainer<*, *>.profileRow(title: String, value: () -> String, c
     }
 }
 
-/** 一行可点的动作（白底、居中主色文字），用于「检测连接」这类不跳页的操作。 */
 private fun ViewContainer<*, *>.profileActionRow(label: String, action: () -> Unit) {
     View {
         attr {
@@ -321,7 +291,6 @@ private fun ViewContainer<*, *>.profileActionRow(label: String, action: () -> Un
     }
 }
 
-/** 主题切换行。复用 B 轮沉淀的分段控件，不另造一个开关控件。 */
 private fun ViewContainer<*, *>.themeRow(ctx: ProfilePage) {
     View {
         attr {
@@ -362,10 +331,8 @@ private fun ViewContainer<*, *>.themeRow(ctx: ProfilePage) {
 
 private val THEME_OPTIONS = listOf("浅色", "深色")
 
-/** 每个选项的宽度。两字文案给 44dp 足够，两段合计 88dp，右对齐不挤标题。 */
 private const val THEME_OPTION_W = 44f
 
-/** 数据源单选行。选中打「已选」，未选写「选择」——比做一套单选控件轻，也更符合这个页面的密度。 */
 private fun ViewContainer<*, *>.devModeRow(ctx: ProfilePage, label: String, desc: String, online: Boolean) {
     val selected = ctx.devModeOnline == online
     val tag = "devmode:$online"

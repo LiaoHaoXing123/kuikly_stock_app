@@ -1,7 +1,3 @@
-// 个股详情页 —— 五档盘口。
-// 自 StockDetailPage.kt 拆出：五档买卖档位行、占比条、深度画布。
-// fmtOpt 为该模块私有，仅本文件使用。
-
 package com.kuikly.stock.pages
 
 import com.kuikly.stock.data.StockColors
@@ -59,12 +55,6 @@ internal fun ViewContainer<*, *>.orderBookCard(ctx: StockDetailPage) {
     }
 }
 
-/**
- * 盘口加载骨架：10 档（5 卖 + 5 买）+ 中间现价分隔行。
- *
- * 档位行的高度/内边距与 orderBookRow 对齐，这样从骨架切到真实档位时
- * 卡片不会整体跳动——盘口是十行结构，跳一下非常显眼。
- */
 internal fun ViewContainer<*, *>.orderBookLoadingSkeleton(ctx: StockDetailPage) {
     val sweep = ctx.skeletonPulse
     View {
@@ -105,13 +95,13 @@ private fun ViewContainer<*, *>.orderBookSkeletonRow(sweep: MountPulse) {
 }
 
 internal fun ViewContainer<*, *>.orderBookCardContent(ctx: StockDetailPage, book: OrderBookData) {
-    // 派生量：各档量能比例条 / 委差 / 大单判定
+
     val levelVols = (book.bids + book.asks).mapNotNull { it.second }.filter { it.isFinite() && it >= 0.0 }
     val maxLevelVol = levelVols.maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
     val meanLevelVol = if (levelVols.isEmpty()) 0.0 else levelVols.average()
     val bidVolTotal = book.bids.sumOf { it.second ?: 0.0 }
     val askVolTotal = book.asks.sumOf { it.second ?: 0.0 }
-    val weicha = bidVolTotal - askVolTotal  // 委差(手)：买总量 - 卖总量
+    val weicha = bidVolTotal - askVolTotal
 
     View {
         attr {
@@ -160,7 +150,6 @@ internal fun ViewContainer<*, *>.orderBookCardContent(ctx: StockDetailPage, book
             orderBookDepthCanvas(ctx, book)
         }
 
-        // 列表
         book.asks.reversed().forEachIndexed { i, (price, vol) ->
             val r = (vol ?: 0.0) / maxLevelVol
             val big = vol != null && meanLevelVol > 0.0 && vol >= meanLevelVol * 1.8
@@ -200,7 +189,7 @@ internal fun ViewContainer<*, *>.orderBookCardContent(ctx: StockDetailPage, book
                     Text { attr { text("委比 ${fmt2(ratio)}%"); fontSize(11f); color(AppColor.TEXT_GRAY) } }
                 }
             }
-            // 委差（手）：买总量 - 卖总量，>0 偏多(红)、<0 偏空(绿)
+
             View {
                 attr {
                     padding(4f, 8f, 4f, 8f)
@@ -263,7 +252,7 @@ internal fun ViewContainer<*, *>.orderBookRow(ctx: StockDetailPage, label: Strin
             backgroundColor(if (price != null && ctx.orderBookHighlightPrice == price) AppColor.WARNING_BG else AppColor.SURFACE)
             borderRadius(6f)
         }
-        // 量能比例背景条（绝对铺底、无事件，不拦截点击；靠右填充，买红/卖绿低透明度）
+
         View {
             attr { absolutePositionAllZero(); flexDirectionRow(); borderRadius(6f) }
             View { attr { flex((1000 - barFlex).toFloat()) } }
@@ -343,7 +332,6 @@ internal fun ViewContainer<*, *>.orderBookDepthCanvas(ctx: StockDetailPage, book
         fun py(vol: Double): Float = height - 16f - (vol.toFloat() / maxVol) * (height - 32f)
         fun px(price: Double): Float = ((price - minP) / (maxP - minP)).toFloat() * (width - 16f) + 8f
 
-        // 买盘
         context.fillStyle(Color(StockColors.up(0x33)))
         context.strokeStyle(Color(StockColors.UP))
         context.lineWidth(1f)
@@ -366,7 +354,6 @@ internal fun ViewContainer<*, *>.orderBookDepthCanvas(ctx: StockDetailPage, book
             context.stroke()
         }
 
-        // 卖盘
         context.fillStyle(Color(StockColors.down(0x33)))
         context.strokeStyle(Color(StockColors.DOWN))
         if (asks.isNotEmpty()) {
@@ -388,7 +375,6 @@ internal fun ViewContainer<*, *>.orderBookDepthCanvas(ctx: StockDetailPage, book
             context.stroke()
         }
 
-        // 现价线
         ctx.stockDetail?.realtime?.price?.let { curPrice ->
             if (curPrice in minP..maxP) {
                 val x = px(curPrice)
@@ -405,7 +391,6 @@ internal fun ViewContainer<*, *>.orderBookDepthCanvas(ctx: StockDetailPage, book
             }
         }
 
-        // 标签
         context.fillStyle(Color(AppColor.TEXT_HINT))
         context.font(8f)
         context.textAlign(TextAlign.LEFT)

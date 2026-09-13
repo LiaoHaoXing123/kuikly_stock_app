@@ -1,6 +1,3 @@
-// AI 复盘卡：把分析历史与之后的真实行情对照，本地程序计算战绩。
-// 自 StockDetailPage.kt 拆出的正文卡片之一，随 detailEpoch 重建。
-
 package com.kuikly.stock.pages
 
 import com.kuikly.stock.data.AiReviewEngine

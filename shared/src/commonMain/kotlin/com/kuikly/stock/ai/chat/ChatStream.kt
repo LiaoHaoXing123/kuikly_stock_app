@@ -1,3 +1,5 @@
+// 按 SSE 事件边界拼接文本和工具参数。
+
 package com.kuikly.stock.ai.chat
 
 import kotlinx.serialization.json.*
@@ -7,6 +9,7 @@ internal class SseDecoder {
     private var size = 0
     fun line(line: String): String? {
         if (line.isEmpty()) {
+            // SSE 空行结束一个事件，多条 data 行需合并后解析。
             val event = data.takeIf { it.isNotEmpty() }?.joinToString("\n")
             data.clear(); size = 0
             return event
@@ -46,6 +49,7 @@ internal class ChatStreamAccumulator {
             val index = call["index"]?.jsonPrimitive?.intOrNull ?: throw ChatProtocolException("工具调用缺少索引")
             if (index !in 0..7) throw ChatProtocolException("工具调用数量超出限制")
             val old = calls[index] ?: ChatToolCall("", "", "")
+            // 同一工具调用的参数可能分散在多个流式片段中。
             val function = call["function"] as? JsonObject
             val next = ChatToolCall(
                 old.id + (call["id"]?.jsonPrimitive?.contentOrNull ?: ""),

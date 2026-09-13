@@ -8,10 +8,6 @@ import com.tencent.kuikly.core.base.*
 import com.tencent.kuikly.core.views.*
 import com.kuikly.stock.ui.theme.AppColor
 
-/**
- * 公司事件卡：分红除权与财报披露，区分未发生与已发生。
- * 事件库只覆盖部分股票，未收录时明示"覆盖有限"，不与"没有事件"混为一谈。
- */
 internal fun ViewContainer<*, *>.eventCard(ctx: StockDetailPage) {
     val snap = MarketRepository.events(ctx.stockCode)
     View {

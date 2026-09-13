@@ -1,3 +1,5 @@
+// 统一 K 线选中、区间统计与缩放状态。
+
 package com.kuikly.stock.pages
 
 import com.kuikly.stock.data.fmt2
@@ -6,9 +8,6 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
-// -----------------------------------------------------------------------------
-// 坐标映射器：统一 x↔index、price↔y 转换，MA/AI价位线/十字光标共用
-// -----------------------------------------------------------------------------
 internal class ChartCoordinateMapper(
     var visibleStartIdx: Int,
     var visibleCount: Int,
@@ -21,39 +20,29 @@ internal class ChartCoordinateMapper(
     val candleStep: Float get() = chartWidth / visibleCount.coerceAtLeast(1)
     val candleWidth: Float get() = (candleStep * 0.55f).coerceAtLeast(2f).coerceAtMost(14f)
 
-    /** 像素 x → 可见区间内的局部索引 */
     fun xToLocalIndex(x: Float): Int {
         if (chartWidth <= 0f || visibleCount <= 0) return 0
         return ((x / chartWidth) * visibleCount).toInt().coerceIn(0, visibleCount - 1)
     }
 
-    /** 像素 x → 全局索引 */
     fun xToGlobalIndex(x: Float): Int = visibleStartIdx + xToLocalIndex(x)
 
-    /** 局部索引 → 中心 x */
     fun localIndexToX(localIdx: Int): Float = candleStep * localIdx + candleStep / 2f
 
-    /** 全局索引 → 中心 x */
     fun globalIndexToX(globalIdx: Int): Float = localIndexToX(globalIdx - visibleStartIdx)
 
-    /** 价格 → y 像素（从上到下） */
     fun priceToY(price: Double): Float {
         val range = priceMax - priceMin
         if (range <= 0.0) return chartTop
         return chartTop + chartHeight * ((priceMax - price) / range).toFloat()
     }
 
-    /** y 像素 → 价格 */
     fun yToPrice(y: Float): Double {
         if (chartHeight <= 0f) return priceMin
         val ratio = 1f - ((y - chartTop) / chartHeight).coerceIn(0f, 1f)
         return priceMin + ratio * (priceMax - priceMin)
     }
 
-    /**
-     * 以 anchorX 为锚点缩放，保持锚点对应的数据索引在缩放前后位置不跳变。
-     * @return 新的 (visibleStartIdx, visibleCount)
-     */
     fun zoomAt(
         anchorX: Float,
         factor: Float,
@@ -73,7 +62,6 @@ internal class ChartCoordinateMapper(
         return newStart to newCount
     }
 
-    /** 平移：deltaIdx 正=向右（看更新的数据），负=向左 */
     fun pan(deltaIdx: Int, dataSize: Int): Pair<Int, Int> {
         val newStart = (visibleStartIdx + deltaIdx).coerceIn(0, (dataSize - visibleCount).coerceAtLeast(0))
         return newStart to visibleCount
@@ -98,10 +86,6 @@ internal class ChartCoordinateMapper(
     }
 }
 
-// -----------------------------------------------------------------------------
-// 交互状态机：Idle（默认）/ Hover（跟随）/ Locked（点击锁定）/ RangeSelect（区间框选）
-// 注：public 以便 KlineInteractionHost（个股/指数页共用）暴露 crosshair 而不泄露内部类型
-// -----------------------------------------------------------------------------
 sealed interface InteractionState {
     data object Idle : InteractionState
     data class Hover(val globalIdx: Int) : InteractionState
@@ -113,31 +97,27 @@ class CrosshairController {
     var state: InteractionState = InteractionState.Idle
         private set
 
-    /** 手指/鼠标移动：非锁定状态下跟随 */
     fun onMove(globalIdx: Int) {
         if (state !is InteractionState.Locked && state !is InteractionState.RangeSelect) {
             state = InteractionState.Hover(globalIdx)
         }
     }
 
-    /** 点击：锁定 / 解锁 / 退出框选 */
     fun onTap(globalIdx: Int) {
         state = when (val cur = state) {
-            // 已框选区间：点击直接退出，取消遮罩与统计
+
             is InteractionState.RangeSelect -> InteractionState.Idle
-            // 已锁定同一根：再次点击解锁；否则锁定新的一根
+
             is InteractionState.Locked ->
                 if (cur.globalIdx == globalIdx) InteractionState.Idle else InteractionState.Locked(globalIdx)
             else -> InteractionState.Locked(globalIdx)
         }
     }
 
-    /** 开始区间选择 */
     fun onRangeStart(globalIdx: Int) {
         state = InteractionState.RangeSelect(globalIdx, globalIdx)
     }
 
-    /** 更新区间选择终点 */
     fun onRangeUpdate(globalIdx: Int) {
         val cur = state
         if (cur is InteractionState.RangeSelect) {
@@ -145,16 +125,14 @@ class CrosshairController {
         }
     }
 
-    /** 结束区间选择 */
     fun onRangeEnd() {
         val cur = state
         if (cur is InteractionState.RangeSelect) {
             if (abs(cur.startGlobalIdx - cur.endGlobalIdx) < 2) {
-                // 区间太小，视为点击锁定单根
+
                 state = InteractionState.Locked(cur.endGlobalIdx)
             }
-            // 否则驻留 RangeSelect 以保留遮罩+统计浮层；退出走 onTap()（点击图表）或
-            // 状态条上的“✕ 退出”按钮（clearInteraction），或开始平移(pan)自动清除。
+
         }
     }
 
@@ -175,13 +153,8 @@ class CrosshairController {
         }
 }
 
-// -----------------------------------------------------------------------------
-// K线交互宿主：个股页与指数页共用同一套手势层(chartTouchLayer)。
-// 两页均为 Pager 子类、K线状态几乎一致，抽出此接口即可复用手势逻辑。
-// 方法体仍由各页各自实现（P2 再考虑下沉为默认实现以去重）。
-// -----------------------------------------------------------------------------
 internal interface KlineInteractionHost {
-    /** 是否使用原生手势视图(StockChartGestureView)，由入口参数 nativeChartGestures 决定 */
+
     val nativeChartGestures: Boolean
 
     var klineStartIndex: Int
@@ -200,19 +173,11 @@ internal interface KlineInteractionHost {
     fun clearInteraction()
     fun clearChartSelection()
 
-    /**
-     * 分时选点。
-     * @param locked true = 点击锁定（再次点击同一点取消）；false = 跟手查看（拖动中，未锁定）
-     */
     fun selectMinuteAtX(x: Float, locked: Boolean)
 
-    /** 清除分时选中（指数页无分时，实现为空即可） */
     fun clearMinuteSelection()
 }
 
-// -----------------------------------------------------------------------------
-// 区间统计
-// -----------------------------------------------------------------------------
 internal data class RangeStats(
     val startDate: String,
     val endDate: String,

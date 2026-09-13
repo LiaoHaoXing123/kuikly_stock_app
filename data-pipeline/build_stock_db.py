@@ -1,31 +1,4 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-"""
-build_stock_db.py —— 用 AKShare 直接把行情数据构建成 App 用的 SQLite stock.db（方案A）
-
-与 backend/scripts/sql_to_sqlite.py 的关系：
-  旧链路 = AKShare -> MySQL -> mysqldump -> .sql -> sql_to_sqlite.py -> stock.db（依赖本地 MySQL，不适合 CI）
-  本脚本 = AKShare -> SQLite stock.db（纯 Python，无 MySQL 依赖，可直接在 GitHub Actions 跑）
-
-特性：
-  1. 九张表一次构建（6 张个股 + 3 张指数，与 App StockDb.kt 读取的 schema 完全一致，额外增加 source 列）
-  2. 数据来源标注：每表加 source 列 + 新增 data_source 汇总表（App 可读"数据来源"）
-  3. 自动剪枝：K线/分时/指标/指数K线只保留最近 PRUNE_DAYS（默认 30）天，库体稳定不膨胀
-  4. 幂等：全部 INSERT OR REPLACE（按表唯一键去重），重复运行安全
-  5. 产出 stock.db + version.json（App 借此判断是否要下载更新）
-  6. 指数容错：指数三表抓取失败只告警、不中断个股构建（指数为增量能力，不阻塞发布）
-
-网络说明（沿用 akshare_fetch_all.py 的实测结论）：
-  本机 push2 系列主机对 Python requests 的 TLS 连接被重置，仅 push2delay 放行；
-  脚本把 push2 系主机（含 48.push2 / 80.push2 等数字镜像）改写为 push2delay 再调标准 AKShare 接口；
-  日K走腾讯、指数K线走东财通用接口（push2delay 通道）、分时走新浪。
-  GitHub Actions 跑在境外，同样改写为 push2delay 也全局可达，因此保持一致。
-
-用法：
-  python build_stock_db.py                       # 全量构建（默认关注列表）
-  python build_stock_db.py --dry-run             # 只建库+插样例，不拉网络（自检 schema/剪枝）
-  相关环境变量：STOCK_DB / KLINE_CODES / MINUTE_CODES / ORDERBOOK_CODES / INDEX_KLINE_CODES / KLINE_DAYS_BACK / PRUNE_DAYS
-"""
+# 抓取行情、计算指标并构建 SQLite 快照。
 
 import os
 import re
@@ -38,22 +11,16 @@ import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
 
-# Windows 控制台默认 GBK，打印 ✓ 等 Unicode 会抛 UnicodeEncodeError；强制 UTF-8 输出
 if sys.stdout and hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 if sys.stderr and hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-# ---------------------------------------------------------------------------
-# 网络补丁：1) 强制直连（无视系统/注册表代理） 2) push2 -> push2delay 主机改写
-# ---------------------------------------------------------------------------
 _USE_PROXY = os.environ.get("USE_PROXY")
 _PROXY_VARS = ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy",
                "ALL_PROXY", "all_proxy")
-# push2 系主机（含 48.push2 / 80.push2 / 82.push2 等 AKShare 实际命中的数字镜像）统一改写为 push2delay。
-# 指数接口（index_zh_a_hist / stock_zh_index_spot_em）同样走 push2 通道，必须覆盖数字镜像，否则本地构建指数会失败。
-_PUSH2_RE = re.compile(r"(https?://)(?:\d+\.)?push2\.eastmoney\.com")
 
+_PUSH2_RE = re.compile(r"(https?://)(?:\d+\.)?push2\.eastmoney\.com")
 
 def _install_network_patch():
     import requests
@@ -74,7 +41,6 @@ def _install_network_patch():
 
     requests.Session.request = _patched_request
 
-
 if _USE_PROXY:
     for _v in _PROXY_VARS:
         os.environ.pop(_v, None)
@@ -88,30 +54,25 @@ else:
 
 _install_network_patch()
 
-# 需要网络时才 import akshare（--dry-run 可离线自检，避免强制装 akshare）
 try:
-    import akshare as ak  # noqa: E402
+    import akshare as ak
     _AKSHARE_OK = True
-except Exception as _e:  # pragma: no cover
+except Exception as _e:
     _AKSHARE_OK = False
     _AKSHARE_ERR = str(_e)
 
-import numpy as np  # noqa: E402
-import pandas as pd  # noqa: E402
+import numpy as np
+import pandas as pd
 
-# ---------------------------------------------------------------------------
-# 配置
-# ---------------------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent
 OUT_DB = Path(os.environ.get("STOCK_DB", str(BASE_DIR / "stock.db")))
 OUT_VERSION = Path(os.environ.get("VERSION_JSON", str(BASE_DIR / "version.json")))
 OUT_SQL = Path(os.environ.get("SQL_FILE", str(BASE_DIR / "stock.sql")))
 
 REQUEST_INTERVAL = float(os.environ.get("REQUEST_INTERVAL", "0.4"))
-KLINE_DAYS_BACK = int(os.environ.get("KLINE_DAYS_BACK", "60"))   # 抓回多少天用于算指标（需 > 20）
-PRUNE_DAYS = int(os.environ.get("PRUNE_DAYS", "30"))             # 只保留最近 N 天（一个月）
+KLINE_DAYS_BACK = int(os.environ.get("KLINE_DAYS_BACK", "60"))
+PRUNE_DAYS = int(os.environ.get("PRUNE_DAYS", "30"))
 
-# 数据来源标注
 SRC = {
     "stock_info": "交易所+东方财富",
     "stock_realtime": "东方财富",
@@ -135,7 +96,6 @@ SRC_NOTE = {
     "index_daily_kline": "指数日K线（东方财富通用接口，push2delay 通道）",
 }
 
-# 关注列表（K线/分时/盘口需要逐只拉取；realtime 是全市场快照，无需列表）
 DEFAULT_HOT = [
     "000001", "000002", "000063", "000333", "000338",
     "600000", "600036", "600519", "600900",
@@ -152,13 +112,11 @@ DEFAULT_KLINE = [
     "300001", "300750", "300760", "002415", "002475", "002594", "002230",
     "688981", "688012", "688599", "600886",
 ]
-# 指数K线关注列表（纯6位代码；index_zh_a_hist 不需要市场前缀）。
-# 覆盖宽基/规模/风格代表：上证/深证/创业板/科创50/北证50/沪深300/中证500/中证1000/上证50/中小板指。
+
 DEFAULT_INDEX_KLINE = [
     "000001", "399001", "399006", "000688", "899050",
     "000300", "000905", "000852", "000016", "399005",
 ]
-
 
 def code_list(env: str, default) -> list:
     raw = os.environ.get(env)
@@ -166,10 +124,6 @@ def code_list(env: str, default) -> list:
         return [s.strip() for s in raw.split(",") if s.strip()]
     return list(default)
 
-
-# ---------------------------------------------------------------------------
-# SQLite schema（对齐 App StockDb.kt 读取的字段；额外增加 source 列 + data_source 表）
-# ---------------------------------------------------------------------------
 DDL = [
     """CREATE TABLE IF NOT EXISTS stock_info (
         code TEXT NOT NULL PRIMARY KEY,
@@ -248,9 +202,7 @@ DDL = [
         source TEXT,
         PRIMARY KEY (code, trade_date)
     )""",
-    # 指数三表：列与个股对应表同形，便于 App 复用同一套数据类做映射。
-    # 注意指数代码与个股代码存在重叠（如 000001 既是上证指数又是平安银行），
-    # 因此指数独立成表、用表名做命名空间，禁止与 stock_* 表混查。
+
     """CREATE TABLE IF NOT EXISTS index_info (
         code TEXT NOT NULL PRIMARY KEY,
         symbol TEXT,
@@ -300,23 +252,17 @@ DDL = [
     )""",
 ]
 
-
 def ensure_schema(conn: sqlite3.Connection):
     cur = conn.cursor()
     for ddl in DDL:
         cur.execute(ddl)
     conn.commit()
 
-
-# ---------------------------------------------------------------------------
-# 小工具
-# ---------------------------------------------------------------------------
 def tx_symbol(code):
     return ("sh" if str(code).startswith(("6", "9", "5")) else "sz") + str(code)
 
-
 def idx_market(code):
-    """指数代码 -> 市场归属（启发式）：399xxx 深市，899xxx 北交所，其余（000xxx 等）沪市。"""
+
     c = str(code)
     if c.startswith("399"):
         return "深市"
@@ -324,11 +270,9 @@ def idx_market(code):
         return "北交所"
     return "沪市"
 
-
 def idx_symbol(code):
-    """指数代码 -> 带市场前缀的 symbol（与 idx_market 同规则，供腾讯兜底接口使用）。"""
-    return ("sz" if str(code).startswith("399") else "sh") + str(code)
 
+    return ("sz" if str(code).startswith("399") else "sh") + str(code)
 
 def _num(v, cast=float, default=None):
     try:
@@ -340,13 +284,11 @@ def _num(v, cast=float, default=None):
     except Exception:
         return default
 
-
 def _nn(v):
     try:
         return None if v is None or (isinstance(v, float) and pd.isna(v)) else float(v)
     except Exception:
         return None
-
 
 def retry(fn, times=3, wait=1.5, label=""):
     last = None
@@ -359,17 +301,8 @@ def retry(fn, times=3, wait=1.5, label=""):
             time.sleep(wait)
     raise last
 
-
-# ---------------------------------------------------------------------------
-# 表 1：stock_info
-# ---------------------------------------------------------------------------
 def fetch_stock_info():
-    """股票基础信息。
-    说明：code+name 主取东财全市场快照（push2delay，全球可达），覆盖沪深/创业板/科创板/北交所，
-    避免依赖上交所 query.sse.com.cn（其境外常不可达，GitHub Actions runner 会连不上导致构建失败）。
-    行业取东财板块（可达）；上市日期尽力而为（深交所可达，上交所境外常失败则留空）。
-    """
-    # 1) 主源：东财全市场快照 -> code + name（全市场，可达）
+
     try:
         spot = ak.stock_zh_a_spot_em()
         df = pd.DataFrame({
@@ -401,7 +334,6 @@ def fetch_stock_info():
     df["industry"] = None
     df["list_date"] = None
 
-    # 2) 上市日期尽力而为：深交所接口（可达）；上交所 query.sse.com.cn 境外常不可达 -> 留空（不崩溃）
     try:
         df_sz = ak.stock_info_sz_name_code(symbol="A股列表")
         ld = {}
@@ -431,7 +363,6 @@ def fetch_stock_info():
     except Exception as e:
         print(f"  [警告] 上交所上市日期获取失败(境外可能不可达, 留空): {type(e).__name__}: {str(e)[:60]}")
 
-    # 3) 行业补齐（东财板块，可达；失败跳过）
     try:
         print("  [..] 拉取东财行业板块补齐行业字段...")
         ind_map = {}
@@ -468,7 +399,6 @@ def fetch_stock_info():
         ))
     return rows
 
-
 def write_stock_info(conn, rows):
     if not rows:
         return 0
@@ -483,10 +413,6 @@ def write_stock_info(conn, rows):
     conn.commit()
     return len(rows)
 
-
-# ---------------------------------------------------------------------------
-# 表 2：stock_realtime（东方财富全市场快照，push2delay）
-# ---------------------------------------------------------------------------
 def limit_ratio(code, name):
     if str(code).startswith(("30", "68")):
         return 0.20
@@ -495,7 +421,6 @@ def limit_ratio(code, name):
     if "ST" in str(name).upper():
         return 0.05
     return 0.10
-
 
 def fetch_realtime():
     df = ak.stock_zh_a_spot_em()
@@ -512,7 +437,7 @@ def fetch_realtime():
         if c not in df.columns:
             df[c] = None
         df[c] = pd.to_numeric(df[c], errors="coerce")
-    df["volume"] = df["volume"].fillna(0) * 100  # 手 -> 股
+    df["volume"] = df["volume"].fillna(0) * 100
     df["limit_up"] = df.apply(lambda r: round(float(r["pre_close"]) * (1 + limit_ratio(r["code"], r.get("name", ""))), 2), axis=1)
     df["limit_down"] = df.apply(lambda r: round(float(r["pre_close"]) * (1 - limit_ratio(r["code"], r.get("name", ""))), 2), axis=1)
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -534,7 +459,6 @@ def fetch_realtime():
             _num(r["total_market_cap"]), _num(r["circulate_market_cap"]), ts, src,
         ))
     return rows
-
 
 def write_realtime(conn, rows):
     if not rows:
@@ -558,10 +482,6 @@ def write_realtime(conn, rows):
     conn.commit()
     return len(rows)
 
-
-# ---------------------------------------------------------------------------
-# 表 3：stock_daily_kline（腾讯日K，qfq）
-# ---------------------------------------------------------------------------
 def fetch_kline(code, start_date, end_date):
     df = retry(
         lambda: ak.stock_zh_a_hist_tx(symbol=tx_symbol(code), start_date=start_date,
@@ -571,7 +491,6 @@ def fetch_kline(code, start_date, end_date):
         return None
     df = df.rename(columns={"date": "trade_date"})
     return df
-
 
 def kline_rows(code, df):
     src = SRC["stock_daily_kline"]
@@ -587,13 +506,12 @@ def kline_rows(code, df):
             float(r["amount"]) if pd.notna(r["amount"]) else 0.0,
             src,
         ))
-    # sz000 开头（深市主板）AKShare 返回的仍是"手"，其余已是"股"；统一转成股
+
     is_sz000 = tx_symbol(code).startswith("sz000")
     if is_sz000:
         rows = [(c, d, o, cl, h, l, int(v) * 100, a, s)
                 for (c, d, o, cl, h, l, v, a, s) in rows]
     return rows
-
 
 def write_kline(conn, rows):
     if not rows:
@@ -609,10 +527,6 @@ def write_kline(conn, rows):
     conn.commit()
     return len(rows)
 
-
-# ---------------------------------------------------------------------------
-# 表 4：stock_minute（新浪1分钟线）
-# ---------------------------------------------------------------------------
 def fetch_minute(code):
     df = retry(
         lambda: ak.stock_zh_a_minute(symbol=tx_symbol(code), period="1"),
@@ -631,7 +545,6 @@ def fetch_minute(code):
     df["avg_price"] = (df["cum_amount"] / df["cum_volume"].replace(0, np.nan)).round(3)
     return df
 
-
 def minute_rows(code, df):
     src = SRC["stock_minute"]
     rows = []
@@ -643,7 +556,6 @@ def minute_rows(code, df):
                      float(r["avg_price"]) if pd.notna(r["avg_price"]) else None,
                      int(r["volume"]), src))
     return rows
-
 
 def write_minute(conn, rows):
     if not rows:
@@ -659,16 +571,11 @@ def write_minute(conn, rows):
     conn.commit()
     return len(rows)
 
-
-# ---------------------------------------------------------------------------
-# 表 5：stock_order_book（东财五档盘口，push2delay）
-# ---------------------------------------------------------------------------
 def fetch_order_book(code):
     df = retry(lambda: ak.stock_bid_ask_em(symbol=code), times=3, wait=1.5, label=f"orderbook {code}")
     if df is None or df.empty:
         return None
     return dict(zip(df["item"], df["value"]))
-
 
 def orderbook_row(code, kv):
     def g(key):
@@ -680,7 +587,7 @@ def orderbook_row(code, kv):
         except Exception:
             return None
 
-    def hand(key):  # AKShare 已换成股，表字段要求手
+    def hand(key):
         v = g(key)
         return None if v is None else int(round(v / 100))
 
@@ -700,7 +607,6 @@ def orderbook_row(code, kv):
         g("sell_4"), ask[3], g("sell_5"), ask[4],
         commission, SRC["stock_order_book"],
     )
-
 
 def write_order_book(conn, rows):
     if not rows:
@@ -731,10 +637,6 @@ def write_order_book(conn, rows):
     conn.commit()
     return len(rows)
 
-
-# ---------------------------------------------------------------------------
-# 表 6：stock_indicator（本地计算）
-# ---------------------------------------------------------------------------
 def compute_indicators(df):
     df = df.sort_values("trade_date").copy()
     close = df["close"].astype(float)
@@ -771,7 +673,6 @@ def compute_indicators(df):
     df["kdj_j"] = [3 * k - 2 * d for k, d in zip(k_vals, d_vals)]
     return df
 
-
 def indicator_rows(code, df):
     src = SRC["stock_indicator"]
     rows = []
@@ -782,7 +683,6 @@ def indicator_rows(code, df):
                      _nn(r["rsi6"]), _nn(r["kdj_k"]), _nn(r["kdj_d"]), _nn(r["kdj_j"]),
                      src))
     return rows
-
 
 def write_indicator(conn, rows):
     if not rows:
@@ -802,18 +702,13 @@ def write_indicator(conn, rows):
     conn.commit()
     return len(rows)
 
-
-# ---------------------------------------------------------------------------
-# 表 7/8：index_info + index_realtime（东方财富指数全市场快照，一次请求两张表复用）
-# ---------------------------------------------------------------------------
 def fetch_index_snapshot():
-    """指数全市场快照。失败时抛异常，由调用方决定软失败（不阻塞个股构建）。"""
+
     df = retry(lambda: ak.stock_zh_index_spot_em(), times=3, wait=1.5, label="index_spot")
     if df is None or df.empty:
         raise ValueError("stock_zh_index_spot_em 返回空")
     print(f"  [✓] index spot_em 返回 {len(df)} 条")
     return df
-
 
 def index_info_rows(df):
     src = SRC["index_info"]
@@ -828,14 +723,13 @@ def index_info_rows(df):
             continue
         name = str(r[name_col]).strip() if name_col and pd.notna(r[name_col]) else ""
         rows.append((code, idx_symbol(code), name, idx_market(code), src))
-    # 同一代码去重（快照偶发重复行）
+
     seen, uniq = set(), []
     for row in rows:
         if row[0] not in seen:
             seen.add(row[0])
             uniq.append(row)
     return uniq
-
 
 def write_index_info(conn, rows):
     if not rows:
@@ -851,9 +745,8 @@ def write_index_info(conn, rows):
     conn.commit()
     return len(rows)
 
-
 def index_realtime_rows(df):
-    # 列名防御式映射：只认存在的列，缺失填 None（AKShare 不同版本列名可能增减）
+
     col = {"代码": "code", "名称": "name", "最新价": "price", "涨跌幅": "change_percent",
            "涨跌额": "change", "今开": "open", "昨收": "pre_close", "最高": "high",
            "最低": "low", "成交量": "volume", "成交额": "amount", "换手率": "turnover_rate",
@@ -866,7 +759,7 @@ def index_realtime_rows(df):
         if c not in df.columns:
             df[c] = None
         df[c] = pd.to_numeric(df[c], errors="coerce")
-    df["volume"] = df["volume"].fillna(0) * 100  # 手 -> 股（与个股表口径一致）
+    df["volume"] = df["volume"].fillna(0) * 100
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     src = SRC["index_realtime"]
     rows = []
@@ -881,12 +774,11 @@ def index_realtime_rows(df):
             _num(r["low"], float, 0.0), int(_num(r["volume"], float, 0.0)),
             _num(r["amount"], float, 0.0), _num(r["turnover_rate"], float, 0.0),
             _num(r["volume_ratio"], float, 0.0),
-            0.0, 0.0,  # 指数无涨跌停，limit_up/down 置 0
-            None, None, None, None,  # 指数无 PE/PB/市值
+            0.0, 0.0,
+            None, None, None, None,
             ts, src,
         ))
     return rows
-
 
 def write_index_realtime(conn, rows):
     if not rows:
@@ -910,12 +802,8 @@ def write_index_realtime(conn, rows):
     conn.commit()
     return len(rows)
 
-
-# ---------------------------------------------------------------------------
-# 表 9：index_daily_kline（东财通用指数接口 index_zh_a_hist，纯6位代码；腾讯接口兜底）
-# ---------------------------------------------------------------------------
 def _normalize_index_kline(df):
-    """把不同来源的指数K线列名统一为 trade_date/open/close/high/low/volume/amount。"""
+
     ren = {}
     for cn, en in (("日期", "trade_date"), ("date", "trade_date"),
                    ("开盘", "open"), ("open", "open"),
@@ -930,7 +818,7 @@ def _normalize_index_kline(df):
     need = ["trade_date", "open", "close", "high", "low", "volume", "amount"]
     if any(c not in df.columns for c in need):
         raise ValueError(f"指数K线列不全，实际列: {list(df.columns)}")
-    # trade_date 统一为 YYYY-MM-DD（兼容 datetime / YYYYMMDD / 带时间的字符串）
+
     def _fmt(d):
         try:
             return pd.to_datetime(d).strftime("%Y-%m-%d")
@@ -938,7 +826,6 @@ def _normalize_index_kline(df):
             return str(d)[:10]
     df["trade_date"] = df["trade_date"].map(_fmt)
     return df
-
 
 def fetch_index_kline(code, start_date, end_date):
     df = None
@@ -950,7 +837,7 @@ def fetch_index_kline(code, start_date, end_date):
     except Exception as e:
         print(f"    [指数K线主源失败 {code}: {type(e).__name__}，尝试腾讯兜底]")
     if df is None or df.empty:
-        # 兜底：腾讯指数日K（需市场前缀；返回全历史，手动截断到 [start_date, end_date]）
+
         df = retry(
             lambda: ak.stock_zh_index_daily_tx(symbol=idx_symbol(code)),
             times=2, wait=1.5, label=f"index_kline_tx {code}")
@@ -963,7 +850,6 @@ def fetch_index_kline(code, start_date, end_date):
         return df if not df.empty else None
     return _normalize_index_kline(df)
 
-
 def index_kline_rows(code, df):
     src = SRC["index_daily_kline"]
     rows = []
@@ -974,12 +860,11 @@ def index_kline_rows(code, df):
             float(r["close"]) if pd.notna(r["close"]) else 0.0,
             float(r["high"]) if pd.notna(r["high"]) else 0.0,
             float(r["low"]) if pd.notna(r["low"]) else 0.0,
-            int(float(r["volume"]) * 100) if pd.notna(r["volume"]) else 0,  # 手 -> 股（东财口径）
+            int(float(r["volume"]) * 100) if pd.notna(r["volume"]) else 0,
             float(r["amount"]) if pd.notna(r["amount"]) else 0.0,
             src,
         ))
     return rows
-
 
 def write_index_kline(conn, rows):
     if not rows:
@@ -995,15 +880,10 @@ def write_index_kline(conn, rows):
     conn.commit()
     return len(rows)
 
-
-# ---------------------------------------------------------------------------
-# data_source 汇总表 + 剪枝
-# ---------------------------------------------------------------------------
 def _tables():
     return ["stock_info", "stock_realtime", "stock_daily_kline",
             "stock_minute", "stock_order_book", "stock_indicator",
             "index_info", "index_realtime", "index_daily_kline"]
-
 
 def write_data_source(conn):
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -1017,26 +897,21 @@ def write_data_source(conn):
     """, rows)
     conn.commit()
 
-
 def prune(conn):
-    """只保留最近 PRUNE_DAYS 天；realtime/orderbook 保留最新一条。"""
+
     cutoff = (datetime.now() - timedelta(days=PRUNE_DAYS)).strftime("%Y-%m-%d")
     cur = conn.cursor()
     total = 0
     for t in ["stock_daily_kline", "stock_minute", "stock_indicator", "index_daily_kline"]:
         cur.execute(f"DELETE FROM {t} WHERE trade_date < ?", (cutoff,))
         total += cur.rowcount
-    # 盘口/实时各保留一条最新（按 code 唯一化后天然只有一条，这里防御性清理）
+
     cur.execute("""DELETE FROM stock_order_book WHERE rowid NOT IN (
         SELECT MAX(rowid) FROM stock_order_book GROUP BY code)""")
     total += cur.rowcount
     conn.commit()
     return total
 
-
-# ---------------------------------------------------------------------------
-# 验证
-# ---------------------------------------------------------------------------
 def verify(conn):
     cur = conn.cursor()
     print("\n[验证] 各表行数：")
@@ -1052,10 +927,6 @@ def verify(conn):
     print(f"  指数K线最新交易日: {cur.fetchone()[0]}")
     return latest
 
-
-# ---------------------------------------------------------------------------
-# 主流程
-# ---------------------------------------------------------------------------
 def build(dry_run=False):
     if OUT_DB.exists():
         OUT_DB.unlink()
@@ -1085,7 +956,7 @@ def build(dry_run=False):
             })
             write_kline(conn, kline_rows("000001", kdf))
             write_kline(conn, [("000001", "2020-01-01", 1, 1, 1, 1, 100, 1, SRC["stock_daily_kline"])])
-            # 指数样例：验证三表 schema + 指数K线同样被剪枝
+
             write_index_info(conn, [("000001", "sh000001", "上证指数", "沪市", SRC["index_info"]),
                                     ("399001", "sz399001", "深证成指", "深市", SRC["index_info"])])
             write_index_realtime(conn, [("000001", 3800.0, 15.0, 0.4, 3790.0, 3785.0, 3810.0, 3780.0,
@@ -1189,7 +1060,6 @@ def build(dry_run=False):
             print(f"  [{i}/{len(orderbook_codes)}] {code} → 1 行")
             time.sleep(REQUEST_INTERVAL)
 
-        # 指数三表：软失败——任一步骤抛异常只告警，不中断个股构建与发布
         print("\n[7/9] index_info + [8/9] index_realtime（东财指数全市场快照）")
         try:
             snap = fetch_index_snapshot()
@@ -1220,7 +1090,7 @@ def build(dry_run=False):
         write_data_source(conn)
 
         latest = verify(conn)
-        # 剪枝后重新统计，保证 version.json 的 counts 是"实际保留量"而非写入量
+
         cur = conn.cursor()
         counts = {t: cur.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in _tables()}
         print(f"\n✅ 全部完成: {counts['stock_info']} info, {counts['stock_realtime']} realtime, "
@@ -1233,9 +1103,8 @@ def build(dry_run=False):
     finally:
         conn.close()
 
-
 def export_sql(db_path: Path, sql_path: Path) -> int:
-    """把 SQLite 导出为可读 SQL（CREATE + INSERT），便于在 NP17 等工具里直接查看数据。"""
+
     conn = sqlite3.connect(db_path)
     try:
         with open(sql_path, "w", encoding="utf-8") as f:
@@ -1247,30 +1116,25 @@ def export_sql(db_path: Path, sql_path: Path) -> int:
     print(f"  [✓] 已导出 SQL: {sql_path.name}  ({sz / 1024 / 1024:.2f} MB)")
     return sz
 
-
 def sha256_of(path: Path) -> str:
-    """计算文件 SHA-256（用于 App 下载后校验，防止部分抓取/损坏的库覆盖正常版本）。"""
+
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
 
-
-# 数据质量门槛：不达标即视为"部分抓取成功"，阻止发布，避免坏库覆盖正常版本。
-# 实际全市场约 5000+；这里取宽松下限，只拦截明显失败/空库的情况。
 QUALITY_MIN_STOCK_INFO = 1000
 QUALITY_MIN_STOCK_REALTIME = 1000
 QUALITY_MIN_KLINE = 20
 QUALITY_MIN_INDICATOR = 10
 QUALITY_MAX_LATEST_AGE_DAYS = 15
-# 指数软门槛：只告警、不拦截发布（指数为增量能力，失败不应阻塞个股库更新）
+
 QUALITY_WARN_INDEX_REALTIME = 20
 QUALITY_WARN_INDEX_KLINE = 10
 
-
 def collect_quality_issues(counts: dict, latest_trade_date) -> list:
-    """返回未达标的描述列表；空列表表示通过。纯函数，便于单测。"""
+
     problems = []
     info = counts.get("stock_info", 0)
     realtime = counts.get("stock_realtime", 0)
@@ -1299,9 +1163,8 @@ def collect_quality_issues(counts: dict, latest_trade_date) -> list:
 
     return problems
 
-
 def collect_index_warnings(counts: dict) -> list:
-    """指数软门槛：返回告警描述列表；只提示、不阻止发布。纯函数，便于单测。"""
+
     warns = []
     rt = counts.get("index_realtime", 0)
     kl = counts.get("index_daily_kline", 0)
@@ -1311,9 +1174,8 @@ def collect_index_warnings(counts: dict) -> list:
         warns.append(f"index_daily_kline 仅 {kl} 行（<{QUALITY_WARN_INDEX_KLINE}），指数K线可能缺失")
     return warns
 
-
 def validate_quality(counts: dict, latest_trade_date) -> None:
-    """校验构建产物的可信度门槛，不达标则 exit(1) 阻止发布。"""
+
     problems = collect_quality_issues(counts, latest_trade_date)
     if problems:
         print("\n❌ [质量门槛未通过] 本次构建视为部分抓取成功，阻止发布：")
@@ -1324,9 +1186,8 @@ def validate_quality(counts: dict, latest_trade_date) -> None:
     for w in collect_index_warnings(counts):
         print("⚠️ [指数告警] " + w + "（不阻止发布）")
 
-
 def _check_integrity(path: Path):
-    """SQLite 完整性校验，未通过则 exit(1) 阻止发布。"""
+
     try:
         conn = sqlite3.connect(path)
         try:
@@ -1340,7 +1201,6 @@ def _check_integrity(path: Path):
     except Exception as e:
         print(f"❌ integrity_check 异常: {e}")
         sys.exit(1)
-
 
 def write_version(meta: dict):
     version = {
@@ -1359,7 +1219,6 @@ def write_version(meta: dict):
     OUT_VERSION.write_text(json.dumps(version, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"  已写出 {OUT_VERSION.name}（sha256={version['sha256'][:12]}… bytes={version['db_bytes']}）")
 
-
 def main():
     parser = argparse.ArgumentParser(description="AKShare -> SQLite stock.db 构建")
     parser.add_argument("--dry-run", action="store_true", help="不拉网络，只用样例数据自检 schema/剪枝")
@@ -1368,10 +1227,10 @@ def main():
 
     meta = build(dry_run=args.dry_run)
     if meta and not args.dry_run:
-        # 构建产物可信度校验：SQLite 完整性 + 数据质量门槛，不达标则阻止发布。
+
         _check_integrity(OUT_DB)
         validate_quality(meta.get("counts", {}), meta.get("latest_trade_date"))
-        # 所有发布入口共用此 main；扩展表必须在最终 hash/大小计算之前写入。
+
         import subprocess
         subprocess.run([sys.executable, str(Path(__file__).with_name("build_fund_flow.py")), "--no-manifest"], check=True)
         with sqlite3.connect(OUT_DB) as fund_conn:
@@ -1388,7 +1247,6 @@ def main():
         print(f"  库文件 {OUT_DB.stat().st_size / 1024 / 1024:.2f} MB")
         if args.export_sql:
             export_sql(OUT_DB, OUT_SQL)
-
 
 if __name__ == "__main__":
     main()

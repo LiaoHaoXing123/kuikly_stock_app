@@ -1,6 +1,3 @@
-// 个股详情页 —— 页面级状态视图。
-// 自 StockDetailPage.kt 拆出：AI 分析中/未分析、确认弹窗、Toast、加载与错误态。
-
 package com.kuikly.stock.pages
 
 import com.kuikly.stock.ui.component.topToast
@@ -147,12 +144,6 @@ internal fun ViewContainer<*, *>.notAnalyzedView(ctx: StockDetailPage) {
 
 private const val AI_START_TAG = "detail_ai_start"
 
-/**
- * 详情页确认弹窗。
- *
- * 入场：卡片按 [OVERLAY_ENTER_ANIMATION] 从 0.94 倍 / 全透明推到原位。
- * 驱动值是 [Overlay]：显隐和驱动值绑在同一个对象上，调用点写不出「只改一半」的代码。
- */
 internal fun ViewContainer<*, *>.detailAlertConfirmDialog(ctx: StockDetailPage) {
     View {
         attr { absolutePositionAllZero(); backgroundColor(AppColor.SCRIM); allCenter() }
@@ -188,16 +179,6 @@ internal fun ViewContainer<*, *>.detailAiToast(ctx: StockDetailPage) {
     )
 }
 
-/**
- * 详情页首屏骨架。
- *
- * 关键不是好看，是**先把版式占住**：顶栏、实时行情卡、图表区的位置和尺寸
- * 与真实内容严格对齐，数据到达时只是「填充」，页面不跳、眼睛不用重新找焦点。
- * 原来的实现是一行居中的「加载中...」，信息量为零，且让整页在数据前后
- * 呈现两个完全不同的版式。
- *
- * 个股详情与指数详情版式同族（顶栏 + 行情卡 + 图表区），所以两边共用一份。
- */
 internal fun ViewContainer<*, *>.stockDetailLoadingView(ctx: BasePager) {
     val sweep = ctx.skeletonPulse
     View {
@@ -207,7 +188,6 @@ internal fun ViewContainer<*, *>.stockDetailLoadingView(ctx: BasePager) {
             backgroundColor(AppColor.SURFACE_SOFT)
         }
 
-        // 1) 顶栏（与 detailNavigationBar 同高、同底色）
         View {
             attr {
                 flexDirectionRow()
@@ -226,7 +206,6 @@ internal fun ViewContainer<*, *>.stockDetailLoadingView(ctx: BasePager) {
             }
         }
 
-        // 2) 实时行情卡（与 realtimeCard 同外边距、同内边距、同圆角）
         View {
             attr {
                 flexDirectionColumn()
@@ -236,18 +215,17 @@ internal fun ViewContainer<*, *>.stockDetailLoadingView(ctx: BasePager) {
                 borderRadius(10f)
             }
 
-            skeletonBlock(height = 15f, w = 72f, sweep = sweep) // 「实时行情」标题
+            skeletonBlock(height = 15f, w = 72f, sweep = sweep)
 
             View {
                 attr { flexDirectionRow(); alignItems(FlexAlign.CENTER); marginTop(14f) }
-                skeletonBlock(height = 26f, w = 96f, color = SKELETON_BG_STRONG, sweep = sweep) // 最新价
+                skeletonBlock(height = 26f, w = 96f, color = SKELETON_BG_STRONG, sweep = sweep)
                 View { attr { width(16f) } }
-                skeletonBlock(height = 15f, w = 56f, sweep = sweep) // 涨跌额
+                skeletonBlock(height = 15f, w = 56f, sweep = sweep)
                 View { attr { width(16f) } }
-                skeletonBlock(height = 15f, w = 56f, sweep = sweep) // 涨跌幅
+                skeletonBlock(height = 15f, w = 56f, sweep = sweep)
             }
 
-            // 开/昨收/最高/最低 + 量/额/市盈率/市净率，共 8 格，列宽与 quoteItem 一致
             View {
                 attr { flexDirectionRow(); flexWrap(FlexWrap.WRAP); marginTop(12f) }
                 repeat(8) {
@@ -266,7 +244,6 @@ internal fun ViewContainer<*, *>.stockDetailLoadingView(ctx: BasePager) {
             }
         }
 
-        // 3) 图表区
         View {
             attr {
                 flexDirectionColumn()
@@ -282,13 +259,6 @@ internal fun ViewContainer<*, *>.stockDetailLoadingView(ctx: BasePager) {
     }
 }
 
-/**
- * 详情页错误态。
- *
- * 原来的做法是把 `loadErrorMessage`（可能是 "HTTP 404: ..." 甚至异常 message）原样摊在屏幕上——
- * 那是给开发者看的，用户读完既不知道发生了什么，也不知道该不该重试。
- * 现在分两层：一行给人看的结论 + 一行原始信息（可自查，也可截图反馈）。
- */
 internal fun ViewContainer<*, *>.errorView(ctx: StockDetailPage) {
     View {
         attr {

@@ -1,3 +1,5 @@
+// 校验详情分析的结构、价位和行情依据。
+
 package com.kuikly.stock.ai.protocol
 
 object DetailProtocolV2 {
@@ -20,10 +22,6 @@ object DetailProtocolV2 {
         "stop_loss_value" to PRICE,
     )
 
-    /**
-     * @param klineDates 当前图表真实存在的交易日集合，用于日期防幻觉。
-     *                   为空集合时退化为只校验格式（离线/无K线场景）。
-     */
     fun registry(klineDates: Set<String>): Map<String, CardSchema> {
         val date = FieldRule.DateIn(klineDates.takeIf { it.isNotEmpty() })
         return listOf(
@@ -94,7 +92,6 @@ object DetailProtocolV2 {
         ).associateBy { it.type }
     }
 
-    /** 注入 Prompt 的协议说明 */
     val PROMPT: String = """
 只输出一个 JSON 对象，不要 markdown 代码块，不要任何解释文字。
 

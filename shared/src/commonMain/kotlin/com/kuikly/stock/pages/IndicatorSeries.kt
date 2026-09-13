@@ -1,10 +1,5 @@
 package com.kuikly.stock.pages
 
-// -----------------------------------------------------------------------------
-// 纯函数技术指标序列：MACD / KDJ。无 UI 依赖，可单测。
-// 在完整历史数据上计算（EMA/滚动窗口需要预热），调用方再按可见区间切片。
-// -----------------------------------------------------------------------------
-
 internal data class MacdSeries(
     val dif: List<Double>,
     val dea: List<Double>,
@@ -17,7 +12,6 @@ internal data class KdjSeries(
     val j: List<Double>,
 )
 
-/** 指数移动平均，从 index0 播种为首值。 */
 private fun ema(values: List<Double>, period: Int): List<Double> {
     val n = values.size
     if (n == 0) return emptyList()
@@ -30,10 +24,6 @@ private fun ema(values: List<Double>, period: Int): List<Double> {
     return out.toList()
 }
 
-/**
- * MACD：dif = EMA(fast) - EMA(slow)；dea = EMA(dif, signal)；
- * hist = 2 * (dif - dea)（国内软件“MACD 柱”口径）。返回与输入同长、全非空。
- */
 internal fun computeMACD(
     closes: List<Double>,
     fast: Int = 12,
@@ -50,11 +40,6 @@ internal fun computeMACD(
     return MacdSeries(dif, dea, hist)
 }
 
-/**
- * KDJ：RSV = (close - lowN) / (highN - lowN) * 100，窗口 n（不足窗口用已有区间）；
- * K = (prevK*(kP-1) + RSV) / kP，播种 50；D = (prevD*(dP-1) + K) / dP，播种 50；J = 3K - 2D。
- * 返回与 closes 同长、全非空。highs/lows 短于 closes 时按可用值兜底。
- */
 internal fun computeKDJ(
     highs: List<Double>,
     lows: List<Double>,
@@ -98,12 +83,6 @@ internal data class RsiSeries(
     val rsi24: List<Double>,
 )
 
-/**
- * 单周期 RSI（Wilder 平滑）：逐日涨跌拆成 gain/loss，前 period 根用累积均值播种、
- * 其后按 Wilder 递推；RS = 平均涨 / 平均跌，RSI = 100 - 100/(1+RS)。
- * 全涨→100、全跌→0、无波动（常数价）→50（中性，避免除零）。
- * 返回与 closes 同长、全非空、值域 [0,100]；index0 无前值故播种 50。
- */
 private fun rsiSeries(closes: List<Double>, period: Int): List<Double> {
     val n = closes.size
     if (n == 0) return emptyList()
@@ -131,7 +110,6 @@ private fun rsiSeries(closes: List<Double>, period: Int): List<Double> {
     return out.toList()
 }
 
-/** RSI 三线（国内 6/12/24 口径）。在完整历史上计算，调用方再按可见区间切片。 */
 internal fun computeRSI(
     closes: List<Double>,
     p1: Int = 6,
@@ -139,9 +117,8 @@ internal fun computeRSI(
     p3: Int = 24,
 ): RsiSeries = RsiSeries(rsiSeries(closes, p1), rsiSeries(closes, p2), rsiSeries(closes, p3))
 
-/** 一条趋势线（数据坐标：横轴为 K 线序号，纵轴为价格）。 */
 internal data class TrendLine(val x1: Int, val y1: Double, val x2: Int, val y2: Double) {
-    /** 线性外推到任意序号 x（把趋势线向右延伸到画布边缘时用）。 */
+
     fun valueAt(x: Int): Double {
         if (x2 == x1) return y2
         val slope = (y2 - y1) / (x2 - x1).toDouble()
@@ -151,11 +128,6 @@ internal data class TrendLine(val x1: Int, val y1: Double, val x2: Int, val y2: 
 
 internal data class TrendLines(val support: TrendLine?, val resistance: TrendLine?)
 
-/**
- * 自动趋势线：在给定（通常已切到可见区间）的 highs/lows 上找摆动高/低点
- * —— pivot 定义为在 ±window 邻域内的严格极值；压力线连最近两个摆动高、
- * 支撑线连最近两个摆动低。摆动点不足两个则对应线为 null。纯几何，无 UI 依赖。
- */
 internal fun computeTrendlines(
     highs: List<Double>,
     lows: List<Double>,

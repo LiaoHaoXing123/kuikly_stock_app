@@ -1,8 +1,3 @@
-// 通用条目卡：白底圆角 + 一行主文案 +（可选）一行辅助说明，整块可点。
-//
-// 空状态的「推荐问题」「最近对话」、以及后续任何「一列可点的短条目」都是同一个壳子：
-// 底色、圆角、边框、热区、按压反馈、无障碍角色在这里定一次，调用点只给文案和点击行为。
-
 package com.kuikly.stock.ui.component
 
 import com.kuikly.stock.ui.theme.AppColor
@@ -16,13 +11,6 @@ import com.tencent.kuikly.core.base.attr.AccessibilityRole
 import com.tencent.kuikly.core.views.Text
 import com.tencent.kuikly.core.views.View
 
-/**
- * 一个可点的条目卡。
- *
- * @param tag      按压反馈用的唯一标识，同一屏内不能重复
- * @param meta     第二行辅助文字；空串则不渲染
- * @param lines    主文案最多显示几行，超出省略
- */
 internal fun ViewContainer<*, *>.entryCard(
     press: PressState,
     tag: String,

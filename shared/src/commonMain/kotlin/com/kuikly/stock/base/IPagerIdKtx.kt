@@ -1,5 +1,3 @@
-// 延时执行回调，返回定时任务 id。
-
 @file:Suppress("DEPRECATION")
 
 package com.kuikly.stock.base

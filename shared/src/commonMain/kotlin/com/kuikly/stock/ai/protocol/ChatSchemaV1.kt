@@ -1,9 +1,5 @@
 package com.kuikly.stock.ai.protocol
 
-/**
- * 聊天协议 v1 卡片白名单声明，迁移到共享校验器。
- * 行为与现有 validCard 等价，多了字段级降级。
- */
 object ChatProtocolV1 {
     const val VERSION = 1
     const val MAX_CARDS = 8
@@ -17,7 +13,7 @@ object ChatProtocolV1 {
         "code" to FieldRule.Code6,
         "name" to FieldRule.Text,
         "price" to PRICE,
-        "change_percent" to FieldRule.Text, // 协议定义为字符串，如 "+0.40%"、"1%"
+        "change_percent" to FieldRule.Text,
     )
 
     val registry: Map<String, CardSchema> = listOf(

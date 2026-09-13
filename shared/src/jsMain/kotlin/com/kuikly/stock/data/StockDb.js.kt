@@ -1,5 +1,3 @@
-// JS 行情库：无 SQLite，委托给 JSON 实现（见 JsonBackedStockDb，资源经同步 XHR 加载）。
-
 package com.kuikly.stock.data
 
 import com.kuikly.stock.pages.IndicatorData

@@ -1,5 +1,3 @@
-// 图片加载适配器，处理 Kuikly 框架的图片请求，支持本地资源与网络图片。
-
 package com.kuikly.stock.adapter
 
 import com.kuikly.stock.KRApplication

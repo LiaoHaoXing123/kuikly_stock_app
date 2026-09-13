@@ -1,5 +1,3 @@
-// 换肤配置读取器，解析 ini 格式的皮肤配置文件。
-
 package com.kuikly.stock
 
 import android.content.Context

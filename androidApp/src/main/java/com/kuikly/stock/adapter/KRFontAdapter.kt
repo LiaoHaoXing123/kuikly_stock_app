@@ -1,5 +1,3 @@
-// 字体适配器，为 Kuikly 框架提供字体加载能力。
-
 package com.kuikly.stock.adapter
 
 import android.graphics.Typeface

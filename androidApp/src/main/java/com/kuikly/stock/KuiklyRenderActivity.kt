@@ -1,5 +1,3 @@
-// 页面容器 Activity，承载 Kuikly 渲染视图，并把生命周期事件转发给渲染引擎。
-
 package com.kuikly.stock
 
 import android.Manifest
@@ -52,7 +50,7 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val motion = navMotion()
-        // API 34+ 必须在 onCreate 登记，才会作用于「这一次」打开和之后的关闭。
+
         NavTransition.registerForApi34(this, motion)
 
         setContentView(R.layout.activity_hr)
@@ -61,9 +59,9 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
         hrContainerView = findViewById(R.id.hr_container)
         loadingView = findViewById(R.id.hr_loading)
         errorView = findViewById(R.id.hr_error)
-        // 同级 Tab 切换的入场：窗口底色先把旧页盖住，内容再延迟淡入（见 NavTransition）。
+
         NavTransition.applyTabContentFadeIn(motion, hrContainerView)
-        // FADE 空窗底色对齐页面背景，避免浅色下闪白/深色下闪黑（见 NavTransition）。
+
         if (motion == NavMotion.FADE) {
             NavTransition.applyTabWindowBackground(this, NavTransition.currentDark)
         }
@@ -72,21 +70,10 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
 
     override fun finish() {
         super.finish()
-        // API 33-：系统返回键和 Router.closePage 都走 finish，转场不会漏。
+
         NavTransition.pendingClose(this, navMotion())
     }
 
-    /**
-     * 系统返回键：先交给 Kuikly 引擎消费。
-     *
-     * 页面浮层（侧边抽屉、弹窗）打开期间，JS 侧会往 BackPressHandler 注册回调；
-     * 引擎 [KuiklyRenderViewBaseDelegator.onBackPressed] 发现回调列表非空就返回
-     * true（已消费），BACK 只关浮层、不退出页面。浮层关掉后回调移除，引擎返回
-     * false，这里才走默认行为 finish 返回上一页。
-     *
-     * 之前没接这个入口：抽屉开着按 BACK 会直接 finish 整个页面，与「先关抽屉」
-     * 的预期不符。
-     */
     @Suppress("DEPRECATION")
     override fun onBackPressed() {
         if (!kuiklyRenderViewDelegator.onBackPressed()) {
@@ -157,7 +144,7 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
     fun updateSystemBars(dark: Boolean) {
         NavTransition.currentDark = dark
         val flags = View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-        // Detail headers retain a blue surface in both themes.
+
         val blueHeader = pageName in setOf("stock_detail", "index_detail")
         window.decorView.systemUiVisibility = flags or
             (if (dark || blueHeader) 0 else View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR) or
@@ -191,7 +178,7 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
             starter.putExtra(KEY_PAGE_NAME, pageName)
             starter.putExtra(KEY_PAGE_DATA, pageData.toString())
             context.startActivity(starter)
-            // API 33- 必须紧挨 startActivity；API 34+ 由目标 Activity.onCreate 登记。
+
             NavTransition.pendingOpen(context as? Activity, NavTransition.motionOf(pageData))
         }
 

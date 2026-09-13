@@ -1,3 +1,5 @@
+// 按持仓起始日期计算每日市值与盈亏。
+
 package com.kuikly.stock.data
 
 import com.kuikly.stock.pages.StockDetailData
@@ -70,10 +72,6 @@ internal data class QuoteProbe(
     val stockName: String = name,
 )
 
-/**
- * 涨跌停阈值：按代码段 + 名称里的 ST。
- * 0.01 的容差是因为行情里 9.99% 经常就是 10% 涨停（四舍五入）。
- */
 internal fun limitThresholdPercent(code: String, name: String): Double {
     val n = name.uppercase()
     if (n.contains("ST")) return 5.0
@@ -235,7 +233,7 @@ internal class HoldingCalendarRepository(
     private val read: (String) -> String?,
     private val write: (String, String) -> Unit,
 ) {
-    // Keep legacy estimates intact under v1; dated estimates have different semantics.
+
     private val key = "holding_calendar_dated_v2"
     private val cap = 800
 
@@ -261,10 +259,8 @@ internal object HoldingCalendar {
 
     fun find(date: String): CalendarDaySnapshot? = store.find(date)
 
-    /** 任何入口都可以调：没有持仓、没有交易日、解析失败都吞掉。 */
     fun syncQuietly(): CalendarDaySnapshot? = runCatching { sync() }.getOrNull()
 
-    /** Refresh daily-close estimates; do not mix an undated intraday quote into a historical day. */
     fun sync(): CalendarDaySnapshot? {
         backfill()
         return store.days().lastOrNull()
@@ -275,7 +271,6 @@ internal object HoldingCalendar {
         return quoteFromDetail(d)
     }
 
-    /** Rebuild all estimates when position configuration or historical prices change. */
     fun backfill(): Int {
         val holdings = WatchStore.list().filter { it.shares > 0 && it.shares.isFinite() }
         val histories = holdings.associate { h -> h.code to
@@ -289,10 +284,8 @@ internal object HoldingCalendar {
         return next.size
     }
 
-    /** 补齐历史；没持仓、没日线、解析失败都吞掉，返回补入天数（失败为 0）。 */
     fun backfillQuietly(): Int = runCatching { backfill() }.getOrDefault(0)
 
-    /** 沪深300 每个交易日的涨跌幅（%），按日期查表，供历史天的跑赢 / 跑输判定。 */
     private fun hs300DailyPct(): Map<String, Double> {
         for (code in listOf("000300", "399300")) {
             val bars = runCatching { StockDb.indexDetail(code)?.kline }.getOrNull().orEmpty()
@@ -354,9 +347,9 @@ internal fun monthCells(
     byDate: Map<String, CalendarDaySnapshot>,
     maxAbs: Double,
     extraEventsByDate: Map<String, List<CalendarEventMark>> = emptyMap(),
-    /** 本月无数据格底色（浅色板 / 深色板由页面按主题传入）。 */
+
     emptyColor: Long = 0xFFF7F8FA,
-    /** 非本月占位格底色。 */
+
     outMonthColor: Long = 0xFFF2F4F7,
 ): List<List<CalendarCellVm>> {
     val first = CivilDate(year, month, 1)

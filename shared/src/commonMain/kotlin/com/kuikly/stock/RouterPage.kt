@@ -1,5 +1,3 @@
-// 路由演示主页，提供入口按钮，点击后通过路由跳转到对应页面。
-
 package com.kuikly.stock
 
 import com.tencent.kuikly.core.annotations.Page

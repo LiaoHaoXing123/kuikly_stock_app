@@ -1,5 +1,3 @@
-// 原生桥接模块，注册供 JS 层调用的原生能力。
-
 package com.kuikly.stock.module
 
 import android.content.ClipData
@@ -147,13 +145,6 @@ class KRBridgeModule : KuiklyRenderBaseModule() {
         activity?.finish()
     }
 
-    /**
-     * 触觉反馈。params 形如 {"style":"light"|"medium"|"heavy"}。
-     *
-     * 用 VibrationEffect 比老式 vibrate(long) 更可控：可指定时长与振幅，且 API 26+ 才有。
-     * 低版本（<26）退回老 API，没有振幅控制但至少能震。
-     * 震动失败（无马达 / 系统禁用 / 权限被撤）一律静默——它只是锦上添花，不能影响点击主流程。
-     */
     @Suppress("DEPRECATION")
     private fun vibrate(params: String?) {
         val style = params?.let { JSONObject(it).optString("style") }.orEmpty()

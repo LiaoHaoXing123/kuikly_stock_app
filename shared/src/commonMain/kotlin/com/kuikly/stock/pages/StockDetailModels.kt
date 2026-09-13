@@ -1,6 +1,3 @@
-// 个股详情页的数据模型。
-// 自 StockDetailPage.kt 拆出，供详情页及其拆分出的各 UI 模块共用。
-
 package com.kuikly.stock.pages
 
 import com.kuikly.stock.data.StockColors
@@ -63,13 +60,13 @@ data class RealtimeQuoteData(
     val amount: Double?,
     val peTtm: Double?,
     val pb: Double?,
-    // ---- stock_realtime 已落库、此前未映射的字段（JSON 资产平台为 null）----
-    val turnoverRate: Double? = null,       // 换手率 %
-    val volumeRatio: Double? = null,        // 量比
-    val totalMarketCap: Double? = null,     // 总市值（元）
-    val circulateMarketCap: Double? = null, // 流通市值（元）
-    val limitUp: Double? = null,            // 涨停价
-    val limitDown: Double? = null,          // 跌停价
+
+    val turnoverRate: Double? = null,
+    val volumeRatio: Double? = null,
+    val totalMarketCap: Double? = null,
+    val circulateMarketCap: Double? = null,
+    val limitUp: Double? = null,
+    val limitDown: Double? = null,
     val updateTime: String? = null,
 )
 
@@ -108,9 +105,9 @@ data class OrderBookData(
 
 data class FundFlowItem(
     val tradeDate: String,
-    val mainNet: Double,     // 主力净流入-净额（元）
-    val mainRatio: Double,   // 主力净流入-净占比（%，如 -15.73）
-    val superNet: Double?,   // 超大单净额（东财通道才有，新浪主力档为 null）
+    val mainNet: Double,
+    val mainRatio: Double,
+    val superNet: Double?,
     val bigNet: Double?,
     val midNet: Double?,
     val smallNet: Double?,
@@ -133,9 +130,9 @@ data class AIAnalysisData(
     val source: String = "来源未标注",
     val generatedAt: Long = 0,
     val dataDate: String = "",
-    // ---- v2 新增 ----
+
     val verdict: com.kuikly.stock.data.AIVerdict? = null,
-    val protocolVersion: Int = 1,      // 2=严格v2, 1=旧协议降级, 0=离线模板
+    val protocolVersion: Int = 1,
     val degraded: Boolean = false,
     val validateNote: String = "",
 )
