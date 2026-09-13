@@ -27,7 +27,7 @@ import com.kuikly.stock.ui.theme.AppColor
 /**
  * 内置使用指南：功能介绍、提问示例、常见问题。内容均为静态文本，
  * 每个章节可折叠；所有功能描述必须与实际实现一致，改功能时同步改这里。
- * 章节内容与 docs/使用指南.md 保持一致（15 章节，2026-09-11）。
+ * 章节内容与 docs/使用指南.md 保持一致（14 章节，2026-09-13）。
  */
 @Page(AppRoutes.GUIDE)
 class UserGuidePage : BasePager() {
@@ -306,21 +306,6 @@ class UserGuidePage : BasePager() {
                         guideStep("10", "下次打开时，先检查数据更新，再对照旧分析是否仍适用。")
                     }
 
-                    guideSection(ctx, "g15", "十五", "当前功能边界", "已完成与未完成") {
-                        guidePara("已提供的主要能力：")
-                        guideBullet("本地行情浏览、K线与分时交互。")
-                        guideBullet("AI 价位和日期联动、分析历史。")
-                        guideBullet("日级资金周期切换、同业样本排行、官方行业板块快照对照。")
-                        guideBullet("自选仓与持仓记录、价格提醒、组合风险。")
-                        guideBullet("盈亏日历：接入后按日记录持仓市值与盈亏，对照沪深300，支持下钻贡献与热力图。")
-                        guidePara("以下不属于当前已完成功能：")
-                        guideBullet("完整分档资金、分钟资金流叠加、板块盘中实时联动。")
-                        guideBullet("自由绘制并保存趋势线（“趋势”开关仅提供自动支撑/压力线）。")
-                        guideBullet("龙虎榜、融资融券，以及券商下单。")
-                        guideBullet("盈亏日历回填接入前的历史，或在缺少除权/财报表时自行补造事件。")
-                        guideNote("行情和 AI 分析用于辅助研究，结论应结合数据日期、覆盖范围及原始证据判断。")
-                    }
-
                     Text {
                         attr {
                             text("行情与分析仅供学习研究，不构成投资建议")
@@ -338,7 +323,7 @@ class UserGuidePage : BasePager() {
 
 private val GUIDE_SECTION_IDS = listOf(
     "g01", "g02", "g03", "g04", "g05", "g06", "g07", "g08",
-    "g09", "g10", "g11", "g12", "g13", "g14", "g15",
+    "g09", "g10", "g11", "g12", "g13", "g14",
 )
 
 private fun ViewContainer<*, *>.guideSection(
