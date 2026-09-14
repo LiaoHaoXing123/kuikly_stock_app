@@ -97,9 +97,19 @@ internal object ChatTransport {
                 val text = message["content"]?.jsonPrimitive?.contentOrNull.orEmpty()
                 if (text.length > 100000) throw ChatProtocolException("AI 响应过长")
                 val calls = (message["tool_calls"] as? JsonArray).orEmpty().map { entry ->
-                    val call = entry.jsonObject
-                    val function = call["function"]!!.jsonObject
-                    ChatToolCall(call["id"]!!.jsonPrimitive.content, function["name"]!!.jsonPrimitive.content, function["arguments"]!!.jsonPrimitive.content)
+                    // 与流式分支（ChatStreamAccumulator）保持同等严谨：网关可能返回残缺结构，
+                    // 这里必须抛可诊断的 ChatProtocolException，而不是 NPE / kotlinx 内部异常
+                    // （后者会把 "Element class ... is not a JsonObject" 这种内部实现细节透给用户）。
+                    val call = entry as? JsonObject ?: throw ChatProtocolException("服务返回的 tool_calls 元素不是对象")
+                    val function = call["function"] as? JsonObject
+                        ?: throw ChatProtocolException("服务返回的工具调用缺少 function")
+                    val id = call["id"]?.jsonPrimitive?.contentOrNull
+                        ?: throw ChatProtocolException("服务返回的工具调用缺少 id")
+                    val name = function["name"]?.jsonPrimitive?.contentOrNull
+                        ?: throw ChatProtocolException("服务返回的工具调用缺少 function.name")
+                    val arguments = function["arguments"]?.jsonPrimitive?.contentOrNull
+                        ?: throw ChatProtocolException("服务返回的工具调用缺少 function.arguments")
+                    ChatToolCall(id, name, arguments)
                 }
                 if (calls.size > 8) throw ChatProtocolException("工具调用数量超出限制")
                 onText(partialReplyText(text))

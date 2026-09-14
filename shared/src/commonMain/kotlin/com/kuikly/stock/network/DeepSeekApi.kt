@@ -132,11 +132,17 @@ object DeepSeekApi {
             throw AiProviderException(resp.status.value, providerErrorMessage(resp.status.value))
         }
         println("[AI] provider=${config.providerName} model=${config.model} status=${resp.status.value} elapsedMs=$elapsedMs")
-        val root = ApiClient.json.parseToJsonElement(text).jsonObject
+        val root = (runCatching { ApiClient.json.parseToJsonElement(text) }.getOrNull() as? JsonObject)
+            ?: throw ChatProtocolException("AI 响应不是合法 JSON")
+        // 这几处异常文案会直接显示在「API 配置」页的连接测试结果里，
+        // 必须抛可读的 ChatProtocolException；直接用 choices[0] / .jsonObject
+        // 会把 "Index 0 out of bounds" 或 kotlinx 内部类型名透给用户。
         val choices = root["choices"] as? JsonArray
-            ?: throw Exception("AI 响应缺少 choices")
-        return choices[0].jsonObject["message"]?.jsonObject
-            ?: throw Exception("AI 响应缺少 message")
+            ?: throw ChatProtocolException("AI 响应缺少 choices")
+        val choice = choices.firstOrNull() as? JsonObject
+            ?: throw ChatProtocolException("AI 响应缺少 choices")
+        return choice["message"] as? JsonObject
+            ?: throw ChatProtocolException("AI 响应缺少 message")
     }
 
     private fun extractContent(m: JsonObject): String? = m["content"]?.jsonPrimitive?.content

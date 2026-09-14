@@ -8,6 +8,7 @@ import com.kuikly.stock.pages.KLineDataItem
 import com.kuikly.stock.pages.AIAnalysisData
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.double
 import kotlinx.serialization.json.doubleOrNull
@@ -28,23 +29,38 @@ object LocalDataService {
     fun loadStockList(): List<StockListItem> {
         cachedStockList?.let { return it }
         val raw = loadAssetText("stock_list.json") ?: return emptyList()
-        val arr = json.parseToJsonElement(raw).jsonArray
-        val list = arr.map { elem ->
-            val obj = elem.jsonObject
-            StockListItem(
-                code = obj["code"]!!.jsonPrimitive.content,
-                name = obj["name"]?.jsonPrimitive?.content,
-                price = obj["price"]?.jsonPrimitive?.doubleOrNull
-                    ?: obj["_mock_price"]?.jsonPrimitive?.doubleOrNull,
-                changePercent = obj["change_percent"]?.jsonPrimitive?.doubleOrNull
-                    ?: obj["_mock_change_percent"]?.jsonPrimitive?.doubleOrNull,
-                change = obj["change"]?.jsonPrimitive?.doubleOrNull
-                    ?: obj["_mock_change"]?.jsonPrimitive?.doubleOrNull,
-                volume = obj["volume"]?.jsonPrimitive?.doubleOrNull
-            )
-        }
+        val list = parseStockList(raw)
         cachedStockList = list
         return list
+    }
+
+    /**
+     * 解析 stock_list.json。抽成纯函数（不依赖 Android AssetManager）以便单测覆盖畸形输入。
+     *
+     * 这是数据管道产出、随包发布的资产，条目结构随管道演进会变。单条畸形（缺 code、
+     * 值类型不对）**不应让整表加载失败**——那会把行情列表整个打空。这里对逐条做隔离，
+     * 与 `AnalysisHistoryStore.all()` 的 `runCatching { }.getOrNull()` 口径一致。
+     */
+    internal fun parseStockList(raw: String): List<StockListItem> {
+        val arr = json.parseToJsonElement(raw).jsonArray
+        return arr.mapNotNull { elem ->
+            val obj = elem as? JsonObject ?: return@mapNotNull null
+            val code = (obj["code"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
+                ?: return@mapNotNull null
+            runCatching {
+                StockListItem(
+                    code = code,
+                    name = obj["name"]?.jsonPrimitive?.content,
+                    price = obj["price"]?.jsonPrimitive?.doubleOrNull
+                        ?: obj["_mock_price"]?.jsonPrimitive?.doubleOrNull,
+                    changePercent = obj["change_percent"]?.jsonPrimitive?.doubleOrNull
+                        ?: obj["_mock_change_percent"]?.jsonPrimitive?.doubleOrNull,
+                    change = obj["change"]?.jsonPrimitive?.doubleOrNull
+                        ?: obj["_mock_change"]?.jsonPrimitive?.doubleOrNull,
+                    volume = obj["volume"]?.jsonPrimitive?.doubleOrNull
+                )
+            }.getOrNull()
+        }
     }
 
     fun searchStocks(keyword: String): List<StockListItem> {

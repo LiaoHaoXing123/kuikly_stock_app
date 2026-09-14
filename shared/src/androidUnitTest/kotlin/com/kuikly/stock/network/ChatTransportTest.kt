@@ -115,4 +115,83 @@ class ChatTransportTest {
             assertTrue(receivedToolResult)
         }
     }
+
+    /** 构造非 SSE 分支的响应体：服务忽略 stream，直接返回带 tool_calls 的 JSON。 */
+    private fun nonStreamingToolCallReply(entry: JsonObject) = buildJsonObject {
+        put("choices", buildJsonArray { add(buildJsonObject {
+            put("finish_reason", "tool_calls")
+            put("message", buildJsonObject {
+                put("content", "")
+                put("tool_calls", buildJsonArray { add(entry) })
+            })
+        }) })
+    }.toString()
+
+    private fun probeMalformedToolCall(body: String): Throwable =
+        runBlocking {
+            var thrown: Throwable? = null
+            try {
+                server({ exchange -> exchange.requestBody.readBytes(); exchange.reply(body, type = "application/json") }) { config ->
+                    ChatTransport.generate(config, listOf("user" to "hi"), {}, {})
+                }
+            } catch (e: Throwable) {
+                thrown = e
+            }
+            thrown ?: fail("畸形 tool_call 竟然没有抛异常（说明被静默吞掉了）")
+        }
+
+    @Test fun toolCallMissingFunctionRaisesProtocolError() {
+        val entry = buildJsonObject { put("type", "function") } // 缺 id、缺 function
+        val e = probeMalformedToolCall(nonStreamingToolCallReply(entry))
+        println("[probe] missing-function -> ${e::class.qualifiedName}: ${e.message}")
+        assertTrue(
+            e is ChatProtocolException,
+            "畸形 tool_call 应抛 ChatProtocolException（可诊断），实际抛了 ${e::class.qualifiedName}: ${e.message}",
+        )
+    }
+
+    @Test fun toolCallEntryNotAnObjectRaisesProtocolError() {
+        val body = buildJsonObject {
+            put("choices", buildJsonArray { add(buildJsonObject {
+                put("finish_reason", "tool_calls")
+                put("message", buildJsonObject {
+                    put("content", "")
+                    put("tool_calls", buildJsonArray { add(JsonPrimitive("not-an-object")) })
+                })
+            }) })
+        }.toString()
+        val e = probeMalformedToolCall(body)
+        println("[probe] non-object -> ${e::class.qualifiedName}: ${e.message}")
+        assertTrue(
+            e is ChatProtocolException,
+            "tool_calls 元素不是对象时应抛 ChatProtocolException，实际抛了 ${e::class.qualifiedName}: ${e.message}",
+        )
+    }
+
+    /** 回归守卫：非流式分支下结构完整的 tool_call 仍应正常解析并进入工具轮。 */
+    @Test fun wellFormedNonStreamingToolCallStillRunsTheToolRound() {
+        var requests = 0
+        var secondRequestSeesToolResult = false
+        server({ exchange ->
+            val request = Json.parseToJsonElement(exchange.requestBody.bufferedReader().readText()).jsonObject
+            requests++
+            if (requests == 1) {
+                exchange.reply(nonStreamingToolCallReply(buildJsonObject {
+                    put("id", "call_ok")
+                    put("type", "function")
+                    put("function", buildJsonObject {
+                        put("name", "unknown_test_tool"); put("arguments", "{}")
+                    })
+                }), type = "application/json")
+            } else {
+                secondRequestSeesToolResult =
+                    request["messages"]!!.jsonArray.any { it.jsonObject["role"]?.jsonPrimitive?.contentOrNull == "tool" }
+                exchange.reply(event(answer, "stop") + "data: [DONE]\n\n")
+            }
+        }) { config ->
+            assertEquals(answer, ChatTransport.generate(config.copy(toolsEnabled = true), listOf("user" to "hi"), {}, {}))
+            assertEquals(2, requests, "结构完整的 tool_call 应触发第二轮请求")
+            assertTrue(secondRequestSeesToolResult, "第二轮请求应带上 role=tool 的工具结果")
+        }
+    }
 }
