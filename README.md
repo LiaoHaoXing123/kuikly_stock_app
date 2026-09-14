@@ -2,7 +2,7 @@
 
 > 一套 Kotlin 代码，多端运行的 A 股（沪深）行情研究工具。基于腾讯 **Kuikly** 跨平台原生渲染框架开发，行情数据全部落在本地，主打「离线可用、本地分析」；K 线 / 分时图由 Kuikly Canvas 自主渲染，并内置可自由配置的 AI 研究助手。
 
-<video src="演示视频.mp4" controls preload="metadata" style="max-width:100%;border-radius:8px;"></video>
+https://github.com/user-attachments/assets/23088982-636d-4207-836d-b153984626b7
 
 > 完整演示约 18 分钟，可直接在上方播放器观看。各功能详细介绍见 [`docs/使用指南.md`](docs/使用指南.md)。
 
