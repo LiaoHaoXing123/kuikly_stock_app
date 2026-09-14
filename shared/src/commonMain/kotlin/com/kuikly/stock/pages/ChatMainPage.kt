@@ -272,6 +272,11 @@ class ChatMainPage : BasePager() {
         target.messages.forEach { messages.add(it) }
         inputText = ""
         inputRef.view?.setText("")
+        // 引用和消息操作属于原会话，切换（含新建）后不能带入下一次提问。
+        clearQuote()
+        showMsgActions = false
+        msgActionIndex = -1
+        msgActionContent = ""
         drawerOverlay.hide()
         if (persist) persistAllSessions()
     }
