@@ -83,7 +83,7 @@ https://github.com/user-attachments/assets/23088982-636d-4207-836d-b153984626b7
 - 聊天内容支持 KuiklyMarkdown 组件渲染（含图表卡片、证据卡片等结构化回复）。
 
 ### 2.6 自选盯盘
-- 星标收藏 / 移除自选股；录入持仓股数、成本与起始日期（本地记录，不连接券商）。
+- 星标收藏 / 移除自选股；录入持仓股数、成本与持仓区间（起始日到结束日，如 `2026年-09月-01日`，本地记录，不连接券商）。
 - **价格提醒**：支持四类规则——价格高于等于 / 低于等于某值、涨幅 / 跌幅达到阈值；AI 价位可一键设提醒。
 - **盈亏日历**：每个行情快照日自动记录持仓市值与当日盈亏；热力图红绿深浅表示幅度，标记跑赢 / 跑输沪深 300；头部统计日胜率、连盈连亏、最大单日盈亏、当月合计；涨跌停、提醒触发自动打点。
 
@@ -168,7 +168,7 @@ https://github.com/user-attachments/assets/23088982-636d-4207-836d-b153984626b7
 - 配置存储：`ai/config/AiProfileStore.kt`（Android 端 Key 经 `SecureSecretStore` 加密）。
 
 ### 5.5 自选与盈亏日历（WatchlistPage / HoldingCalendarPage）
-- 持仓录入（股数 / 成本 / 起始日期）→ `DatedPortfolio` + `HoldingCalendar` 计算逐日市值与盈亏。
+- 持仓录入（股数 / 成本 / 起始日 / 结束日）→ `DatedPortfolio` + `HoldingCalendar` 在区间内计算逐日市值与盈亏。
 - 提醒引擎：`data/AlertEngine.kt` 四类规则，触发后进「今日关注」并打点盈亏日历。
 
 ### 5.6 组合风险（RiskCenterPage）

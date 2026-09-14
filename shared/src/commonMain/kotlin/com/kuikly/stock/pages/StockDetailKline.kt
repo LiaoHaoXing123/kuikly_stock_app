@@ -47,7 +47,6 @@ import com.kuikly.stock.ui.theme.AppColor
 import com.kuikly.stock.ui.component.chartControlButton
 
 internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
-    val originalKline = ctx.stockDetail?.kline
 
     View {
         attr {
@@ -126,7 +125,7 @@ internal fun ViewContainer<*, *>.klineChartArea(ctx: StockDetailPage) {
         vif({ ctx.isLoading }) {
             klineLoadingView(ctx)
         }
-        velseif({ originalKline != null && originalKline.isNotEmpty() }) {
+        velseif({ !ctx.stockDetail?.kline.isNullOrEmpty() }) {
             vif({ !ctx.matureChartAvailable || !ctx.matureChartEnabled }) {
             vif({ ctx.klineToolsExpanded }) {
 
@@ -446,7 +445,10 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
         }
     }) { context, width, height ->
         val aggregated = ctx.getAggregatedKline()
-        val visible = ctx.getVisibleKline()
+        val viewport = klineViewport(aggregated.size, ctx.klineStartIndex, ctx.klineVisibleCount)
+        if (viewport.isEmpty()) return@Canvas
+        val visibleStart = viewport.first
+        val visible = aggregated.subList(visibleStart, viewport.last + 1)
         val aiLevels = parseAIPriceLevels(ctx.aiAnalysis)
         val nTotal = aggregated.size
         val nVisible = visible.size
@@ -541,11 +543,10 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
 
         val closes = aggregated.map { it.close }
         fun maAt(index: Int, period: Int): Double? {
-            if (index < period - 1) return null
+            if (index !in closes.indices || index < period - 1) return null
             return closes.subList(index - period + 1, index + 1).average()
         }
 
-        val visibleStart = ctx.klineStartIndex
         val ma5Points = mutableListOf<Pair<Float, Float>>()
         val ma10Points = mutableListOf<Pair<Float, Float>>()
         val ma20Points = mutableListOf<Pair<Float, Float>>()
@@ -824,7 +825,7 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
         if (showCrosshair) {
             val cx = ctx.crosshairX.coerceIn(0f, width)
             val activeIdx = ctx.crosshair.activeIndex ?: -1
-            val localIdx = activeIdx - ctx.klineStartIndex
+            val localIdx = activeIdx - visibleStart
             val k = visible.getOrNull(localIdx)
 
             context.strokeStyle(Color(AppColor.TEXT_GRAY))
@@ -899,8 +900,8 @@ internal fun ViewContainer<*, *>.klineChartCanvas(ctx: StockDetailPage) {
             }
 
             if (interaction is InteractionState.RangeSelect) {
-                val startLocal = interaction.startGlobalIdx - ctx.klineStartIndex
-                val endLocal = interaction.endGlobalIdx - ctx.klineStartIndex
+                val startLocal = interaction.startGlobalIdx - visibleStart
+                val endLocal = interaction.endGlobalIdx - visibleStart
                 if (startLocal in visible.indices || endLocal in visible.indices) {
                     val lo = minOf(startLocal, endLocal).coerceIn(0, nVisible - 1)
                     val hi = maxOf(startLocal, endLocal).coerceIn(0, nVisible - 1)

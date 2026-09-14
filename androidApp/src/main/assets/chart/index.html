@@ -45,9 +45,16 @@ function send(kind,from,to){const v=chart.getVisibleRange();ChartBridge.selectio
 function askCandle(){if(selected<0)return statusText('请先长按选择一根蜡烛');send('ask',selected,selected);statusText('已发送 '+rows[selected].date+' 的解读请求，请看下方输入框');}
 function askRange(){if(start<0||selected<0||start===selected)return statusText('先设起点，再长按选择另一根作为终点');send('range',Math.min(start,selected),Math.max(start,selected));statusText('已发送区间 '+rows[Math.min(start,selected)].date+' ~ '+rows[Math.max(start,selected)].date+' 的解读请求，请看下方输入框');}
 document.getElementById('indicator').onchange=e=>{if(pane)chart.removeIndicator(pane);pane=chart.createIndicator(e.target.value,false,{height:120,gap:{top:58,bottom:12}});};
-window.renderChart=function(p){try{
+let renderRetry=0;
+window.renderChart=function(p){
+ clearTimeout(renderRetry);
+ renderRetry=0;
+ try{
+ const target=document.getElementById('chart');
+ // 只保留最新一次等待布局的渲染，避免旧周期覆盖新选择。
+ if(target.clientWidth<2||target.clientHeight<2){renderRetry=setTimeout(()=>renderChart(p),120);return;}
  document.body.classList.toggle('dark',!!p.dark);
- if(!chart){const el0=document.getElementById('chart');if(el0.clientWidth<2||el0.clientHeight<2){console.log('[chart] 容器未就绪 '+el0.clientWidth+'x'+el0.clientHeight+' 延迟重试');return setTimeout(()=>renderChart(p),120);}
+ if(!chart){
  chart=klinecharts.init('chart',{locale:'zh-CN',timezone:'Asia/Shanghai'});chart.createIndicator('MA',false,{id:'candle_pane',gap:{top:70,bottom:28}});pane=chart.createIndicator('VOL',false,{height:120,gap:{top:58,bottom:12}});
  chart.subscribeAction('onCrosshairChange',e=>{if(e.dataIndex>=0&&e.dataIndex<rows.length){selected=e.dataIndex;showQuote(selected);
   if(start>=0&&selected!==start){statusText('终点：'+rows[selected].date+' · 点「解读区间」生成统计');if(lastMarked!==selected)drawRangeMarkers();}

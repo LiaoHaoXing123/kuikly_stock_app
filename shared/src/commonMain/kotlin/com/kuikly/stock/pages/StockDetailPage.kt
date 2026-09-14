@@ -231,9 +231,8 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
     override fun pageDidAppear() {
         super.pageDidAppear()
 
-        skeletonPulse.bump()
-
-        loadStockDetail()
+        watched = stockCode.isNotEmpty() && WatchStore.isWatched(stockCode)
+        // 返回详情页时保留图表与滚动位置，行情由实时循环继续更新。
         startLiveLoop()
     }
 
@@ -280,14 +279,13 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
                             scrollEnable(true)
                         }
 
-                        vfor({ ObservableList(mutableListOf(ctx.detailEpoch)) }) { _ ->
-                            View {
-                                attr {
-                                    flexDirectionColumn()
-                                    width(ctx.pagerData.pageViewWidth)
-                                }
-                                detailContent(ctx)
+                        // 保持滚动内容根节点稳定，数据变更只更新对应卡片。
+                        View {
+                            attr {
+                                flexDirectionColumn()
+                                width(ctx.pagerData.pageViewWidth)
                             }
+                            detailContent(ctx)
                         }
                     }
                 }
@@ -332,13 +330,13 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
                     klineInfoText = ""
                     publishQuote(firstLoad)
                 } else {
-                    stockDetail = null
                     loadErrorMessage = "未找到股票 $stockCode 的数据"
+                    if (!firstLoad) aiErrorNotice = loadErrorMessage
                 }
             } catch (e: Throwable) {
                 delay(0)
-                stockDetail = null
                 loadErrorMessage = e.message ?: "数据加载失败"
+                if (!firstLoad) aiErrorNotice = loadErrorMessage
             } finally {
 
                 if (firstLoad) ensureSkeletonVisible(startedAt)
@@ -600,10 +598,8 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
 
     internal fun getVisibleKline(): List<KLineDataItem> {
         val agg = getAggregatedKline()
-        if (agg.isEmpty()) return emptyList()
-        val start = klineStartIndex.coerceIn(0, (agg.size - 1).coerceAtLeast(0))
-        val end = (start + klineVisibleCount).coerceAtMost(agg.size)
-        return if (start >= end) emptyList() else agg.subList(start, end)
+        val window = klineViewport(agg.size, klineStartIndex, klineVisibleCount)
+        return if (window.isEmpty()) emptyList() else agg.subList(window.first, window.last + 1)
     }
 
     private var chartAnimSeq = 0
@@ -970,18 +966,18 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
 }
 
 private fun ViewContainer<*, *>.detailContent(ctx: StockDetailPage) {
-    realtimeCard(ctx)
+    vfor({ ObservableList(mutableListOf(ctx.stockDetail?.realtime)) }) { _ -> realtimeCard(ctx) }
     industryCard(ctx)
     sectorCard(ctx)
-    eventCard(ctx)
+    vfor({ ObservableList(mutableListOf(ctx.detailEpoch)) }) { _ -> eventCard(ctx) }
     View {
         event { layoutFrameDidChange { frame -> ctx.chartAnchorY = frame.y } }
         klineChartArea(ctx)
     }
     minuteCard(ctx)
     orderBookCard(ctx)
-    indicatorCard(ctx)
-    fundFlowCard(ctx)
+    vfor({ ObservableList(mutableListOf(ctx.stockDetail?.indicator)) }) { _ -> indicatorCard(ctx) }
+    vfor({ ObservableList(mutableListOf(ctx.stockDetail?.fundFlow)) }) { _ -> fundFlowCard(ctx) }
     View {
         event { layoutFrameDidChange { frame -> ctx.aiSectionY = frame.y } }
         aiAnalysisCards(ctx)
@@ -1004,7 +1000,7 @@ private fun ViewContainer<*, *>.detailContent(ctx: StockDetailPage) {
         ctx.aiExpandedKeys.clear()
         ctx.jumpToAiSection()
     }
-    infoCard(ctx)
+    vfor({ ObservableList(mutableListOf(ctx.stockDetail?.info)) }) { _ -> infoCard(ctx) }
     vif({ ctx.dataSourceText.isNotEmpty() }) {
         dataSourceFooter(ctx)
     }

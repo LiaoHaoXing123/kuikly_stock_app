@@ -29,6 +29,7 @@ import com.tencent.kuikly.core.reactive.handler.observable
 import com.tencent.kuikly.core.reactive.handler.observableList
 import com.tencent.kuikly.core.views.*
 import com.kuikly.stock.data.HoldingInput
+import com.kuikly.stock.data.CivilDate
 import com.kuikly.stock.data.PriceAlertRule
 import com.kuikly.stock.data.HoldingCalendar
 import com.kuikly.stock.data.WatchHolding
@@ -70,6 +71,7 @@ class WatchlistPage : BasePager() {
     internal var editSharesText by observable("")
     internal var editCostText by observable("")
     internal var editStartDateText by observable("")
+    internal var editEndDateText by observable("")
     internal var editAlertType by observable(-1)
     internal var editThresholdText by observable("")
     internal var editRules: ObservableList<PriceAlertRule> by observableList()
@@ -245,7 +247,12 @@ class WatchlistPage : BasePager() {
 
         editSharesText = if (row.shares > 0.0) trimNum(row.shares) else ""
         editCostText = if (row.cost > 0.0) fmt2(row.cost) else ""
-        editStartDateText = WatchStore.find(row.code)?.startDate.orEmpty()
+        val saved = WatchStore.find(row.code)
+        val today = CivilDate.fromEpochDay((nowMillis() + 8 * 3600000L) / 86400000L)
+
+        // 起始日期默认填好年月日（已保存值，否则今天），用户只需要改数字。
+        editStartDateText = CivilDate.parse(saved?.startDate.orEmpty())?.cn ?: today.cn
+        editEndDateText = CivilDate.parse(saved?.endDate.orEmpty())?.cn.orEmpty()
         editRules.clear()
         editRules.addAll(WatchStore.alertsOf(row.code))
         editAlertType = -1
@@ -256,6 +263,20 @@ class WatchlistPage : BasePager() {
 
     internal fun dismissEdit() {
         editOverlay.hide()
+    }
+
+    /**
+     * 日期框掩码：只保留数字、自动补「年-月-日」。
+     *
+     * 注意不要在这里做「值没变就再写一次」的强制回写：Kuikly 的 `isSyncEdit` 会把状态
+     * 回写进输入框，若回写必然改变值就会和 textDidChange 互相触发，页面直接 ANR。
+     */
+    internal fun applyStartDateMask(next: String) {
+        editStartDateText = CivilDate.maskTyping(editStartDateText, next)
+    }
+
+    internal fun applyEndDateMask(next: String) {
+        editEndDateText = CivilDate.maskTyping(editEndDateText, next)
     }
 
     internal fun saveEdit() {
@@ -272,14 +293,32 @@ class WatchlistPage : BasePager() {
             editMessage = "提醒阈值需为有效正数"
             return
         }
-        val startDate = com.kuikly.stock.data.CivilDate.parse(editStartDateText.trim())
-        val today = com.kuikly.stock.data.CivilDate.fromEpochDay((com.kuikly.stock.data.nowMillis() + 8 * 3600000L) / 86400000L)
-        if (input.shares > 0 && (startDate == null || startDate.year !in 1900..9999 || startDate > today)) {
-            editMessage = "请填写有效持仓起始日期（YYYY-MM-DD），不能晚于今天"
-            return
+        val startText = editStartDateText.trim()
+        val endText = editEndDateText.trim()
+        val startDate = if (startText.isEmpty()) null else CivilDate.parseLoose(startText)
+        val endDate = if (endText.isEmpty()) null else CivilDate.parseLoose(endText)
+        val today = CivilDate.fromEpochDay((nowMillis() + 8 * 3600000L) / 86400000L)
+        if (input.shares > 0) {
+            if (startDate == null || startDate.year !in 1900..9999 || startDate > today) {
+                editMessage = "请填写有效持仓起始日期（如 2026年-09月-01日），不能晚于今天"
+                return
+            }
+            if (endText.isNotEmpty() && (endDate == null || endDate.year !in 1900..9999 || endDate > today)) {
+                editMessage = "持仓结束日期需有效且不晚于今天，留空表示持有至今"
+                return
+            }
+            if (endDate != null && endDate < startDate) {
+                editMessage = "持仓结束日期不能早于起始日期"
+                return
+            }
         }
-        WatchStore.updateHolding(WatchHolding(editCode, editName, input.shares, input.cost,
-            if (input.shares > 0) startDate!!.iso else ""))
+        WatchStore.updateHolding(
+            if (input.shares > 0) {
+                WatchHolding(editCode, editName, input.shares, input.cost, startDate!!.iso, endDate?.iso.orEmpty())
+            } else {
+                WatchHolding(editCode, editName)
+            }
+        )
         val alertSaved = if (editAlertType >= 0 && threshold != null) {
             WatchStore.upsertAlert(PriceAlertRule(editCode, editName, editAlertType, threshold, true))
         } else true
@@ -625,7 +664,7 @@ internal fun ViewContainer<*, *>.watchlistRow(ctx: WatchlistPage, row: WatchRowD
         }
 
         if (row.shares > 0) {
-            Text { attr { text(WatchStore.find(row.code)?.startDate?.takeIf { it.isNotBlank() }?.let { "持仓始于 $it" } ?: "待补持仓起始日期 · 盈亏日历尚未计算"); fontSize(10f); color(AppColor.TEXT_SUB); marginBottom(4f) } }
+            Text { attr { text(WatchStore.find(row.code)?.periodCn?.takeIf { it.isNotBlank() }?.let { "持仓 $it" } ?: "待补持仓区间 · 盈亏日历尚未计算"); fontSize(10f); color(AppColor.TEXT_SUB); marginBottom(4f) } }
             View {
                 attr { flexDirectionRow(); marginTop(10f) }
                 Text { attr { text("持仓 ${trimHoldNum(row.shares)} 股 · 成本 ${fmt2(row.cost)}"); fontSize(11f); color(AppColor.TEXT_SUB); flex(1f) } }
@@ -771,10 +810,16 @@ internal fun ViewContainer<*, *>.watchEditDialog(ctx: WatchlistPage) {
             dialogField(
                 label = "持仓起始日期",
                 value = { ctx.editStartDateText },
-                placeholder = "YYYY-MM-DD，如 2026-09-01",
-                onTextChange = { ctx.editStartDateText = it },
+                placeholder = "只需输入数字，如 2026年-09月-01日",
+                onTextChange = { ctx.applyStartDateMask(it) },
             )
-            Text { attr { text("每只股票分别设置日期；日历按当前股数、成本和起始日重算，不含加减仓记录。"); fontSize(10f); lineHeight(15f); color(AppColor.TEXT_SUB); marginTop(6f) } }
+            dialogField(
+                label = "持仓结束日期",
+                value = { ctx.editEndDateText },
+                placeholder = "只需输入数字；留空表示持有至今",
+                onTextChange = { ctx.applyEndDateMask(it) },
+            )
+            Text { attr { text("日期框里的「年-月-日」已经固定，只需要改数字。每只股票分别设置区间；日历按当前股数、成本和【起始日】到【结束日】重算区间内盈亏，不含加减仓记录。"); fontSize(10f); lineHeight(15f); color(AppColor.TEXT_SUB); marginTop(6f) } }
 
             Text {
                 attr {

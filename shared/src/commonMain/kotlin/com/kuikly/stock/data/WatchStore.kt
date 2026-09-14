@@ -9,7 +9,22 @@ internal data class WatchHolding(
     val shares: Double = 0.0,
     val cost: Double = 0.0,
     val startDate: String = "",
-)
+    /** 持仓区间结束日（ISO）；留空表示仍持有，区间一直算到今天。 */
+    val endDate: String = "",
+) {
+
+    /** 该持仓在指定交易日是否计入盈亏区间。 */
+    fun activeOn(date: String): Boolean =
+        startDate.isNotBlank() && startDate <= date && (endDate.isBlank() || date <= endDate)
+
+    /** 展示用区间文案，如 "2026年-09月-01日 到 2026年-09月-14日"。 */
+    val periodCn: String
+        get() = when {
+            startDate.isBlank() -> ""
+            endDate.isBlank() -> CivilDate.toCn(startDate) + " 至今"
+            else -> CivilDate.toCn(startDate) + " 到 " + CivilDate.toCn(endDate)
+        }
+}
 
 internal data class PriceAlertRule(
     val code: String,
@@ -69,7 +84,7 @@ internal open class WatchRepository(
     }
 
     fun clearHolding(code: String) {
-        find(code)?.let { updateHolding(it.copy(shares = 0.0, cost = 0.0, startDate = "")) }
+        find(code)?.let { updateHolding(it.copy(shares = 0.0, cost = 0.0, startDate = "", endDate = "")) }
     }
 
     fun alerts(): List<PriceAlertRule> = parseAlerts(read(KEY_ALERT))
@@ -110,7 +125,8 @@ internal open class WatchRepository(
                 .put("name", h.name)
                 .put("shares", h.shares)
                 .put("cost", h.cost)
-                .put("startDate", h.startDate))
+                .put("startDate", h.startDate)
+                .put("endDate", h.endDate))
         }
         return JSONObject().put("items", arr).toString()
     }
@@ -129,6 +145,7 @@ internal open class WatchRepository(
                         shares = o.optDouble("shares", 0.0),
                         cost = o.optDouble("cost", 0.0),
                         startDate = o.optString("startDate", ""),
+                        endDate = o.optString("endDate", ""),
                     ))
                 }
             }

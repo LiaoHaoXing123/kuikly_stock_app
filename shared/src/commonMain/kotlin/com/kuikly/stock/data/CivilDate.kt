@@ -7,6 +7,12 @@ internal data class CivilDate(val year: Int, val month: Int, val day: Int) : Com
             month.toString().padStart(2, '0') + "-" +
             day.toString().padStart(2, '0')
 
+    /** 展示用中文格式，如 2026年-09月-01日。 */
+    val cn: String
+        get() = year.toString().padStart(4, '0') + "年-" +
+            month.toString().padStart(2, '0') + "月-" +
+            day.toString().padStart(2, '0') + "日"
+
     val mondayIndex: Int
         get() {
             val z = toEpochDay()
@@ -68,6 +74,74 @@ internal data class CivilDate(val year: Int, val month: Int, val day: Int) : Com
             if (d !in 1..dim) return null
             return CivilDate(y, m, d)
         }
+
+        /**
+         * 宽松解析：接受 2026-09-01、2026年-09月-01日、2026年9月1日、2026/09/01 等写法。
+         * 掩码框偶尔会多带一位数字（如 `2026年-09月-11日7`），取前三个数字即可，不因此拦下保存。
+         */
+        fun parseLoose(text: String): CivilDate? {
+            val nums = mutableListOf<Int>()
+            var cur = StringBuilder()
+            fun flush() {
+                if (cur.isNotEmpty()) {
+                    cur.toString().toIntOrNull()?.let { nums.add(it) }
+                    cur = StringBuilder()
+                }
+            }
+            for (ch in text) {
+                if (ch.isDigit()) cur.append(ch) else flush()
+            }
+            flush()
+            if (nums.size < 3) return null
+            return of(nums[0], nums[1], nums[2])
+        }
+
+        /**
+         * 日期输入掩码：只保留数字（最多 8 位），并按 `YYYY年-MM月-DD日` 摆放，
+         * 「年-」「月-」「日」是固定字符，用户只需要输入数字。
+         */
+        fun maskDigits(raw: String): String {
+            val digits = raw.filter { it.isDigit() }.take(8)
+            val sb = StringBuilder()
+            for ((i, ch) in digits.withIndex()) {
+                sb.append(ch)
+                when (i) {
+                    3 -> sb.append("年-")
+                    5 -> sb.append("月-")
+                    7 -> sb.append("日")
+                }
+            }
+            return sb.toString()
+        }
+
+        /**
+         * 输入框增量掩码：prev 是改动前的显示文本，next 是本次输入后的文本。
+         *
+         * - 文本变短且数字没少：只是被删掉了掩码字符（"-"、"日"），按删掉最后一位数字处理，
+         *   否则掩码会立刻把字符补回来、退格看起来失效。
+         * - 文本变短且数字也少了：整段删除或全选后覆盖输入，直接采用剩下的数字。
+         * - 文本变长：追加数字。
+         */
+        fun maskTyping(prev: String, next: String): String {
+            val prevDigits = prev.filter { it.isDigit() }.take(8)
+            val nextDigits = next.filter { it.isDigit() }.take(8)
+            val digits = when {
+                next.length >= prev.length -> nextDigits
+                nextDigits.length >= prevDigits.length -> prevDigits.dropLast(1)
+                else -> nextDigits
+            }
+            return maskDigits(digits)
+        }
+
+        /** 由年月日构造并校验，非法返回 null。 */
+        fun of(year: Int, month: Int, day: Int): CivilDate? {
+            if (year !in 1..9999 || month !in 1..12) return null
+            if (day !in 1..daysInMonth(year, month)) return null
+            return CivilDate(year, month, day)
+        }
+
+        /** 把 ISO 日期转成展示用中文格式；无法解析时原样返回。 */
+        fun toCn(iso: String): String = parse(iso)?.cn ?: iso
 
         fun daysInMonth(year: Int, month: Int): Int {
             if (month == 2) return if (isLeap(year)) 29 else 28

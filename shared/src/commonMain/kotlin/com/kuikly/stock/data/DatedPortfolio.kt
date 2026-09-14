@@ -2,8 +2,14 @@ package com.kuikly.stock.data
 
 import com.kuikly.stock.pages.KLineDataItem
 
-internal fun WatchHolding.hasCalendarPosition(): Boolean = shares.isFinite() && shares > 0 &&
-    cost.isFinite() && cost > 0 && CivilDate.parse(startDate)?.year in 1900..9999
+internal fun WatchHolding.hasCalendarPosition(): Boolean {
+    if (!shares.isFinite() || shares <= 0 || !cost.isFinite() || cost <= 0) return false
+    val start = CivilDate.parse(startDate) ?: return false
+    if (start.year !in 1900..9999) return false
+    if (endDate.isBlank()) return true
+    val end = CivilDate.parse(endDate) ?: return false
+    return end.year in 1900..9999 && end >= start
+}
 
 internal fun datedPortfolioDays(
     holdings: List<WatchHolding>, histories: Map<String, List<KLineDataItem>>,
@@ -17,7 +23,7 @@ internal fun datedPortfolioDays(
     val quotes = held.associate { h ->
         val bars = sorted[h.code].orEmpty()
         h.code to bars.mapIndexedNotNull { i, bar ->
-            if (bar.tradeDate < h.startDate || !bar.close.isFinite() || bar.close <= 0) return@mapIndexedNotNull null
+            if (!h.activeOn(bar.tradeDate) || !bar.close.isFinite() || bar.close <= 0) return@mapIndexedNotNull null
             val prev = bars.getOrNull(i - 1)
             val entry = bar.tradeDate == h.startDate || (prev != null && prev.tradeDate < h.startDate)
             // 建仓日以成本为基准，后续交易日使用前收盘价。
@@ -29,7 +35,7 @@ internal fun datedPortfolioDays(
         }.toMap()
     }
     return quotes.values.flatMap { it.keys }.distinct().sorted().mapNotNull { date ->
-        val active = held.filter { it.startDate <= date }
+        val active = held.filter { it.activeOn(date) }
         if (active.any { quotes[it.code]?.get(date) == null }) return@mapNotNull null
         buildHoldingDaySnapshot(date, active, { quotes[it]?.get(date) }, benchmark[date], emptyList(),
             events.filter { it.date == date && active.any { h -> h.code == it.code } })

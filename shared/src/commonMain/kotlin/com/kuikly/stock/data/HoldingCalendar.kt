@@ -1,4 +1,4 @@
-// 按持仓起始日期计算每日市值与盈亏。
+// 按持仓区间（起始日到结束日）计算每日市值与盈亏。
 
 package com.kuikly.stock.data
 
@@ -127,7 +127,7 @@ internal fun buildHoldingDaySnapshot(
     alertHits: List<Pair<PriceAlertRule, String>>,
     extraEvents: List<CalendarEventMark> = emptyList(),
 ): CalendarDaySnapshot? {
-    val positions = holdings.filter { it.hasCalendarPosition() && it.startDate <= date }
+    val positions = holdings.filter { it.hasCalendarPosition() && it.activeOn(date) }
     if (positions.isEmpty()) return null
     val lines = mutableListOf<HoldingDayLine>()
     val events = extraEvents.toMutableList()

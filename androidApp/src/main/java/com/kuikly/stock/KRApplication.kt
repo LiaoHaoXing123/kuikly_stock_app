@@ -23,7 +23,7 @@ class KRApplication : Application() {
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityDestroyed(activity: Activity) {
 
-                StockKlineWebView.ChartBridgeHolder.evict()
+                StockKlineWebView.ChartBridgeHolder.evict(activity)
             }
 
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit

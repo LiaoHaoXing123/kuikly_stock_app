@@ -2,6 +2,8 @@
 
 package com.kuikly.stock
 
+import android.app.Activity
+import android.content.ContextWrapper
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Color
@@ -15,27 +17,28 @@ import kotlin.math.abs
 
 @SuppressLint("SetJavaScriptEnabled")
 class StockKlineWebView(context: Context) : KRView(context) {
+    // 销毁后的包装视图不可复用；WebView 缓存由所属 Activity 管理。
+    override val reusable: Boolean get() = false
     private var disposed = false
     private var payload = "{}"
     private var lastCommand = ""
     private var callback: ((Any?) -> Unit)? = null
-    private var downX = 0f
-    private var downY = 0f
-    private val web = ChartBridgeHolder.acquireSharedWebView(context)
+    private val session = ChartBridgeHolder.acquire(context)
+    private val web = session.web
 
     init {
         (web.parent as? ViewGroup)?.removeView(web)
         addView(web, FrameLayout.LayoutParams(-1, -1))
-        ChartBridgeHolder.onLoaded = { post { if (!disposed) render() } }
-        ChartBridgeHolder.selectionListener = { data ->
-            web.post { if (!disposed) callback?.invoke(data) }
+        session.owner = this
+        session.onLoaded = { post { render() } }
+        session.selectionListener = { data ->
+            web.post { if (!disposed && session.owner === this) callback?.invoke(data) }
         }
     }
 
     override fun setProp(propKey: String, propValue: Any): Boolean = when (propKey) {
         "chartData" -> {
             val next = propValue.toString()
-            println("[chart-data] native setProp len=${next.length} changed=${next != payload}")
             if (next != payload) { payload = next; render() }
             true
         }
@@ -49,7 +52,7 @@ class StockKlineWebView(context: Context) : KRView(context) {
             val cmd = propValue.toString()
             if (cmd != lastCommand) {
                 lastCommand = cmd
-                if (ChartBridgeHolder.loaded && cmd.contains("reset")) {
+                if (session.loaded && !disposed && session.owner === this && cmd.contains("reset")) {
                     web.evaluateJavascript("window.chartCommand('reset')", null)
                 }
             }
@@ -59,7 +62,7 @@ class StockKlineWebView(context: Context) : KRView(context) {
     }
 
     private fun render() {
-        if (ChartBridgeHolder.loaded && !disposed) {
+        if (session.loaded && !disposed && session.owner === this && payload != "{}") {
             web.evaluateJavascript("window.renderChart(JSON.parse(${JSONObject.quote(payload)}))", null)
         }
     }
@@ -67,29 +70,51 @@ class StockKlineWebView(context: Context) : KRView(context) {
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
 
+        if (disposed) return
         if (web.parent !== this) {
             (web.parent as? ViewGroup)?.removeView(web)
             addView(web, FrameLayout.LayoutParams(-1, -1))
         }
+        post { render() }
     }
 
     override fun onDestroy() {
         disposed = true; callback = null
+        if (session.owner === this) {
+            session.owner = null
+            session.onLoaded = null
+            session.selectionListener = null
+        }
 
         if (web.parent === this) removeView(web)
         super.onDestroy()
     }
 
     object ChartBridgeHolder {
-        var shared: WebView? = null
+        private val sessions = mutableMapOf<Activity, SharedChart>()
+
+        fun acquire(context: Context): SharedChart {
+            var current = context
+            while (current is ContextWrapper && current !is Activity) current = current.baseContext
+            val activity = current as Activity
+            return sessions.getOrPut(activity) { SharedChart(activity) }
+        }
+
+        fun evict(activity: Activity) {
+            sessions.remove(activity)?.destroy()
+        }
+    }
+
+    class SharedChart(context: Context) {
+        var owner: StockKlineWebView? = null
+        val web: WebView = createWebView(context)
         var loaded = false
         var onLoaded: (() -> Unit)? = null
         var selectionListener: ((Map<String, Any>) -> Unit)? = null
         private var downX = 0f
         private var downY = 0f
 
-        fun acquireSharedWebView(context: Context): WebView {
-            shared?.let { return it }
+        private fun createWebView(context: Context): WebView {
             val web = WebView(context)
             web.setBackgroundColor(Color.TRANSPARENT)
             web.settings.apply {
@@ -111,7 +136,7 @@ class StockKlineWebView(context: Context) : KRView(context) {
                     return true
                 }
             }
-            web.addJavascriptInterface(bridge, "ChartBridge")
+            web.addJavascriptInterface(createBridge(), "ChartBridge")
             web.setOnTouchListener { _, event ->
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
@@ -129,24 +154,21 @@ class StockKlineWebView(context: Context) : KRView(context) {
             val script = context.assets.open("chart/klinecharts-9.8.12.min.js").bufferedReader().use { it.readText() }
             val html = context.assets.open("chart/index.html").bufferedReader().use { it.readText() }
             web.loadDataWithBaseURL("https://chart.local/", html.replace("/* ENGINE_BUNDLE */", script), "text/html", "UTF-8", null)
-            shared = web
             return web
         }
 
-        fun evict() {
-            shared?.let { w ->
-                w.removeJavascriptInterface("ChartBridge")
-                w.stopLoading()
-                (w.parent as? ViewGroup)?.removeView(w)
-                w.destroy()
-            }
-            shared = null
-            loaded = false
+        fun destroy() {
+            owner = null
             onLoaded = null
             selectionListener = null
+            web.removeJavascriptInterface("ChartBridge")
+            web.stopLoading()
+            (web.parent as? ViewGroup)?.removeView(web)
+            web.destroy()
+            loaded = false
         }
 
-        private val bridge = object {
+        private fun createBridge() = object {
             @JavascriptInterface
             fun selection(value: String) {
                 val parsed = runCatching { JSONObject(value) }.getOrNull() ?: return
