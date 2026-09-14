@@ -1,5 +1,7 @@
 package com.kuikly.stock.pages
 
+import com.tencent.kuikly.core.views.List as RecycledList
+
 import com.kuikly.stock.base.BasePager
 import com.kuikly.stock.data.StockColors
 
@@ -506,7 +508,8 @@ internal fun ViewContainer<*, *>.listHeaderRow() {
 }
 
 internal fun ViewContainer<*, *>.stockListView(ctx: StockListPage) {
-    Scroller {
+    // 行情可连续加载数千行；List 回收可见区外的原生视图，避免随翻页一直累积。
+    RecycledList {
         attr {
             flex(1f)
             flexDirectionColumn()
