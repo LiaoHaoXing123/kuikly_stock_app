@@ -966,7 +966,11 @@ class StockDetailPage : BasePager(), KlineInteractionHost {
 }
 
 private fun ViewContainer<*, *>.detailContent(ctx: StockDetailPage) {
-    vfor({ ObservableList(mutableListOf(ctx.stockDetail?.realtime)) }) { _ -> realtimeCard(ctx) }
+    // 注意：下面这几处必须用 listOfNotNull(...)，数据缺失时列表为空、creator 不执行。
+    // 若写成 mutableListOf(可能为 null 的值)，creator 仍会被调用一次，而卡片函数在数据为 null
+    // 时是 `?: return`，会产出 0 个孩子节点，框架随即抛
+    // 「vfor creator闭包内必须需要且仅一个孩子节点的生成」并崩溃。
+    vfor({ ObservableList(listOfNotNull(ctx.stockDetail?.realtime).toMutableList()) }) { _ -> realtimeCard(ctx) }
     industryCard(ctx)
     sectorCard(ctx)
     vfor({ ObservableList(mutableListOf(ctx.detailEpoch)) }) { _ -> eventCard(ctx) }
@@ -976,7 +980,7 @@ private fun ViewContainer<*, *>.detailContent(ctx: StockDetailPage) {
     }
     minuteCard(ctx)
     orderBookCard(ctx)
-    vfor({ ObservableList(mutableListOf(ctx.stockDetail?.indicator)) }) { _ -> indicatorCard(ctx) }
+    vfor({ ObservableList(listOfNotNull(ctx.stockDetail?.indicator).toMutableList()) }) { _ -> indicatorCard(ctx) }
     vfor({ ObservableList(mutableListOf(ctx.stockDetail?.fundFlow)) }) { _ -> fundFlowCard(ctx) }
     View {
         event { layoutFrameDidChange { frame -> ctx.aiSectionY = frame.y } }
@@ -1000,7 +1004,7 @@ private fun ViewContainer<*, *>.detailContent(ctx: StockDetailPage) {
         ctx.aiExpandedKeys.clear()
         ctx.jumpToAiSection()
     }
-    vfor({ ObservableList(mutableListOf(ctx.stockDetail?.info)) }) { _ -> infoCard(ctx) }
+    vfor({ ObservableList(listOfNotNull(ctx.stockDetail?.info).toMutableList()) }) { _ -> infoCard(ctx) }
     vif({ ctx.dataSourceText.isNotEmpty() }) {
         dataSourceFooter(ctx)
     }

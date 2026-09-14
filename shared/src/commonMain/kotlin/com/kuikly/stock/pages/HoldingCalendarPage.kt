@@ -270,6 +270,9 @@ class HoldingCalendarPage : BasePager() {
         if (!cell.inMonth) return
         val snap = cell.snapshot
         selectedDate = cell.date
+        // 必须先赋值 selectedSnap、再动 detailCodes：下面的 vfor 以 detailCodes 为数据源，
+        // 而它的 creator `calendarHoldingLine` 在 lineOf(code) 为 null 时会提前 return。
+        // 若顺序反了，creator 会在 selectedSnap 仍是旧值时被触发，产出 0 个孩子节点而崩溃。
         selectedSnap = snap
         detailCodes.clear()
         detailEvents.clear()
