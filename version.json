@@ -1,0 +1,38 @@
+{
+  "schema_version": "1",
+  "updated_at": "2026-09-18 13:26:45",
+  "latest_trade_date": "2026-09-18",
+  "build": 20260918132645,
+  "prune_days": 30,
+  "kline_days_back": 60,
+  "sources": {
+    "stock_info": "交易所+东方财富",
+    "stock_realtime": "东方财富",
+    "stock_daily_kline": "腾讯",
+    "stock_minute": "新浪",
+    "stock_order_book": "东方财富",
+    "stock_indicator": "本地计算",
+    "index_info": "东方财富",
+    "index_realtime": "东方财富",
+    "index_daily_kline": "东方财富",
+    "stock_fund_flow": "新浪(主力)+东财(五档降级)",
+    "sector_board": "东方财富·官方行业板块",
+    "sector_member": "东方财富·官方行业板块成分股"
+  },
+  "db_bytes": 5926912,
+  "sha256": "d4f20906db618793218434c8093d79de39886112f561b08a8826246aab8e2eb4",
+  "counts": {
+    "stock_info": 5917,
+    "stock_realtime": 5917,
+    "stock_daily_kline": 1219,
+    "stock_minute": 21670,
+    "stock_order_book": 11,
+    "stock_indicator": 1219,
+    "index_info": 268,
+    "index_realtime": 268,
+    "index_daily_kline": 0,
+    "stock_fund_flow": 1219,
+    "sector_board": 496,
+    "sector_member": 10042
+  }
+}
